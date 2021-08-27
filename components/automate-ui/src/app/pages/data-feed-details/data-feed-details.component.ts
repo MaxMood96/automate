@@ -17,7 +17,13 @@ import {
   EnableDisableDestination,
   DeleteDestination
 } from 'app/entities/destinations/destination.actions';
-import { destinationFromRoute, getStatus, updateStatus } from 'app/entities/destinations/destination.selectors';
+import { 
+  destinationFromRoute, 
+  getStatus, 
+  updateStatus, 
+  destinationEnableStatus, 
+  deleteStatus
+} from 'app/entities/destinations/destination.selectors';
 import { Destination } from 'app/entities/destinations/destination.model';
 import { Router } from '@angular/router'
 import { trigger, state, animate, transition, style, keyframes } from '@angular/animations';
@@ -170,11 +176,27 @@ export class DataFeedDetailsComponent implements OnInit, OnDestroy {
       enable: val
     }
     this.store.dispatch(new EnableDisableDestination({enableDisable: destinationEnableObj}));
-    this.state = this.state === 'active' ? 'inactive' : 'active';
+    this.store.pipe(
+      select(destinationEnableStatus),
+      takeUntil(this.isDestroyed),
+      filter(state => !pending(state)))
+      .subscribe(state => {
+        if (state === EntityStatus.loadingSuccess) {
+          this.state = this.state === 'active' ? 'inactive' : 'active';
+        }
+      });
   }
   deleteDataFeed(){
     this.store.dispatch(new DeleteDestination(this.destination));
-    this.router.navigate(['/settings/data-feeds'])
+    this.store.pipe(
+      select(deleteStatus),
+      takeUntil(this.isDestroyed),
+      filter(state => !pending(state)))
+      .subscribe(state => {
+        if (state === EntityStatus.loadingSuccess) {
+          this.router.navigate(['/settings/data-feeds'])
+        }
+      });
   }
   ngOnDestroy(): void {
     this.isDestroyed.next(true);
