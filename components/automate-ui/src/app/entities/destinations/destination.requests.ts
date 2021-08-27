@@ -97,7 +97,7 @@ export class DestinationRequests {
 
   public testDestination(destination: Destination): Observable<Object> {
     if (destination.secret) {
-      return this.testDestinationWithSecretId(destination.url, destination.secret);
+      return this.testDestinationWithSecretId(destination);
     }
   }
 
@@ -115,9 +115,33 @@ export class DestinationRequests {
       { url, 'header': {value} });
   }
 
-  public testDestinationWithSecretId(url: string, secretId: string): Observable<Object> {
+  public testDestinationWithSecretId(destination:Destination): Observable<Object> {
+    const SecretIdParams = this.secretIdParams(destination)
     return this.http.post(encodeURI(
-      this.joinToDataFeedUrl(['destinations', 'test'])), { url, 'secret_id': { 'id': secretId } });
+      this.joinToDataFeedUrl(['destinations', 'test'])), SecretIdParams);
+  }
+
+  public secretIdParams(destination: Destination){
+    if(destination.integration_types != ""){
+      return { 
+        'url': destination.url,
+        'secret_id_with_addon': { 
+          'id': destination.secret,
+          'services': destination.services,
+          'integration_types': destination.integration_types,
+          'meta_data': destination.meta_data,
+          
+        } 
+      }
+    } else {
+      return { 
+        'url': destination.url,
+        'secret_id': { 
+          'id': destination.secret
+          
+        } 
+      }
+    }
   }
 
   public testDestinationWithNoCreds(url: string): Observable<Object> {

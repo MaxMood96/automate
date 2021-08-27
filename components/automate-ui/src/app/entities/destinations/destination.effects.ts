@@ -244,11 +244,4 @@ export class DestinationEffects {
       message: `Error while fetching data-feed config: error ${payload.error}.`
     }))));
 
-    globalDataFeedConfigSuccess$ = createEffect(() =>
-    this.actions$.pipe(
-      ofType(DestinationActionTypes.GLOBAL_CONFIG_SUCCESS),
-      map(({ }: GlobalDataFeedConfigSuccess) => new CreateNotification({
-      type: Type.info,
-      message: `Data-feed config is fetched`
-    }))));
 }
