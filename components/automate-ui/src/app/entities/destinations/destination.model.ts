@@ -5,6 +5,21 @@ export interface Destination {
   secret: string;
   enable?: boolean;
   integration_type?: string;
-  meta_data?: string;
   services?: string;
+  integration_types: string;
+  meta_data: any[];
+}
+
+export interface EnableDestination {
+  id: string;
+  enable: boolean;
+}
+
+export interface GlobalConfig {
+  feed_interval: string;
+  node_batch_size: string;
+  updated_nodes_only: boolean;
+  disable_cidr_filter: boolean;
+  cidr_filter: string[];
+  accepted_status_codes: number[];
 }

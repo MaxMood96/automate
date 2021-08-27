@@ -12,7 +12,7 @@ table td {
 }
 .config-heading{
     font-size: 14px;
-    padding: 1em 1em 2em 1em;
+    padding: 0em 2.4em 1em     ;
 } 
 .config-sub-heading{
     font-size: 12px;
@@ -21,4 +21,21 @@ table td {
 }
 .config-sub-heading-value{
     font-size: 12px;
+}
+
+
+
+.cidr-filters,
+.status-code {
+    float: left;
+    display: flex;
+    .compress-data{
+        max-height: 11em;
+        overflow: overlay;
+    }
+    a {
+        color: #3864f2;
+        align-self: flex-end;
+        margin: 0 0 0.1em 0.5em;
+    }
 }

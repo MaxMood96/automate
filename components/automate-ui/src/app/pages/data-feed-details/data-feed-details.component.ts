@@ -10,9 +10,41 @@ import { NgrxStateAtom } from 'app/ngrx.reducers';
 import { routeParams } from 'app/route.selectors';
 import { Regex } from 'app/helpers/auth/regex';
 import { pending, EntityStatus } from 'app/entities/entities';
-import { GetDestination, UpdateDestination, TestDestination } from 'app/entities/destinations/destination.actions';
+import { 
+  GetDestination, 
+  UpdateDestination, 
+  TestDestination ,
+  EnableDisableDestination,
+  DeleteDestination
+} from 'app/entities/destinations/destination.actions';
 import { destinationFromRoute, getStatus, updateStatus } from 'app/entities/destinations/destination.selectors';
 import { Destination } from 'app/entities/destinations/destination.model';
+import { Router } from '@angular/router'
+import { trigger, state, animate, transition, style, keyframes } from '@angular/animations';
+
+const fadeEnable = trigger('fadeEnable', [
+   state('inactive', style({})),
+   state('active', style({})),
+   transition('inactive <=> active', [
+    animate('0.3s', keyframes([ 
+      style({transform: 'translateX(0%)'}), 
+      style({transform: 'translateX(100%)'}), 
+      style({transform: 'translateX(0%)'}) 
+    ])),
+   ])
+]);
+
+const fadeDisable = trigger('fadeDisable', [
+  state('inactive', style({})),
+  state('active', style({})),
+  transition('inactive <=> active', [
+   animate('0.3s', keyframes([ 
+     style({transform: 'translateX(0%)'}), 
+     style({transform: 'translateX(-100%)'}), 
+     style({transform: 'translateX(0%)'}) 
+   ])),
+  ])
+]);
 
 type DestinationTabName = 'details';
 
@@ -26,7 +58,8 @@ enum UrlTestState {
 @Component({
   selector: 'app-data-feed-details',
   templateUrl: './data-feed-details.component.html',
-  styleUrls: ['./data-feed-details.component.scss']
+  styleUrls: ['./data-feed-details.component.scss'],
+  animations: [fadeEnable,fadeDisable]
 })
 
 export class DataFeedDetailsComponent implements OnInit, OnDestroy {
@@ -38,11 +71,13 @@ export class DataFeedDetailsComponent implements OnInit, OnDestroy {
   public saveSuccessful = false;
   public hookStatus = UrlTestState.Inactive;
   private isDestroyed = new Subject<boolean>();
+  public state = 'inactive'
 
   constructor(
     private fb: FormBuilder,
     private store: Store<NgrxStateAtom>,
-    private layoutFacade: LayoutFacadeService
+    private layoutFacade: LayoutFacadeService,
+    private router: Router
   ) { }
 
   ngOnInit(): void {
@@ -96,9 +131,12 @@ export class DataFeedDetailsComponent implements OnInit, OnDestroy {
       id: this.destination.id,
       name: this.updateForm.controls['name'].value.trim(),
       url: this.updateForm.controls['url'].value.trim(),
-      secret: this.destination.secret
+      secret: this.destination.secret,
+      enable: this.destination.enable,
+      integration_types: this.destination.integration_types,
+      meta_data: this.destination.meta_data,
+      services: this.destination.services
     };
-
     this.store.dispatch(new UpdateDestination({ destination: destinationObj }));
     this.destination = destinationObj;
   }
@@ -109,7 +147,11 @@ export class DataFeedDetailsComponent implements OnInit, OnDestroy {
       id: this.destination.id,
       name: this.updateForm.controls['name'].value.trim(),
       url: this.updateForm.controls['url'].value.trim(),
-      secret: this.destination.secret
+      secret: this.destination.secret,
+      enable: this.destination.enable,
+      integration_types: this.destination.integration_types,
+      meta_data: this.destination.meta_data,
+      services: this.destination.services
     };
     this.store.dispatch(new TestDestination({destination: destinationObj}));
     this.testInProgress = false;
@@ -122,9 +164,26 @@ export class DataFeedDetailsComponent implements OnInit, OnDestroy {
   public get urlCtrl(): FormControl {
     return <FormControl>this.updateForm.controls.url;
   }
-
+  enableDestination(val:boolean){
+    const destinationEnableObj = {
+      id: this.destination.id,
+      enable: val
+    }
+    this.store.dispatch(new EnableDisableDestination({enableDisable: destinationEnableObj}));
+    this.state = this.state === 'active' ? 'inactive' : 'active';
+  }
+  deleteDataFeed(){
+    this.store.dispatch(new DeleteDestination(this.destination));
+    this.router.navigate(['/settings/data-feeds'])
+  }
   ngOnDestroy(): void {
     this.isDestroyed.next(true);
     this.isDestroyed.complete();
   }
+cancel(): void{
+  this.router.navigate(['/settings/data-feeds'])
 }
+
+  
+}
+

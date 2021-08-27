@@ -3,7 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { pipe, set, unset } from 'lodash/fp';
 import { EntityStatus } from 'app/entities/entities';
 import { DestinationActionTypes, DestinationActions } from './destination.actions';
-import { Destination } from './destination.model';
+import { Destination, GlobalConfig } from './destination.model';
 
 export interface DestinationEntityState extends EntityState<Destination> {
   status: EntityStatus;
@@ -12,6 +12,11 @@ export interface DestinationEntityState extends EntityState<Destination> {
   getStatus: EntityStatus;
   updateStatus: EntityStatus;
   deleteStatus: EntityStatus;
+  enableStatus: EntityStatus;
+}
+export interface GlobalConfigEntityState extends EntityState<GlobalConfig> {
+  globalConfigStatus: EntityStatus;
+  globalConfig: GlobalConfig;
 }
 
 const GET_ALL_STATUS = 'getAllStatus';
@@ -20,9 +25,14 @@ const SAVE_ERROR = 'saveError';
 const UPDATE_STATUS = 'updateStatus';
 const GET_STATUS = 'getStatus';
 const DELETE_STATUS = 'deleteStatus';
+const ENABLE_STATUS = 'enableStatus';
+const GLOBAL_CONFIG_STATUS = 'globalConfigStatus'
+const GLOBAL_CONFIG = 'globalConfig'
 
 export const destinationEntityAdapter: EntityAdapter<Destination> =
   createEntityAdapter<Destination>();
+export const globalConfigEntityAdapter: EntityAdapter<GlobalConfig> =
+  createEntityAdapter<GlobalConfig>();
 
 export const DestinationEntityInitialState: DestinationEntityState =
 destinationEntityAdapter.getInitialState({
@@ -31,8 +41,44 @@ destinationEntityAdapter.getInitialState({
     saveError: null,
     updateStatus: EntityStatus.notLoaded,
     getStatus: EntityStatus.notLoaded,
-    deleteStatus: EntityStatus.notLoaded
+    deleteStatus: EntityStatus.notLoaded,
+    enableStatus: EntityStatus.notLoaded
   });
+export const GlobalConfigEntityInitialState: GlobalConfigEntityState =
+globalConfigEntityAdapter.getInitialState({
+    status: EntityStatus.notLoaded,
+    saveStatus: EntityStatus.notLoaded,
+    saveError: null,
+    globalConfigStatus: EntityStatus.notLoaded,
+    globalConfig: null ,
+  });
+
+export function globalConfigEntityReducer(
+  state: GlobalConfigEntityState = GlobalConfigEntityInitialState,
+  action: DestinationActions): GlobalConfigEntityState {
+    switch (action.type) {
+
+        case DestinationActionTypes.GLOBAL_CONFIG: {
+          return set(
+            GLOBAL_CONFIG_STATUS,
+            EntityStatus.loading,
+            globalConfigEntityAdapter.removeAll(state)
+          ),set(GLOBAL_CONFIG ,null)(state) as GlobalConfigEntityState;
+        }
+        case DestinationActionTypes.GLOBAL_CONFIG_SUCCESS: {
+          return set(
+            GLOBAL_CONFIG_STATUS,
+            EntityStatus.loadingSuccess,
+            globalConfigEntityAdapter.addOne(action.payload, state)
+          ),set(GLOBAL_CONFIG, action.payload, state) as GlobalConfigEntityState;
+        }
+        case DestinationActionTypes.GLOBAL_CONFIG_FAILURE: {
+          return set(GLOBAL_CONFIG_STATUS, EntityStatus.loadingFailure, state
+            ) as GlobalConfigEntityState;
+        }
+      }
+    return state;
+}
 
 export function destinationEntityReducer(
   state: DestinationEntityState = DestinationEntityInitialState,
@@ -125,6 +171,18 @@ export function destinationEntityReducer(
     case DestinationActionTypes.UPDATE_FAILURE:
       return set(UPDATE_STATUS, EntityStatus.loadingFailure, state);
 
+    case DestinationActionTypes.ENABLE_DISABLE:
+      return set(ENABLE_STATUS, EntityStatus.loading, state);
+
+    case DestinationActionTypes.ENABLE_DISABLE_SUCCESS:
+      return set(ENABLE_STATUS, EntityStatus.loadingSuccess,
+        destinationEntityAdapter.updateOne({
+          id: action.payload.id,
+          changes: action.payload
+        }, state));
+  
+    case DestinationActionTypes.ENABLE_DISABLE_FAILURE:
+      return set(ENABLE_STATUS, EntityStatus.loadingFailure, state);
   }
   return state;
 }

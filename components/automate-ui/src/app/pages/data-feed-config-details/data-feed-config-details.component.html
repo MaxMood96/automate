@@ -15,42 +15,44 @@
         <tbody>
           <tr>
             <td class="config-sub-heading">Feed Interval</td>
-            <td class="config-sub-heading-value">4 Hours</td>
+            <td class="config-sub-heading-value">{{ covertFeedInterval(config?.feed_interval) }}</td>
           </tr>
           <tr>
             <td class="config-sub-heading">Node Batch Size</td>
-            <td class="config-sub-heading-value">50 Nodes</td>
+            <td class="config-sub-heading-value">{{ config?.node_batch_size }}</td>
           </tr>
           <tr>
             <td class="config-sub-heading">Update Nodes Only</td>
-            <td class="config-sub-heading-value">True</td>
+            <td class="config-sub-heading-value">{{ config?.updated_nodes_only }}</td>
           </tr>
           <tr>
             <td class="config-sub-heading">Disable CIDR Filter</td>
-            <td class="config-sub-heading-value">True</td>
+            <td class="config-sub-heading-value">{{ config?.disable_cidr_filter }}</td>
           </tr>
           <tr>
             <td class="config-sub-heading">CIDR Filters</td>
-            <td class="config-sub-heading-value">
-                <div>
-                    <div>0.0.0./0</div>
-                    <div>1.1.1/0</div>
-                    <div>2.2.2/0</div>
-                    <div>3.3.3/0</div>
+            <td class="config-sub-heading-value cidr-filters">
+
+                <div class="compress-data">
+                    <div *ngFor="let cidr_filter of getData(config?.cidr_filter,getFirstFiveDataCidrFilters)">
+                        <div>{{ cidr_filter }}</div>
+                    </div>
                 </div>
+                <a (click)="getAlldata('DataCidrFilters')" *ngIf="getFirstFiveDataCidrFilters">more filters</a>
             </td>
           </tr>
           <tr>
             <td class="config-sub-heading">Accepted Status Codes</td>
-            <td class="config-sub-heading-value">
-                <div>
-                    <div>200</div>
-                    <div>201</div>
-                    <div>202</div>
-                    <div>203</div>
-                    <div>204</div>
+            <td class="config-sub-heading-value status-code">
+                <div class="compress-data">
+                    <div *ngFor="let status_codes of getData(config?.accepted_status_codes,getFirstFiveDataStatusCodes)">
+                        <div>{{status_codes}}</div>
+                    </div>
                 </div>
+                <a (click)="getAlldata('StatusCodes')" *ngIf="getFirstFiveDataStatusCodes">more filters</a>
             </td>
           </tr>
         </tbody>
       </table>
+<!-- <div *ngFor= "let config of config$ | async"> -->
+<!-- </div> -->

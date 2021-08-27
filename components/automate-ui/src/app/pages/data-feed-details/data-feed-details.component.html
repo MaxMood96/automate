@@ -9,12 +9,32 @@
         <chef-heading class="btn-alignleft">
           {{ destination?.name }}
           <div class="btn-alignright">
-            <label for="enableDatafeed" class="btn-data-feed btn-Enable">Enable</label>
-            <label for="disableDatafeed" class="btn-data-feed btn-Disable">Disable</label>
-            <label for="deleteDatafeed" class="btn-data-feed btn-Delete">Delete</label>
+            <chef-button 
+            tertiary
+            [@fadeEnable]="state"
+            [disabled]="destination?.enable"
+            [ngClass]="!destination?.enable ? 'is-enable enable-btn' : 'is-disable enable-btn'"
+            class="btn-data-feed"
+            (click)="enableDestination(true)" 
+            >
+            Enable
+            </chef-button>
+
+            <chef-button 
+            tertiary
+            [disabled]="!destination?.enable"
+            [@fadeDisable]="state"
+            [ngClass]="destination?.enable ? 'is-enable disable-btn' : 'is-disable disable-btn'"
+            class="btn-data-feed"
+            (click)="enableDestination(false)"
+            >
+            Disable
+            </chef-button>
+            <chef-button tertiary caution class="btn-data-feed" (click)="deleteDataFeed()">Delete</chef-button>
           </div>
+
         </chef-heading>
-        <div class="details-border">
+        <div class="details-border" *ngIf="destination?.services && destination?.integration_types">
           <table>
             <thead>
               <tr class="detail-row">
@@ -24,8 +44,8 @@
             </thead>
             <tbody>
               <tr class="detail-row">
-                <td class="header-column">Servicenow</td>
-                <td class="header-column">Webhook</td>
+                <td class="header-column">{{ destination?.services }}</td>
+                <td class="header-column">{{ destination?.integration_types }}</td>
               </tr>
             </tbody>
           </table>
@@ -34,6 +54,7 @@
           <chef-option value='details'>Details</chef-option>
         </chef-tab-selector>
       </chef-page-header>
+      <div [ngClass]="{'disable-main-body': !destination?.enable}">
       <section class="page-body alignleft">
         <form [formGroup]="updateForm">
           <chef-form-field>
@@ -51,19 +72,17 @@
             </chef-error>
           </chef-form-field>
         </form>
-          <chef-button primary [disabled]="testInProgress" (click)="sendTestForDataFeedUrl()" class="alignright">
+          <chef-button primary [disabled]="testInProgress || !destination?.enable" (click)="sendTestForDataFeedUrl()" class="alignright">
             <chef-loading-spinner *ngIf="testInProgress"></chef-loading-spinner>
             <span *ngIf="testInProgress">Testing...</span>
-            <span *ngIf="!testInProgress">Test Data Feed</span>
+            <span *ngIf="!testInProgress ">Test Data Feed</span>
           </chef-button>
           <br>
           <hr>
-          <chef-button tertiary class="alignright">
-            <!-- <chef-loading-spinner *ngIf="saveInProgress"></chef-loading-spinner> -->
-            <!-- <span *ngIf="saveInProgress">Saving...</span> -->
+          <chef-button tertiary class="alignright" (click)="cancel()">
             <span >Cancel</span>
           </chef-button>
-          <chef-button primary [disabled]="saveInProgress || !updateForm.valid || !updateForm.dirty" (click)="saveDataFeed()" class="alignright">
+          <chef-button primary [disabled]="saveInProgress || !updateForm.valid || !updateForm.dirty || !destination?.enable" (click)="saveDataFeed()" class="alignright">
             <chef-loading-spinner *ngIf="saveInProgress"></chef-loading-spinner>
             <span *ngIf="saveInProgress">Saving...</span>
             <span *ngIf="!saveInProgress">Save</span>
@@ -74,7 +93,12 @@
           <app-data-feed-config-details>
           </app-data-feed-config-details>
         </chef-card>
+        <label class="config-details-note">
+          To change these settings you will have to do this in the global config file.
+        </label>
       </section>
+      </div>
+
     </main>
   </div>
 </div>

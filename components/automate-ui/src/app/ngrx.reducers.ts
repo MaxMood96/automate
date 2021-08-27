@@ -105,6 +105,7 @@ export interface NgrxStateAtom {
   dataBagItemDetails: dataBagItemDetailsEntity.DataBagItemDetailsEntityState;
   desktops: desktopEntity.DesktopEntityState;
   destinations: destinationEntity.DestinationEntityState;
+  globalDataFeedConfig: destinationEntity.GlobalConfigEntityState;
   environments: environmentEntity.EnvironmentEntityState;
   environmentDetails: environmentDetailsEntity.EnvironmentDetailsEntityState;
   infraNodes: infraNodeEntity.InfraNodeEntityState;
@@ -241,6 +242,7 @@ export const defaultInitialState = {
   dataBagItems: dataBagItemsEntity.DataBagItemsEntityInitialState,
   dataBagItemDetails: dataBagItemDetailsEntity.DataBagItemDetailsEntityInitialState,
   destinations: destinationEntity.DestinationEntityInitialState,
+  globalDataFeedConfig: destinationEntity.GlobalConfigEntityInitialState,
   environments: environmentEntity.EnvironmentEntityInitialState,
   environmentDetails: environmentDetailsEntity.EnvironmentEntityInitialState,
   infraNodes: infraNodeEntity.InfraNodeEntityInitialState,
@@ -314,6 +316,7 @@ export const ngrxReducers = {
   dataBagItems: dataBagItemsEntity.dataBagItemsEntityReducer,
   dataBagItemDetails: dataBagItemDetailsEntity.dataBagItemDetailsEntityReducer,
   destinations: destinationEntity.destinationEntityReducer,
+  globalDataFeedConfig: destinationEntity.globalConfigEntityReducer,
   environments: environmentEntity.environmentEntityReducer,
   environmentDetails: environmentDetailsEntity.environmentDetailsEntityReducer,
   infraNodes: infraNodeEntity.infraNodeEntityReducer,

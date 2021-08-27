@@ -28,13 +28,18 @@ import {
   DeleteDestinationFailure,
   TestDestination,
   TestDestinationSuccess,
-  TestDestinationFailure
+  TestDestinationFailure,
+  EnableDisableDestination,
+  EnableDisableDestinationSuccess,
+  EnableDisableDestinationFailure,
+  GlobalDataFeedConfigSuccess,
+  GlobalDataFeedConfigFailure
 } from './destination.actions';
 
 import {
   DestinationRequests
 } from './destination.requests';
-import { Destination } from './destination.model';
+import { Destination, GlobalConfig } from './destination.model';
 import { Router } from '@angular/router';
 
 @Injectable()
@@ -197,4 +202,53 @@ export class DestinationEffects {
       });
     })));
 
+    enableDisableDestination$ = createEffect(() =>
+    this.actions$.pipe(
+    ofType(DestinationActionTypes.ENABLE_DISABLE),
+    mergeMap(( {payload:  {enableDisable} }: EnableDisableDestination) =>
+      this.requests.enableDisableDestinations(enableDisable).pipe(
+        map((resp: DestinationSuccessPayload) => new EnableDisableDestinationSuccess(resp)),
+        catchError((error: HttpErrorResponse) =>
+          observableOf(new GetDestinationsFailure(error)))))));
+          
+    enableDisableDestinationFailure$ = createEffect(() =>
+    this.actions$.pipe(
+    ofType(DestinationActionTypes.ENABLE_DISABLE_FAILURE),
+    map(({ payload  }: EnableDisableDestinationFailure) => new CreateNotification({
+      type: Type.info,
+      message: `Could not enable or Disable: error ${payload.error}.`
+    }))));
+
+    enableDisableDestinationSuccess$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(DestinationActionTypes.ENABLE_DISABLE_SUCCESS),
+      map(({ payload  }: EnableDisableDestinationSuccess) => new CreateNotification({
+      type: Type.info,
+      message: `Destination is ${payload.enable?'Enabled':'Disabled'}.`
+    }))));
+
+    globalDataFeedConfig$ = createEffect(() =>
+    this.actions$.pipe(
+    ofType(DestinationActionTypes.GLOBAL_CONFIG),
+    mergeMap(( {}: GlobalConfig) =>
+      this.requests.globalDataFeedConfig().pipe(
+        map((resp: GlobalDataFeedConfigSuccess) => new GlobalDataFeedConfigSuccess(resp)),
+        catchError((error: HttpErrorResponse) =>
+          observableOf(new GetDestinationsFailure(error)))))));
+          
+    globalDataFeedConfigFailure$ = createEffect(() =>
+    this.actions$.pipe(
+    ofType(DestinationActionTypes.GLOBAL_CONFIG_FAILURE),
+    map(({ payload  }: GlobalDataFeedConfigFailure) => new CreateNotification({
+      type: Type.error,
+      message: `Error while fetching data-feed config: error ${payload.error}.`
+    }))));
+
+    globalDataFeedConfigSuccess$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(DestinationActionTypes.GLOBAL_CONFIG_SUCCESS),
+      map(({ }: GlobalDataFeedConfigSuccess) => new CreateNotification({
+      type: Type.info,
+      message: `Data-feed config is fetched`
+    }))));
 }
