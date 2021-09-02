@@ -25,7 +25,7 @@ describe('login the app', () => {
             return;
           }
         });
-        cy.visit('/user-details/admin').then(() => {
+        cy.visit('/settings/users/admin').then(() => {
           cy.get('[data-cy=welcome-title]').should('exist').then(() => {
             cy.get('[data-cy=close-x]').click();
           });
