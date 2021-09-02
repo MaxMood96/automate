@@ -13,6 +13,7 @@ export interface DestinationEntityState extends EntityState<Destination> {
   updateStatus: EntityStatus;
   deleteStatus: EntityStatus;
   enableStatus: EntityStatus;
+  testConnectionStatus: EntityStatus
 }
 export interface GlobalConfigEntityState extends EntityState<GlobalConfig> {
   globalConfigStatus: EntityStatus;
@@ -28,6 +29,7 @@ const DELETE_STATUS = 'deleteStatus';
 const ENABLE_STATUS = 'enableStatus';
 const GLOBAL_CONFIG_STATUS = 'globalConfigStatus'
 const GLOBAL_CONFIG = 'globalConfig'
+const TEST_CONNECTION_STATUS = 'testConnectionStatus'
 
 export const destinationEntityAdapter: EntityAdapter<Destination> =
   createEntityAdapter<Destination>();
@@ -42,7 +44,8 @@ destinationEntityAdapter.getInitialState({
     updateStatus: EntityStatus.notLoaded,
     getStatus: EntityStatus.notLoaded,
     deleteStatus: EntityStatus.notLoaded,
-    enableStatus: EntityStatus.notLoaded
+    enableStatus: EntityStatus.notLoaded,
+    testConnectionStatus: EntityStatus.notLoaded
   });
 export const GlobalConfigEntityInitialState: GlobalConfigEntityState =
 globalConfigEntityAdapter.getInitialState({
@@ -184,6 +187,28 @@ export function destinationEntityReducer(
   
     case DestinationActionTypes.ENABLE_DISABLE_FAILURE:
       return set(ENABLE_STATUS, EntityStatus.loadingFailure, state);
+
+    case DestinationActionTypes.SEND_TEST:
+      return set(
+        TEST_CONNECTION_STATUS,
+        EntityStatus.loading,
+        state
+      )
+    
+    case DestinationActionTypes.SEND_TEST_SUCCESS:
+      return set(
+        TEST_CONNECTION_STATUS,
+        EntityStatus.loadingSuccess,
+        state
+        )
+    
+    case DestinationActionTypes.SEND_TEST_FAILURE: {
+      return set(
+        TEST_CONNECTION_STATUS,
+        EntityStatus.loadingFailure,
+        state
+        )
+    }
   }
   return state;
 }

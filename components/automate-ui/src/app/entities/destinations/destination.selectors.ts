@@ -63,6 +63,11 @@ export const destinationEnableStatus = createSelector(
   (state) => state.enableStatus
 );
 
+export const testConnectionStatus = createSelector(
+  destinationState,
+  (state) => state.testConnectionStatus
+);
+
 export const globalDataFeedStatus = createSelector(
   globalDataFeedConfigState,
   (state) => state.globalConfigStatus

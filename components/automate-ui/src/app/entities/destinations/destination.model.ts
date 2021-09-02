@@ -3,9 +3,8 @@ export interface Destination {
   name: string;
   url: string;
   secret: string;
-  enable?: boolean;
-  integration_type?: string;
-  services?: string;
+  enable: boolean;
+  services: string;
   integration_types: string;
   meta_data: any[];
 }

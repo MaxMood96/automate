@@ -22,7 +22,8 @@ import {
   getStatus, 
   updateStatus, 
   destinationEnableStatus, 
-  deleteStatus
+  deleteStatus,
+  testConnectionStatus
 } from 'app/entities/destinations/destination.selectors';
 import { Destination } from 'app/entities/destinations/destination.model';
 import { Router } from '@angular/router'
@@ -161,7 +162,15 @@ export class DataFeedDetailsComponent implements OnInit, OnDestroy {
       services: this.destination.services
     };
     this.store.dispatch(new TestDestination({destination: destinationObj}));
-    this.testInProgress = false;
+    this.store.pipe(
+      select(testConnectionStatus),
+      takeUntil(this.isDestroyed),
+      filter(state => !pending(state)))
+      .subscribe(state => {
+        if (state === EntityStatus.loadingSuccess || EntityStatus.loadingFailure) {
+          this.testInProgress = false;
+        }
+      });
   }
 
   public get nameCtrl(): FormControl {
