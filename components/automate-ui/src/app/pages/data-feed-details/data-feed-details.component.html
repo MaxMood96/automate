@@ -16,21 +16,23 @@
             [ngClass]="!destination?.enable ? 'is-enable enable-btn' : 'is-disable enable-btn'"
             class="btn-data-feed"
             (click)="enableDestination(true)" 
+            data-cy="enable-btn"
             >
             Enable
             </chef-button>
 
-            <chef-button 
+            <chef-button
             tertiary
             [disabled]="!destination?.enable"
             [@fadeDisable]="state"
             [ngClass]="destination?.enable ? 'is-enable disable-btn' : 'is-disable disable-btn'"
             class="btn-data-feed"
             (click)="enableDestination(false)"
+            data-cy="disable-btn"
             >
             Disable
             </chef-button>
-            <chef-button tertiary caution class="btn-data-feed" (click)="deleteDataFeed()">Delete</chef-button>
+            <chef-button tertiary caution class="btn-data-feed" data-cy="delete-btn" (click)="openDeleteModal()">Delete</chef-button>
           </div>
 
         </chef-heading>
@@ -72,7 +74,7 @@
             </chef-error>
           </chef-form-field>
         </form>
-          <chef-button primary [disabled]="testInProgress || !destination?.enable" (click)="sendTestForDataFeedUrl()" class="alignright">
+          <chef-button primary [disabled]="testInProgress || !destination?.enable" (click)="sendTestForDataFeedUrl()" class="alignright test-connection" data-cy="test-connection">
             <chef-loading-spinner *ngIf="testInProgress"></chef-loading-spinner>
             <span *ngIf="testInProgress">Testing...</span>
             <span *ngIf="!testInProgress ">Test Data Feed</span>
@@ -82,7 +84,7 @@
           <chef-button tertiary class="alignright" (click)="cancel()">
             <span >Cancel</span>
           </chef-button>
-          <chef-button primary [disabled]="saveInProgress || !updateForm.valid || !updateForm.dirty || !destination?.enable" (click)="saveDataFeed()" class="alignright">
+          <chef-button primary [disabled]="saveInProgress || !updateForm.valid || !updateForm.dirty || !destination?.enable" (click)="saveDataFeed()" class="alignright save-connection" data-cy="save-connection">
             <chef-loading-spinner *ngIf="saveInProgress"></chef-loading-spinner>
             <span *ngIf="saveInProgress">Saving...</span>
             <span *ngIf="!saveInProgress">Save</span>
@@ -102,3 +104,12 @@
     </main>
   </div>
 </div>
+
+<app-delete-object-modal
+[visible]="deleteModalVisible"
+objectNoun="data feed"
+[objectName]="destination?.name "
+(close)="closeDeleteModal()"
+(deleteClicked)="deleteDataFeed()"
+objectAction="Delete">
+</app-delete-object-modal>

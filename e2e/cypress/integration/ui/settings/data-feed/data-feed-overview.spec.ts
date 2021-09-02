@@ -99,6 +99,17 @@ describe('chef datafeed', () => {
             cy.get('app-notification.error').should('be.visible');
             cy.get('app-notification.info chef-icon').click();
         })
+        it('check GlobalDataFeedConfig details', () => {
+            cy.get('[data-cy=feed-interval]').should('not.be.empty')
+            cy.get('[data-cy=node-batch-size]').should('not.be.empty')
+            cy.get('[data-cy=updated-nodes-only]').should('not.be.empty')
+            cy.get('[data-cy=disable-cidr-filter]').should('not.be.empty')
+            cy.get('[data-cy=cidr_filter]').find('div').eq(2).should('not.be.empty')
+            cy.get('[data-cy=accepted-status-codes]').find('div').eq(2).should('not.be.empty')
+            cy.get('[data-cy=get-allData-cidr_filter]').click()
+            cy.get('[data-cy=get-allData-accepted-status-codes]').click()
+
+        })
         it('check if clicking on Delete', () => {
             cy.get('[data-cy=delete-btn]').click();
             cy.get('app-delete-object-modal').find('button').contains('Delete Data Feed')

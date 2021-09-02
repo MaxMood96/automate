@@ -77,6 +77,7 @@ export class DataFeedDetailsComponent implements OnInit, OnDestroy {
   public saveSuccessful = false;
   public hookStatus = UrlTestState.Inactive;
   private isDestroyed = new Subject<boolean>();
+  public deleteModalVisible = false;
   public state = 'inactive'
 
   constructor(
@@ -170,7 +171,7 @@ export class DataFeedDetailsComponent implements OnInit, OnDestroy {
   public get urlCtrl(): FormControl {
     return <FormControl>this.updateForm.controls.url;
   }
-  enableDestination(val:boolean){
+  public enableDestination(val:boolean){
     const destinationEnableObj = {
       id: this.destination.id,
       enable: val
@@ -183,10 +184,11 @@ export class DataFeedDetailsComponent implements OnInit, OnDestroy {
       .subscribe(state => {
         if (state === EntityStatus.loadingSuccess) {
           this.state = this.state === 'active' ? 'inactive' : 'active';
+          this.destination.enable = val
         }
       });
   }
-  deleteDataFeed(){
+  public deleteDataFeed(){
     this.store.dispatch(new DeleteDestination(this.destination));
     this.store.pipe(
       select(deleteStatus),
@@ -198,14 +200,18 @@ export class DataFeedDetailsComponent implements OnInit, OnDestroy {
         }
       });
   }
+  public closeDeleteModal(): void {
+    this.deleteModalVisible = false;
+  }
+  public openDeleteModal(): void {
+    this.deleteModalVisible = true;
+  }
   ngOnDestroy(): void {
     this.isDestroyed.next(true);
     this.isDestroyed.complete();
   }
-cancel(): void{
-  this.router.navigate(['/settings/data-feeds'])
-}
-
-  
+  public cancel(): void{
+    this.router.navigate(['/settings/data-feeds'])
+  }
 }
 

@@ -69,5 +69,8 @@ export const globalDataFeedStatus = createSelector(
 );
 export const globalDataFeed = createSelector(
   globalDataFeedConfigState,
-  (state) => state.globalConfig
+  (state) => {return {
+    globalConfig: state.globalConfig,
+    globalConfigStatus: state.globalConfigStatus
+  }}
 );

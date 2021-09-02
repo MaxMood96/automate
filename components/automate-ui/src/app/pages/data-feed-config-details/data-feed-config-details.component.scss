@@ -2,7 +2,9 @@ th {
     text-align: left;
     padding: 0px;
   }
-
+table {
+    table-layout: fixed;
+}
 table th{
     padding: 2em 2em;
 }
@@ -39,3 +41,11 @@ table td {
         margin: 0 0 0.1em 0.5em;
     }
 }
+.empty-state {
+    margin-top: 130px;
+    text-align: center;
+  }
+  
+  img {
+    width: 70px;
+  }

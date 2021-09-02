@@ -62,15 +62,16 @@ export function globalConfigEntityReducer(
           return set(
             GLOBAL_CONFIG_STATUS,
             EntityStatus.loading,
-            globalConfigEntityAdapter.removeAll(state)
-          ),set(GLOBAL_CONFIG ,null)(state) as GlobalConfigEntityState;
+            state
+          ) as GlobalConfigEntityState;
         }
         case DestinationActionTypes.GLOBAL_CONFIG_SUCCESS: {
-          return set(
+          let configStatustState = set(
             GLOBAL_CONFIG_STATUS,
             EntityStatus.loadingSuccess,
-            globalConfigEntityAdapter.addOne(action.payload, state)
-          ),set(GLOBAL_CONFIG, action.payload, state) as GlobalConfigEntityState;
+            state
+            )
+            return set(GLOBAL_CONFIG, action.payload, configStatustState) as GlobalConfigEntityState;
         }
         case DestinationActionTypes.GLOBAL_CONFIG_FAILURE: {
           return set(GLOBAL_CONFIG_STATUS, EntityStatus.loadingFailure, state

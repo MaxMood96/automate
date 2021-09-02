@@ -10,6 +10,7 @@ import {
 import { Observable, Subject } from 'rxjs';
 import { GlobalConfig } from 'app/entities/destinations/destination.model';
 import { map } from 'rxjs/operators';
+import { EntityStatus } from 'app/entities/entities';
 
 enum UrlTestState {
   Inactive,
@@ -29,48 +30,86 @@ export class DataFeedConfigDetailsComponent implements OnInit {
   public hookStatus = UrlTestState.Inactive;
   public Fetchconfig$: Observable<GlobalConfig>;
   public config: GlobalConfig;
-  getFirstFiveDataStatusCodes = true;
-  getFirstFiveDataCidrFilters = true;
+  public configNotFound: boolean = true;
+  getFirstFiveDataStatusCodesShow:boolean;
+  getStatusCodes: number[] = [];
+  getCidrFilters:string[] = [];
+  getFirstFiveDataCidrFiltersShow:boolean;
   constructor(
     private store: Store<NgrxStateAtom>,
   ) { }
 
   ngOnInit(): void {
     this.store.dispatch(new GlobalDataFeedConfig({}))
-    this.Fetchconfig$ = this.store.pipe(
-                    select(globalDataFeed)).pipe(
-                      map((res: GlobalConfig) =>  res));
-   this.Fetchconfig$.subscribe((res: GlobalConfig) => {
-     this.config = res
-   })
+      this.getGlobalDataFeedConfig()
+}
+
+  public getGlobalDataFeedConfig(){
+    this.store.pipe(
+      select(globalDataFeed)).pipe(
+        map((res: any) =>  res))
+        .subscribe((res: any) => {
+          if(res.globalConfigStatus ==  EntityStatus.loadingSuccess){
+            this.configNotFound = false
+            this.config = res.globalConfig
+            this.getStatusCodes = this.getData(this.config?.accepted_status_codes,true)
+            this.getCidrFilters = this.getData(this.config?.cidr_filter,true)
+            this.getFirstFiveDataStatusCodesShow = this.config?.accepted_status_codes.length == this.getStatusCodes.length
+            this.getFirstFiveDataCidrFiltersShow = this.config?.cidr_filter.length == this.getCidrFilters.length
+          }
+        })
   }
   ngOnDestroy(): void {
     this.isDestroyed.next(true);
     this.isDestroyed.complete();
   }
   covertFeedInterval(feedInterval:string):string{
+    let output: string[] = []
     if(feedInterval != null){
       let SplitFeedInterval = feedInterval.split('')
       if(SplitFeedInterval.includes('h')){
-        SplitFeedInterval.splice(SplitFeedInterval.indexOf('h'), 1, " Hour ");
+        SplitFeedInterval.splice(SplitFeedInterval.indexOf('h'), 1, " Hour ,");
       }
       if(SplitFeedInterval.includes('m')){
-        SplitFeedInterval.splice(SplitFeedInterval.indexOf('m'), 1, " Minute ");
+        SplitFeedInterval.splice(SplitFeedInterval.indexOf('m'), 1, " Minute ,");
       }
       if(SplitFeedInterval.includes('s')){
-        SplitFeedInterval.splice(SplitFeedInterval.indexOf('s'), 1, " Seconds ");
+        SplitFeedInterval.splice(SplitFeedInterval.indexOf('s'), 1, " Seconds ,");
       }
-      return SplitFeedInterval.join('')
+      let SplitIntoTime = SplitFeedInterval.join('')
+      SplitIntoTime.split(',').forEach((v) => {
+        if (v.includes('Hour')) {
+          if(parseInt(v) != 0){
+            output.push(v)
+          }
+        }
+        if (v.includes('Minute')) {
+          if(parseInt(v)!= 0){
+            output.push(v)
+          }
+        }
+        if (v.includes('Seconds')) {
+          if(parseInt(v)!= 0){
+            output.push(v)
+          }
+        }
+      })      
+      return output.join('')
     }
   }
 
   getAlldata(flag:string):void{
     if(flag == 'StatusCodes'){
-      this.getFirstFiveDataStatusCodes = false
+      this.getFirstFiveDataStatusCodesShow = false;
+      this.getStatusCodes = this.getData(this.config.accepted_status_codes,false)
+      this.getFirstFiveDataStatusCodesShow = this.config?.accepted_status_codes.length == this.getStatusCodes.length
     } else if(flag == 'DataCidrFilters') {
-      this.getFirstFiveDataCidrFilters = false
+      this.getFirstFiveDataCidrFiltersShow = false;
+      this.getCidrFilters = this.getData(this.config.cidr_filter,false)
+      this.getFirstFiveDataCidrFiltersShow = this.config?.cidr_filter.length == this.getCidrFilters.length
     }
   }
+
   getData(arrValue?:any,getFirstFiveData?:boolean):any{
     if(arrValue != null){
       if(getFirstFiveData){
@@ -83,5 +122,7 @@ export class DataFeedConfigDetailsComponent implements OnInit {
         return arrValue
       }
     }
+    return []
   }
 }
+

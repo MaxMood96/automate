@@ -209,7 +209,7 @@ export class DestinationEffects {
       this.requests.enableDisableDestinations(enableDisable).pipe(
         map((resp: DestinationSuccessPayload) => new EnableDisableDestinationSuccess(resp)),
         catchError((error: HttpErrorResponse) =>
-          observableOf(new GetDestinationsFailure(error)))))));
+          observableOf(new EnableDisableDestinationFailure(error)))))));
           
     enableDisableDestinationFailure$ = createEffect(() =>
     this.actions$.pipe(
@@ -235,7 +235,7 @@ export class DestinationEffects {
         map((resp: GlobalDataFeedConfigSuccess) => new GlobalDataFeedConfigSuccess(resp)),
         catchError((error: HttpErrorResponse) =>
           observableOf(new GetDestinationsFailure(error)))))));
-          
+
     globalDataFeedConfigFailure$ = createEffect(() =>
     this.actions$.pipe(
     ofType(DestinationActionTypes.GLOBAL_CONFIG_FAILURE),
