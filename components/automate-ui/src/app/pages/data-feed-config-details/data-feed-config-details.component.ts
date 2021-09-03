@@ -74,22 +74,19 @@ export class DataFeedConfigDetailsComponent implements OnInit {
       this.findArrayIndexAndRaplaceName(SplitFeedInterval,"m"," Minute ,")
       this.findArrayIndexAndRaplaceName(SplitFeedInterval,"s"," Seconds ,")
       let SplitIntoTime = SplitFeedInterval.join('')
-      console.log(SplitIntoTime.split(','))
       SplitIntoTime.split(',').forEach((v) => {
-        v.includes('Hour')? this.pushDataInArray(v):null
-        v.includes('Minute')? this.pushDataInArray(v):null
-        v.includes('Seconds') ? this.pushDataInArray(v):null
+        this.pushDataInArray('Hour',v)
+        this.pushDataInArray('Minute',v)
+        this.pushDataInArray('Seconds',v)
       })  
-      console.log(this.feedIntervaloutput.join(''));
-          
       return this.feedIntervaloutput.join('')
   }
-  public pushDataInArray(v:string):void{
-    if(parseInt(v) != 0){
-      this.feedIntervaloutput.push(v)
-    }
-    console.log(this.feedIntervaloutput);
-    
+  public pushDataInArray(findString:string,v:string):void{
+    if (v.includes(findString)){
+      if(parseInt(v) != 0){
+        this.feedIntervaloutput.push(v)
+      }
+    }    
   }
   public findArrayIndexAndRaplaceName(arrayOfFeedInterval:string[],findString:string,repaceString):void{
     if(arrayOfFeedInterval.includes(findString)){
