@@ -37,11 +37,11 @@
 
         </chef-heading>
         <div class="details-border" *ngIf="destination?.services && destination?.integration_types">
-          <table>
+          <table summary="show service and integration types">
             <thead>
               <tr class="detail-row">
-                <th class="header-column">SERVICE</th>
-                <th class="header-column">INTEGRATION TYPE</th>
+                <th class="header-column" id="service-header">SERVICE</th>
+                <th class="header-column" id="integration-types">INTEGRATION TYPE</th>
               </tr>
             </thead>
             <tbody>
