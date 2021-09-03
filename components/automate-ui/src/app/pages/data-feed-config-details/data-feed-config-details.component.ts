@@ -35,6 +35,9 @@ export class DataFeedConfigDetailsComponent implements OnInit {
   getStatusCodes: number[] = [];
   getCidrFilters:string[] = [];
   getFirstFiveDataCidrFiltersShow:boolean;
+  public feedIntervaloutput: string[] = []
+  public finalFeedIntervaloutput: string
+
   constructor(
     private store: Store<NgrxStateAtom>,
   ) { }
@@ -56,6 +59,7 @@ export class DataFeedConfigDetailsComponent implements OnInit {
             this.getCidrFilters = this.getData(this.config?.cidr_filter,true)
             this.getFirstFiveDataStatusCodesShow = this.config?.accepted_status_codes.length == this.getStatusCodes.length
             this.getFirstFiveDataCidrFiltersShow = this.config?.cidr_filter.length == this.getCidrFilters.length
+            this.finalFeedIntervaloutput = this.covertFeedInterval(this.config?.feed_interval)
           }
         })
   }
@@ -64,40 +68,35 @@ export class DataFeedConfigDetailsComponent implements OnInit {
     this.isDestroyed.complete();
   }
   covertFeedInterval(feedInterval:string):string{
-    let output: string[] = []
-    if(feedInterval != null){
+    // let output: string[] = []
       let SplitFeedInterval = feedInterval.split('')
-      if(SplitFeedInterval.includes('h')){
-        SplitFeedInterval.splice(SplitFeedInterval.indexOf('h'), 1, " Hour ,");
-      }
-      if(SplitFeedInterval.includes('m')){
-        SplitFeedInterval.splice(SplitFeedInterval.indexOf('m'), 1, " Minute ,");
-      }
-      if(SplitFeedInterval.includes('s')){
-        SplitFeedInterval.splice(SplitFeedInterval.indexOf('s'), 1, " Seconds ,");
-      }
+      this.findArrayIndexAndRaplaceName(SplitFeedInterval, "h", " Hour ,")
+      this.findArrayIndexAndRaplaceName(SplitFeedInterval,"m"," Minute ,")
+      this.findArrayIndexAndRaplaceName(SplitFeedInterval,"s"," Seconds ,")
       let SplitIntoTime = SplitFeedInterval.join('')
+      console.log(SplitIntoTime.split(','))
       SplitIntoTime.split(',').forEach((v) => {
-        if (v.includes('Hour')) {
-          if(parseInt(v) != 0){
-            output.push(v)
-          }
-        }
-        if (v.includes('Minute')) {
-          if(parseInt(v)!= 0){
-            output.push(v)
-          }
-        }
-        if (v.includes('Seconds')) {
-          if(parseInt(v)!= 0){
-            output.push(v)
-          }
-        }
-      })      
-      return output.join('')
+        v.includes('Hour')? this.pushDataInArray(v):null
+        v.includes('Minute')? this.pushDataInArray(v):null
+        v.includes('Seconds') ? this.pushDataInArray(v):null
+      })  
+      console.log(this.feedIntervaloutput.join(''));
+          
+      return this.feedIntervaloutput.join('')
+  }
+  public pushDataInArray(v:string):void{
+    if(parseInt(v) != 0){
+      this.feedIntervaloutput.push(v)
+    }
+    console.log(this.feedIntervaloutput);
+    
+  }
+  public findArrayIndexAndRaplaceName(arrayOfFeedInterval:string[],findString:string,repaceString):void{
+    if(arrayOfFeedInterval.includes(findString)){
+      arrayOfFeedInterval.splice(arrayOfFeedInterval.indexOf(findString), 1, repaceString);
     }
   }
-
+  
   getAlldata(flag:string):void{
     if(flag == 'StatusCodes'){
       this.getFirstFiveDataStatusCodesShow = false;
