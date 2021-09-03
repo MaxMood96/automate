@@ -1,6 +1,6 @@
 
-    <label class="config-heading">Global Settings</label>
     <ng-container *ngIf="configNotFound; else showTable">
+      <label class="config-heading">Global Settings</label>
       <div class="empty-state">
         <img alt="No preview" src="/assets/img/no_preview.gif" />
         <p>No global config found</p>
@@ -9,6 +9,12 @@
     <ng-template #showTable>
       <table>
         <thead>
+          <tr>
+            <th class="config-heading">
+              Global Settings
+            </th>
+          </tr>
+        </thead>
         <tbody>
           <tr>
             <td class="config-sub-heading">Feed Interval</td>
@@ -46,7 +52,7 @@
                         <div>{{status_codes}}</div>
                     </div>
                 </div>
-                <a (click)="getAlldata('StatusCodes')" *ngIf="!getFirstFiveDataStatusCodesShow" data-cy="get-allData-accepted-status-codes">more filters</a>
+                <a (click)="getAlldata('StatusCodes')" *ngIf="!getFirstFiveDataStatusCodesShow" data-cy="get-allData-accepted-status-codes">more Codes</a>
             </td>
           </tr>
         </tbody>

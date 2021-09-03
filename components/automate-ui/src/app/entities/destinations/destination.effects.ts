@@ -39,7 +39,7 @@ import {
 import {
   DestinationRequests
 } from './destination.requests';
-import { Destination, GlobalConfig } from './destination.model';
+import { Destination } from './destination.model';
 import { Router } from '@angular/router';
 
 @Injectable()
@@ -230,7 +230,7 @@ export class DestinationEffects {
     globalDataFeedConfig$ = createEffect(() =>
     this.actions$.pipe(
     ofType(DestinationActionTypes.GLOBAL_CONFIG),
-    mergeMap(( {}: GlobalConfig) =>
+    mergeMap(() =>
       this.requests.globalDataFeedConfig().pipe(
         map((resp: GlobalDataFeedConfigSuccess) => new GlobalDataFeedConfigSuccess(resp)),
         catchError((error: HttpErrorResponse) =>
