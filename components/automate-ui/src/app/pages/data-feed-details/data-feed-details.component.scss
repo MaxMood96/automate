@@ -133,7 +133,6 @@ chef-modal {
 .config-details{
   padding-top: 3.7em;
 }
-
 .status-icon {
   margin: 0 auto 10px;
   padding: 10px;
@@ -153,7 +152,6 @@ chef-modal {
     color: $chef-white;
   }
 }
-
 .status-heading {
   text-align: center;
 
@@ -165,14 +163,11 @@ chef-modal {
     color: $chef-success;
   }
 }
-
 .disable-main-body {
-
   pointer-events: none;
   opacity:  0.6;
   transition: .5s;
 }
-
 @media screen and (max-width: 1668px) {
   chef-form-field {
     width: 35em;
@@ -187,7 +182,7 @@ chef-modal {
   }
   chef-card{
     width: 30em;
-}
+  }
 }
 @media screen and (max-width: 1220px) {
   chef-form-field {
