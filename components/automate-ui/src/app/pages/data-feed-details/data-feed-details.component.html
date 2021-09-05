@@ -57,23 +57,23 @@
         </chef-tab-selector>
       </chef-page-header>
       <div [ngClass]="{'disable-main-body': !destination?.enable}">
-      <section class="page-body alignleft">
-        <form [formGroup]="updateForm">
-          <chef-form-field>
-            <label for="name">Name <span aria-hidden="true">*</span></label>
-            <input chefInput id="name" formControlName="name" type="text" [resetOrigin]="saveSuccessful" autocomplete="off" data-cy="name-input"/>
-            <chef-error *ngIf="(nameCtrl.hasError('required') || nameCtrl.hasError('pattern')) && nameCtrl.dirty">
-              Name is required.
-            </chef-error>
-          </chef-form-field>
-          <chef-form-field>
-            <label for="url">Data Feed URL <span aria-hidden="true">*</span></label>
-            <input chefInput id="url" formControlName="url" type="text" [resetOrigin]="saveSuccessful" autocomplete="off" data-cy="url-input"/>
-            <chef-error *ngIf="(urlCtrl.hasError('required') || urlCtrl.hasError('pattern')) && urlCtrl.dirty">
-              Data Feed URL is required.
-            </chef-error>
-          </chef-form-field>
-        </form>
+        <section class="page-body alignleft">
+          <form [formGroup]="updateForm">
+            <chef-form-field>
+              <label for="name">Name <span aria-hidden="true">*</span></label>
+              <input chefInput id="name" formControlName="name" type="text" [resetOrigin]="saveSuccessful" autocomplete="off" data-cy="name-input"/>
+              <chef-error *ngIf="(nameCtrl.hasError('required') || nameCtrl.hasError('pattern')) && nameCtrl.dirty">
+                Name is required.
+              </chef-error>
+            </chef-form-field>
+            <chef-form-field>
+              <label for="url">Data Feed URL <span aria-hidden="true">*</span></label>
+              <input chefInput id="url" formControlName="url" type="text" [resetOrigin]="saveSuccessful" autocomplete="off" data-cy="url-input"/>
+              <chef-error *ngIf="(urlCtrl.hasError('required') || urlCtrl.hasError('pattern')) && urlCtrl.dirty">
+                Data Feed URL is required.
+              </chef-error>
+            </chef-form-field>
+          </form>
           <chef-button primary [disabled]="testInProgress || !destination?.enable" (click)="sendTestForDataFeedUrl()" class="alignright test-connection" data-cy="test-connection">
             <chef-loading-spinner *ngIf="testInProgress"></chef-loading-spinner>
             <span *ngIf="testInProgress">Testing...</span>
@@ -89,22 +89,20 @@
             <span *ngIf="saveInProgress">Saving...</span>
             <span *ngIf="!saveInProgress">Save</span>
           </chef-button>
-      </section>
-      <section class="page-body alignright config-details">
-        <chef-card>
-          <app-data-feed-config-details>
-          </app-data-feed-config-details>
-        </chef-card>
-        <label class="config-details-note">
-          To change these settings you will have to do this in the global config file.
-        </label>
-      </section>
+        </section>
+        <section class="page-body alignright config-details">
+          <chef-card>
+            <app-data-feed-config-details>
+            </app-data-feed-config-details>
+          </chef-card>
+          <label class="config-details-note">
+            To change these settings you will have to do this in the global config file.
+          </label>
+        </section>
       </div>
-
     </main>
   </div>
 </div>
-
 <app-delete-object-modal
 [visible]="deleteModalVisible"
 objectNoun="data feed"
@@ -113,3 +111,4 @@ objectNoun="data feed"
 (deleteClicked)="deleteDataFeed()"
 objectAction="Delete">
 </app-delete-object-modal>
+
