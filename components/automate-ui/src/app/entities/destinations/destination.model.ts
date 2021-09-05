@@ -6,7 +6,7 @@ export interface Destination {
   enable: boolean;
   services: string;
   integration_types: string;
-  meta_data: any[];
+  meta_data: string[];
 }
 
 export interface EnableDestination {
