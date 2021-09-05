@@ -115,32 +115,30 @@ export class DestinationRequests {
       { url, 'header': {value} });
   }
 
-  public testDestinationWithSecretId(destination:Destination): Observable<Object> {
-    const SecretIdParams = this.secretIdParams(destination)
+  public testDestinationWithSecretId(destination: Destination): Observable<Object> {
+    const SecretIdParams = this.secretIdParams(destination);
     return this.http.post(encodeURI(
       this.joinToDataFeedUrl(['destinations', 'test'])), SecretIdParams);
   }
 
-  public secretIdParams(destination: Destination){
-    if(destination.integration_types != ""){
-      return { 
+  public secretIdParams(destination: Destination) {
+    if (destination.integration_types !== '') {
+      return {
         'url': destination.url,
-        'secret_id_with_addon': { 
+        'secret_id_with_addon': {
           'id': destination.secret,
           'services': destination.services,
           'integration_types': destination.integration_types,
-          'meta_data': destination.meta_data,
-          
-        } 
-      }
+          'meta_data': destination.meta_data
+        }
+      };
     } else {
-      return { 
+      return {
         'url': destination.url,
-        'secret_id': { 
+        'secret_id': {
           'id': destination.secret
-          
-        } 
-      }
+        }
+      };
     }
   }
 
@@ -149,10 +147,11 @@ export class DestinationRequests {
       this.joinToDataFeedUrl(['destinations', 'test'])), { url, 'none': {}});
   }
 
-  public enableDisableDestinations(destination: EnableDestination): Observable<DestinationResponse> {
+  public enableDestinations(destination: EnableDestination): Observable<DestinationResponse> {
     return this.http.patch<DestinationResponse>(encodeURI(
-      this.joinToDataFeedUrl(['destination','enable',destination.id.toString()])), destination);
+      this.joinToDataFeedUrl(['destination', 'enable', destination.id.toString()])), destination);
   }
+
   public globalDataFeedConfig(): Observable<GlobalDataFeedConfigSuccess> {
     return this.http.get<GlobalDataFeedConfigSuccess>(encodeURI(
       this.joinToDataFeedUrl(['config'])));

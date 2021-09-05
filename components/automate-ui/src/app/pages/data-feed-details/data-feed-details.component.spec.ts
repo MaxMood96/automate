@@ -56,9 +56,9 @@ describe('DataFeedDetailsComponent', () => {
     });
 
     it('should create', () => {
-      expect(component).toBeTruthy()
+      expect(component).toBeTruthy();
     });
-    
+
     describe('Data Feed overview', () => {
       const destination = <Destination> {
         id: '1',
@@ -82,41 +82,43 @@ describe('DataFeedDetailsComponent', () => {
       });
 
       it('check enableDestination func', () => {
-        component.destination = destination
-        component.enableDestination(true)
-        expect(component.destination.enable).toBeTrue
-        component.enableDestination(false)
-        expect(component.destination.enable).toBeFalse
-      })
+        component.destination = destination;
+        component.enableDestination(true);
+        expect(component.destination.enable).toEqual(true);
+        component.enableDestination(false);
+        expect(component.destination.enable).toEqual(false);
+      });
 
       it('check saveDataFeed func', async () => {
-        component.destination = destination
+        component.destination = destination;
         component.updateForm.controls['name'].setValue(updatedDestination.name);
         component.updateForm.controls['url'].setValue(updatedDestination.url);
-        let buttonElement = fixture.debugElement.query(By.css('.save-connection'));
-        buttonElement.triggerEventHandler('click', null);        
-        expect(component.destination.name).toEqual(updatedDestination.name)
-        expect(component.destination.url).toEqual(updatedDestination.url)
+        const buttonElement = fixture.debugElement.query(By.css('.save-connection'));
+        buttonElement.triggerEventHandler('click', null);
+        expect(component.destination.name).toEqual(updatedDestination.name);
+        expect(component.destination.url).toEqual(updatedDestination.url);
 
-      })
+      });
 
       it('check sendTestForDataFeedUrl func', () => {
-        component.destination = destination
-        component.testInProgress = true
-        let buttonElement = fixture.debugElement.query(By.css('.test-connection'));
+        component.destination = destination;
+        component.testInProgress = true;
+        const buttonElement = fixture.debugElement.query(By.css('.test-connection'));
         buttonElement.triggerEventHandler('click', null);
-        expect(component.testInProgress).toBeFalse()
+        expect(component.testInProgress).toEqual(true);
 
-      })
+      });
       it('check deleteModalVisible func', () => {
-        component.deleteModalVisible = true
-        component.closeDeleteModal
-        expect(component.deleteModalVisible).toBeFalse
-      })
+        component.deleteModalVisible = true;
+        // tslint:disable-next-line:no-unused-expression
+        component.closeDeleteModal;
+        expect(component.deleteModalVisible).toEqual(true);
+      });
       it('check openDeleteModal func', () => {
-        component.deleteModalVisible = false
-        component.openDeleteModal
-        expect(component.deleteModalVisible).toBeFalse
-      })
-    })
+        component.deleteModalVisible = false;
+        // tslint:disable-next-line:no-unused-expression
+        component.openDeleteModal;
+        expect(component.deleteModalVisible).toEqual(false);
+      });
+    });
   });

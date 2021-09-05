@@ -7,7 +7,7 @@ import {
 import {
   globalDataFeed
 } from 'app/entities/destinations/destination.selectors';
-import { Observable, Subject } from 'rxjs';
+import { Observable } from 'rxjs';
 import { GlobalConfig } from 'app/entities/destinations/destination.model';
 import { map } from 'rxjs/operators';
 import { EntityStatus } from 'app/entities/entities';
@@ -25,100 +25,100 @@ enum UrlTestState {
   styleUrls: ['./data-feed-config-details.component.scss']
 })
 export class DataFeedConfigDetailsComponent implements OnInit {
-  private isDestroyed = new Subject<boolean>();
-  public creatingDataFeed: boolean
+  public creatingDataFeed: boolean;
   public hookStatus = UrlTestState.Inactive;
   public Fetchconfig$: Observable<GlobalConfig>;
   public config: GlobalConfig;
-  public configNotFound: boolean = true;
-  getFirstFiveDataStatusCodesShow:boolean;
+  public configNotFound = true;
+  getFirstFiveDataStatusCodesShow: boolean;
   getStatusCodes: number[] = [];
-  getCidrFilters:string[] = [];
-  getFirstFiveDataCidrFiltersShow:boolean;
-  public feedIntervaloutput: string[] = []
-  public finalFeedIntervaloutput: string
+  getCidrFilters: string[] = [];
+  getFirstFiveDataCidrFiltersShow: boolean;
+  public feedIntervaloutput: string[] = [];
+  public finalFeedIntervaloutput: string;
 
   constructor(
-    private store: Store<NgrxStateAtom>,
+    private store: Store<NgrxStateAtom>
   ) { }
 
   ngOnInit(): void {
-    this.store.dispatch(new GlobalDataFeedConfig({}))
-      this.getGlobalDataFeedConfig()
-}
+    this.store.dispatch(new GlobalDataFeedConfig({}));
+      this.getGlobalDataFeedConfig();
+  }
 
-  public getGlobalDataFeedConfig(){
+  public getGlobalDataFeedConfig() {
     this.store.pipe(
       select(globalDataFeed)).pipe(
         map((res: any) =>  res))
         .subscribe((res: any) => {
-          if(res.globalConfigStatus ==  EntityStatus.loadingSuccess){
-            this.configNotFound = false
-            this.config = res.globalConfig
-            this.getStatusCodes = this.getData(this.config?.accepted_status_codes,true)
-            this.getCidrFilters = this.getData(this.config?.cidr_filter,true)
-            this.getFirstFiveDataStatusCodesShow = this.config?.accepted_status_codes.length == this.getStatusCodes.length
-            this.getFirstFiveDataCidrFiltersShow = this.config?.cidr_filter.length == this.getCidrFilters.length
-            this.finalFeedIntervaloutput = this.covertFeedInterval(this.config?.feed_interval)
+          if (res.globalConfigStatus ===  EntityStatus.loadingSuccess) {
+            this.configNotFound = false;
+            this.config = res.globalConfig;
+            this.getStatusCodes = this.getData(this.config?.accepted_status_codes, true);
+            this.getCidrFilters = this.getData(this.config?.cidr_filter, true);
+            const statusCodesLen = this.config?.accepted_status_codes.length;
+            const filterLen = this.config?.cidr_filter.length;
+            this.getFirstFiveDataStatusCodesShow =  statusCodesLen === this.getStatusCodes.length;
+            this.getFirstFiveDataCidrFiltersShow =  filterLen === this.getCidrFilters.length;
+            this.finalFeedIntervaloutput = this.covertFeedInterval(this.config?.feed_interval);
           }
-        })
+        });
   }
-  ngOnDestroy(): void {
-    this.isDestroyed.next(true);
-    this.isDestroyed.complete();
-  }
-  covertFeedInterval(feedInterval:string):string{
+
+  covertFeedInterval(feedInterval: string): string {
     // let output: string[] = []
-      let SplitFeedInterval = feedInterval.split('')
-      this.findArrayIndexAndRaplaceName(SplitFeedInterval, "h", " Hour ,")
-      this.findArrayIndexAndRaplaceName(SplitFeedInterval,"m"," Minute ,")
-      this.findArrayIndexAndRaplaceName(SplitFeedInterval,"s"," Seconds ,")
-      let SplitIntoTime = SplitFeedInterval.join('')
+      const SplitFeedInterval = feedInterval.split('');
+      this.findArrayIndexAndRaplaceName(SplitFeedInterval, 'h', ' Hour ,');
+      this.findArrayIndexAndRaplaceName(SplitFeedInterval, 'm', ' Minute ,');
+      this.findArrayIndexAndRaplaceName(SplitFeedInterval, 's', ' Seconds ,');
+      const SplitIntoTime = SplitFeedInterval.join('');
       SplitIntoTime.split(',').forEach((v) => {
-        this.pushDataInArray('Hour',v)
-        this.pushDataInArray('Minute',v)
-        this.pushDataInArray('Seconds',v)
-      })  
-      return this.feedIntervaloutput.join('')
+        this.pushDataInArray('Hour', v);
+        this.pushDataInArray('Minute', v);
+        this.pushDataInArray('Seconds', v);
+      });
+      return this.feedIntervaloutput.join('');
   }
-  public pushDataInArray(findString:string,v:string):void{
-    if (v.includes(findString)){
-      if(parseInt(v) != 0){
-        this.feedIntervaloutput.push(v)
+  public pushDataInArray(findString: string, v: string): void {
+    if (v.includes(findString)) {
+      if (parseInt(v, 10) !== 0) {
+        this.feedIntervaloutput.push(v);
       }
-    }    
-  }
-  public findArrayIndexAndRaplaceName(arrayOfFeedInterval:string[],findString:string,repaceString):void{
-    if(arrayOfFeedInterval.includes(findString)){
-      arrayOfFeedInterval.splice(arrayOfFeedInterval.indexOf(findString), 1, repaceString);
     }
   }
-  
-  getAlldata(flag:string):void{
-    if(flag == 'StatusCodes'){
-      this.getFirstFiveDataStatusCodesShow = false;
-      this.getStatusCodes = this.getData(this.config.accepted_status_codes,false)
-      this.getFirstFiveDataStatusCodesShow = this.config?.accepted_status_codes.length == this.getStatusCodes.length
-    } else if(flag == 'DataCidrFilters') {
-      this.getFirstFiveDataCidrFiltersShow = false;
-      this.getCidrFilters = this.getData(this.config.cidr_filter,false)
-      this.getFirstFiveDataCidrFiltersShow = this.config?.cidr_filter.length == this.getCidrFilters.length
+  public findArrayIndexAndRaplaceName(FeedInterval: string[], find: string, replaceString): void {
+    if (FeedInterval.includes(find)) {
+      FeedInterval.splice(FeedInterval.indexOf(find), 1, replaceString);
     }
   }
 
-  getData(arrValue?:any,getFirstFiveData?:boolean):any{
-    if(arrValue != null){
-      if(getFirstFiveData){
-        if(arrValue.length>=5){
-          return arrValue.slice(0,5)
-        }else{
-          return arrValue.slice(0,arrValue.length)
+  getAlldata(flag: string): void {
+    const statusCodesLen = this.config?.accepted_status_codes.length;
+    const filterLen = this.config?.cidr_filter.length;
+    if (flag === 'StatusCodes') {
+      this.getFirstFiveDataStatusCodesShow = false;
+      this.getStatusCodes = this.getData(this.config.accepted_status_codes, false);
+      this.getFirstFiveDataStatusCodesShow = statusCodesLen === this.getStatusCodes.length;
+    } else if (flag === 'DataCidrFilters') {
+      this.getFirstFiveDataCidrFiltersShow = false;
+      this.getCidrFilters = this.getData(this.config.cidr_filter, false);
+      this.getFirstFiveDataCidrFiltersShow = filterLen === this.getCidrFilters.length;
+    }
+  }
+
+  getData(arrValue?: any, getFirstFiveData?: boolean): any {
+    if (arrValue != null) {
+      if (getFirstFiveData) {
+        if (arrValue.length >= 5) {
+          return arrValue.slice(0, 5);
+        } else {
+          return arrValue.slice(0, arrValue.length);
         }
       } else {
-        return arrValue
+        return arrValue;
       }
     }
-    return []
+    return [];
   }
 }
 

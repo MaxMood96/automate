@@ -206,11 +206,11 @@ export class DestinationEffects {
     this.actions$.pipe(
     ofType(DestinationActionTypes.ENABLE_DISABLE),
     mergeMap(( {payload:  {enableDisable} }: EnableDisableDestination) =>
-      this.requests.enableDisableDestinations(enableDisable).pipe(
+      this.requests.enableDestinations(enableDisable).pipe(
         map((resp: DestinationSuccessPayload) => new EnableDisableDestinationSuccess(resp)),
         catchError((error: HttpErrorResponse) =>
           observableOf(new EnableDisableDestinationFailure(error)))))));
-          
+
     enableDisableDestinationFailure$ = createEffect(() =>
     this.actions$.pipe(
     ofType(DestinationActionTypes.ENABLE_DISABLE_FAILURE),
@@ -224,7 +224,7 @@ export class DestinationEffects {
       ofType(DestinationActionTypes.ENABLE_DISABLE_SUCCESS),
       map(({ payload  }: EnableDisableDestinationSuccess) => new CreateNotification({
       type: Type.info,
-      message: `Destination is ${payload.enable?'Enabled':'Disabled'}.`
+      message: `Destination is ${payload.enable ? 'Enabled' : 'Disabled'}.`
     }))));
 
     globalDataFeedConfig$ = createEffect(() =>

@@ -13,7 +13,7 @@ export interface DestinationEntityState extends EntityState<Destination> {
   updateStatus: EntityStatus;
   deleteStatus: EntityStatus;
   enableStatus: EntityStatus;
-  testConnectionStatus: EntityStatus
+  testConnectionStatus: EntityStatus;
 }
 export interface GlobalConfigEntityState extends EntityState<GlobalConfig> {
   globalConfigStatus: EntityStatus;
@@ -27,9 +27,9 @@ const UPDATE_STATUS = 'updateStatus';
 const GET_STATUS = 'getStatus';
 const DELETE_STATUS = 'deleteStatus';
 const ENABLE_STATUS = 'enableStatus';
-const GLOBAL_CONFIG_STATUS = 'globalConfigStatus'
-const GLOBAL_CONFIG = 'globalConfig'
-const TEST_CONNECTION_STATUS = 'testConnectionStatus'
+const GLOBAL_CONFIG_STATUS = 'globalConfigStatus';
+const GLOBAL_CONFIG = 'globalConfig';
+const TEST_CONNECTION_STATUS = 'testConnectionStatus';
 
 export const destinationEntityAdapter: EntityAdapter<Destination> =
   createEntityAdapter<Destination>();
@@ -53,7 +53,7 @@ globalConfigEntityAdapter.getInitialState({
     saveStatus: EntityStatus.notLoaded,
     saveError: null,
     globalConfigStatus: EntityStatus.notLoaded,
-    globalConfig: null ,
+    globalConfig: null
   });
 
 export function globalConfigEntityReducer(
@@ -69,12 +69,16 @@ export function globalConfigEntityReducer(
           ) as GlobalConfigEntityState;
         }
         case DestinationActionTypes.GLOBAL_CONFIG_SUCCESS: {
-          let configStatustState = set(
+          const configStatusState = set(
             GLOBAL_CONFIG_STATUS,
             EntityStatus.loadingSuccess,
             state
-            )
-            return set(GLOBAL_CONFIG, action.payload, configStatustState) as GlobalConfigEntityState;
+            );
+            return set(
+              GLOBAL_CONFIG,
+              action.payload,
+              configStatusState
+            ) as GlobalConfigEntityState;
         }
         case DestinationActionTypes.GLOBAL_CONFIG_FAILURE: {
           return set(GLOBAL_CONFIG_STATUS, EntityStatus.loadingFailure, state
@@ -184,7 +188,7 @@ export function destinationEntityReducer(
           id: action.payload.id,
           changes: action.payload
         }, state));
-  
+
     case DestinationActionTypes.ENABLE_DISABLE_FAILURE:
       return set(ENABLE_STATUS, EntityStatus.loadingFailure, state);
 
@@ -193,21 +197,21 @@ export function destinationEntityReducer(
         TEST_CONNECTION_STATUS,
         EntityStatus.loading,
         state
-      )
-    
+      );
+
     case DestinationActionTypes.SEND_TEST_SUCCESS:
       return set(
         TEST_CONNECTION_STATUS,
         EntityStatus.loadingSuccess,
         state
-        )
-    
+        );
+
     case DestinationActionTypes.SEND_TEST_FAILURE: {
       return set(
         TEST_CONNECTION_STATUS,
         EntityStatus.loadingFailure,
         state
-        )
+        );
     }
   }
   return state;

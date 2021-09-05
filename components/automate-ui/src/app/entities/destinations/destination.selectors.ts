@@ -1,7 +1,7 @@
 import { createSelector, createFeatureSelector } from '@ngrx/store';
 
-import { 
-  DestinationEntityState, 
+import {
+  DestinationEntityState,
   destinationEntityAdapter,
   GlobalConfigEntityState,
   globalConfigEntityAdapter
@@ -72,10 +72,13 @@ export const globalDataFeedStatus = createSelector(
   globalDataFeedConfigState,
   (state) => state.globalConfigStatus
 );
+
 export const globalDataFeed = createSelector(
   globalDataFeedConfigState,
-  (state) => {return {
+  (state) => {
+    return {
     globalConfig: state.globalConfig,
     globalConfigStatus: state.globalConfigStatus
-  }}
+    };
+  }
 );

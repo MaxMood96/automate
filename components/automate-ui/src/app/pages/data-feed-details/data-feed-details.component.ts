@@ -10,34 +10,35 @@ import { NgrxStateAtom } from 'app/ngrx.reducers';
 import { routeParams } from 'app/route.selectors';
 import { Regex } from 'app/helpers/auth/regex';
 import { pending, EntityStatus } from 'app/entities/entities';
-import { 
-  GetDestination, 
-  UpdateDestination, 
+import {
+  GetDestination,
+  UpdateDestination,
   TestDestination ,
   EnableDisableDestination,
   DeleteDestination
 } from 'app/entities/destinations/destination.actions';
-import { 
-  destinationFromRoute, 
-  getStatus, 
-  updateStatus, 
-  destinationEnableStatus, 
+
+import {
+  destinationFromRoute,
+  getStatus,
+  updateStatus,
+  destinationEnableStatus,
   deleteStatus,
   testConnectionStatus
 } from 'app/entities/destinations/destination.selectors';
 import { Destination } from 'app/entities/destinations/destination.model';
-import { Router } from '@angular/router'
+import { Router } from '@angular/router';
 import { trigger, state, animate, transition, style, keyframes } from '@angular/animations';
 
 const fadeEnable = trigger('fadeEnable', [
    state('inactive', style({})),
    state('active', style({})),
    transition('inactive <=> active', [
-    animate('0.3s', keyframes([ 
-      style({transform: 'translateX(0%)'}), 
-      style({transform: 'translateX(100%)'}), 
-      style({transform: 'translateX(0%)'}) 
-    ])),
+    animate('0.3s', keyframes([
+      style({transform: 'translateX(0%)'}),
+      style({transform: 'translateX(100%)'}),
+      style({transform: 'translateX(0%)'})
+    ]))
    ])
 ]);
 
@@ -45,11 +46,11 @@ const fadeDisable = trigger('fadeDisable', [
   state('inactive', style({})),
   state('active', style({})),
   transition('inactive <=> active', [
-   animate('0.3s', keyframes([ 
-     style({transform: 'translateX(0%)'}), 
-     style({transform: 'translateX(-100%)'}), 
-     style({transform: 'translateX(0%)'}) 
-   ])),
+   animate('0.3s', keyframes([
+     style({transform: 'translateX(0%)'}),
+     style({transform: 'translateX(-100%)'}),
+     style({transform: 'translateX(0%)'})
+   ]))
   ])
 ]);
 
@@ -66,7 +67,7 @@ enum UrlTestState {
   selector: 'app-data-feed-details',
   templateUrl: './data-feed-details.component.html',
   styleUrls: ['./data-feed-details.component.scss'],
-  animations: [fadeEnable,fadeDisable]
+  animations: [fadeEnable, fadeDisable]
 })
 
 export class DataFeedDetailsComponent implements OnInit, OnDestroy {
@@ -79,7 +80,7 @@ export class DataFeedDetailsComponent implements OnInit, OnDestroy {
   public hookStatus = UrlTestState.Inactive;
   private isDestroyed = new Subject<boolean>();
   public deleteModalVisible = false;
-  public state = 'inactive'
+  public state = 'inactive';
 
   constructor(
     private fb: FormBuilder,
@@ -122,10 +123,10 @@ export class DataFeedDetailsComponent implements OnInit, OnDestroy {
     this.store.pipe(
       select(updateStatus),
       takeUntil(this.isDestroyed),
-      filter(state => this.saveInProgress && !pending(state)))
-      .subscribe((state) => {
+      filter(status => this.saveInProgress && !pending(status)))
+      .subscribe((res) => {
         this.saveInProgress = false;
-        this.saveSuccessful = (state === EntityStatus.loadingSuccess);
+        this.saveSuccessful = (res === EntityStatus.loadingSuccess);
         if (this.saveSuccessful) {
           this.updateForm.markAsPristine();
         }
@@ -165,9 +166,9 @@ export class DataFeedDetailsComponent implements OnInit, OnDestroy {
     this.store.pipe(
       select(testConnectionStatus),
       takeUntil(this.isDestroyed),
-      filter(state => !pending(state)))
-      .subscribe(state => {
-        if (state === EntityStatus.loadingSuccess || EntityStatus.loadingFailure) {
+      filter(status => !pending(status)))
+      .subscribe(res => {
+        if (res === EntityStatus.loadingSuccess || EntityStatus.loadingFailure) {
           this.testInProgress = false;
         }
       });
@@ -180,32 +181,32 @@ export class DataFeedDetailsComponent implements OnInit, OnDestroy {
   public get urlCtrl(): FormControl {
     return <FormControl>this.updateForm.controls.url;
   }
-  public enableDestination(val:boolean){
+  public enableDestination(val: boolean) {
     const destinationEnableObj = {
       id: this.destination.id,
       enable: val
-    }
+    };
     this.store.dispatch(new EnableDisableDestination({enableDisable: destinationEnableObj}));
     this.store.pipe(
       select(destinationEnableStatus),
       takeUntil(this.isDestroyed),
-      filter(state => !pending(state)))
-      .subscribe(state => {
-        if (state === EntityStatus.loadingSuccess) {
+      filter(status => !pending(status)))
+      .subscribe(res => {
+        if (res === EntityStatus.loadingSuccess) {
           this.state = this.state === 'active' ? 'inactive' : 'active';
-          this.destination.enable = val
+          this.destination.enable = val;
         }
       });
   }
-  public deleteDataFeed(){
+  public deleteDataFeed() {
     this.store.dispatch(new DeleteDestination(this.destination));
     this.store.pipe(
       select(deleteStatus),
       takeUntil(this.isDestroyed),
-      filter(state => !pending(state)))
-      .subscribe(state => {
-        if (state === EntityStatus.loadingSuccess) {
-          this.router.navigate(['/settings/data-feeds'])
+      filter(status => !pending(status)))
+      .subscribe(res => {
+        if (res === EntityStatus.loadingSuccess) {
+          this.router.navigate(['/settings/data-feeds']);
         }
       });
   }
@@ -219,8 +220,8 @@ export class DataFeedDetailsComponent implements OnInit, OnDestroy {
     this.isDestroyed.next(true);
     this.isDestroyed.complete();
   }
-  public cancel(): void{
-    this.router.navigate(['/settings/data-feeds'])
+  public cancel(): void {
+    this.router.navigate(['/settings/data-feeds']);
   }
 }
 
