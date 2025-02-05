@@ -1,4 +1,5 @@
-@import "~styles/variables";
+@import "../../styles/variables";
+// @import "@carbon/layout/scss/layout";
 
 :host {
   display: flex;
@@ -6,12 +7,14 @@
   position: relative;
   width: 100%;
   color: $chef-white;
-  background-color: $chef-success;
-  padding: 0.5em;
+  background-color: $white;
+  height: 39px;
+  border-bottom: solid 1px $chef-grey;
   overflow: hidden;
   z-index: 10;
 
   p {
     margin: 0 auto;
   }
+
 }

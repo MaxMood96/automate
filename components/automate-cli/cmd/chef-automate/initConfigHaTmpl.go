@@ -6,124 +6,563 @@ const haAwsConfigTemplate = `
 # successfully create a new Chef Automate HA instances with default settings.
 
 [architecture.aws]
+## === INPUT NEEDED ===
+# Eg.: ssh_user = "ubuntu"
+ssh_user = ""
+
+# custom ssh group name, it will be defaulted to ssh_user
+# Eg.: ssh_group_name = "ubuntu"
+ssh_group_name = ""
+
+# custom ssh port no to connect instances, default will be 22
+# Eg.: ssh_port = "22"
+ssh_port = ""
+
+# Private SSH key file path, which has access to all the instances.
+# Eg.: ssh_key_file = "~/.ssh/A2HA.pem"
+ssh_key_file = ""
+
+# Eg.: backup_config = "efs" or "s3"
+backup_config = ""
+
+#    Note: 1. To create new bucket, make sure to give a unique name
+#          2. User can also add existing bucket 
+#
+# If s3 is selected for backup_config,
+#     uncomment and add the value for following 's3_bucketName' attribute
+
+# s3_bucketName = ""
+## === ===
+
+# this is the path where the automate backups will be stored
+automate_base_path = "automate"
+# this is the path where the opensearch backups will be stored
+opensearch_base_path = "elasticsearch"
+
 secrets_key_file = "/hab/a2_deploy_workspace/secrets.key"
 secrets_store_file = "/hab/a2_deploy_workspace/secrets.json"
 architecture = "aws"
 workspace_path = "/hab/a2_deploy_workspace"
-# ssh user name for ssh login to instance like default user for centos will centos or for red-hat will be ec2-user
-ssh_user = "centos"
-# private ssh key file path to access instances
-ssh_key_file = "~/.ssh/A2HA.pem"
-# sudo_password = ""
-# logging_monitoring_management = ""
-# new_elk = ""
-# existing_elk_instance_ip ""
-# existing_elk_port ""
-# existing_elk_cert ""
-# existing_elk_username ""
-# existing_elk_password ""
+
+# DON'T MODIFY THE BELOW LINE (backup_mount)
 backup_mount = "/mnt/automate_backups"
 
+
 [automate.config]
-# admin_password = ""
-# automate load balancer fqdn IP or path
-# fqdn = ""
-instance_count = "1"
+## === INPUT NEEDED ===
+
+# Password for Automate UI for 'admin' user.
+admin_password = ""
+
+# Automate Load Balancer FQDN eg.: "chefautomate.example.com"
+fqdn = ""
+
+# Add Automate Load Balancer root-ca
+# root_ca = """automate_lb_root_ca_contents"""
+
+# No. of Automate Frontend Machine or VM eg.: instance_count = "2"
+instance_count = ""
+
+## === ===
+
+#Deprecated Config - automate_setup_type is not supported
+# automate_setup_type = "automate"
+
 # teams_port = ""
+
+# config_file will be deprecated
 config_file = "configs/automate.toml"
 
-[chef_server.config]
-instance_count = "1"
+# Set enable_custom_certs = true to provide custom certificates during deployment
+enable_custom_certs = false
 
-[elasticsearch.config]
-instance_count = "3"
+# Add Automate node internal public and private keys
+# private_key = """private_key_contents"""
+# public_key = """public_key_contents"""
+
+# [[automate.config.certs_by_ip]]
+# ip = ""
+# private_key = """private_key_contents"""
+# public_key = """public_key_contents"""
+
+[chef_server.config]
+## === INPUT NEEDED ===
+
+# Chefserver Load Balancer FQDN eg.: "chefserver.example.com"
+fqdn = ""
+
+# Add Chefserver Load Balancer root-ca
+# lb_root_ca = """chef_server_lb_root_ca_contents"""
+
+# No. of Chef Server Frontend Machine or VM eg.: instance_count = "2"
+instance_count = ""
+
+# Set enable_custom_certs = true to provide custom certificates during deployment
+enable_custom_certs = false
+
+# Add Chef Server node internal public and private keys
+# private_key = """private_key_contents"""
+# public_key = """public_key_contents"""
+
+# [[chef_server.config.certs_by_ip]]
+# ip = ""
+# private_key = """private_key_contents"""
+# public_key = """public_key_contents"""
+
+## === ===
+
+
+[opensearch.config]
+## === INPUT NEEDED ===
+
+# No. of OpenSearch DB Backend Machine or VM eg.: instance_count = "3"
+instance_count = ""
+
+# Set enable_custom_certs = true to provide custom certificates during deployment
+enable_custom_certs = false
+
+# Add OpenSearch root-ca and keys
+# root_ca = """root_ca_contents"""
+# admin_key = """admin_private_key_contents"""
+# admin_cert = """admin_public_key_contents"""
+# private_key = """private_key_contents"""
+# public_key = """public_key_contents"""
+# [[opensearch.config.certs_by_ip]]
+# ip = ""
+# private_key = """private_key_contents"""
+# public_key = """public_key_contents"""
+
+## === ===
 
 [postgresql.config]
-instance_count = "3"
+## === INPUT NEEDED ===
+
+# No. of Postgresql DB Backend Machine or VM eg.: instance_count = "3"
+instance_count = ""
+
+# Set enable_custom_certs = true to provide custom certificates during deployment
+enable_custom_certs = false
+
+# Add Postgresql root-ca and keys
+# root_ca = """root_ca_contents"""
+# private_key = """private_key_contents"""
+# public_key = """public_key_contents"""
+# [[postgresql.config.certs_by_ip]]
+# ip = ""
+# private_key = """private_key_contents"""
+# public_key = """public_key_contents"""
+
+## === ===
+
+
+# ======================================================
 
 [aws.config]
-profile = "default"
-region = "us-east-1"
+# ============== AWS network Config ============================
+## === INPUT NEEDED ===
+
+# Eg.: profile = "default", Leave this field empty if you have an IAM role attached to the bastion machine.
+profile = ""
+
+# Eg.: region = "us-east-1"
+region = ""
+
 # Provide vpcid and cidr block
-# E.g. aws_vpc_id = "vpc12318h"
-# E.g. aws_cidr_block_addr = "172.31.64.0"
+# Eg.: aws_vpc_id = "vpc12318h"
 aws_vpc_id  = ""
+
+# Eg.: aws_cidr_block_addr = "172.31.64.0"
 aws_cidr_block_addr  = ""
+
+# Eg.: private_custom_subnets = ["subnet-e556d512", "subnet-e556d513", "subnet-e556d514"]
+private_custom_subnets = []
+
+# Eg.: public_custom_subnets = ["subnet-p556d512", "subnet-p556d513", "subnet-p556d514"]
+public_custom_subnets = []
+
 # ssh key pair name in AWS to access instances
-ssh_key_pair_name = "A2HA"
-ami_filter_name = ""
-ami_filter_virt_type = ""
-ami_filter_owner = ""
+# eg: ssh_key_pair_name = "A2HA"
+ssh_key_pair_name = ""
+
+## === ===
+
+# ============== Managed Services ======================
+
+## === INPUT NEEDED ===
+# in case your are trying to deploy with aws managed 
+# RDS, and openseach, then make setup_managed_services = true, 
+# and modify other managed services settings.
+setup_managed_services = false
+
+# eg: managed_opensearch_domain_name = "managed-services-os"
+managed_opensearch_domain_name = ""
+
+# eg: managed_opensearch_domain_url = "search-managed-services-os-eckom3msrwqlmjlgbdu.us-east-1.es.amazonaws.com"
+managed_opensearch_domain_url = ""
+
+# eg: managed_opensearch_username = "admin"
+managed_opensearch_username = ""
+
+# eg: managed_opensearch_user_password = "Progress@123"
+managed_opensearch_user_password = ""
+
+# eg: managed_opensearch_certificate = """<cert content>"""
+managed_opensearch_certificate = """"""
+
+# eg: aws_os_snapshot_role_arn = "arn:aws:iam::1127583934333:role/managed-services"
+aws_os_snapshot_role_arn = ""
+
+# eg: os_snapshot_user_access_key_id = "AKIA..........PQS7Q7A"
+os_snapshot_user_access_key_id = ""
+
+# eg: os_snapshot_user_access_key_secret = "skP4Mqihj....................anAXAX"
+os_snapshot_user_access_key_secret = ""
+
+# eg: managed_rds_instance_url = "managed-rds-db.cww4poze5gkx.ap-northeast-1.rds.amazonaws.com:5432"
+managed_rds_instance_url = ""
+
+# eg: managed_rds_superuser_username = "postgres"
+managed_rds_superuser_username = ""
+
+# eg: managed_rds_superuser_password = "Progress123"
+managed_rds_superuser_password = ""
+
+# eg: managed_rds_dbuser_username = "postgres"
+managed_rds_dbuser_username = ""
+
+# eg: managed_rds_dbuser_password = "Progress123"
+managed_rds_dbuser_password = ""
+
+# eg: managed_rds_certificate = """<cert content>"""
+managed_rds_certificate = """"""
+
+## === ===
+
+# ======================================================
+
+# ============== EC2 Instance Config ===================
+
+## === INPUT NEEDED ===
+
+# This AMI should be from the Same Region which we selected above.
+# eg: ami_id = "ami-08d4ac5b634553e16" # This ami is of Ubuntu 20.04 in us-east-1
 ami_id = ""
-automate_server_instance_type = "t3.medium"
-chef_server_instance_type = "t3.medium"
-elasticsearch_server_instance_type = "m5.large"
-postgresql_server_instance_type = "t3.medium"
-automate_lb_certificate_arn = "arn:aws:acm...."
-chef_server_lb_certificate_arn = "arn:aws:acm...."
-automate_ebs_volume_iops = "100"
-automate_ebs_volume_size = "50"
-automate_ebs_volume_type = "gp2"
-chef_ebs_volume_iops = "100"
-chef_ebs_volume_size = "50"
-chef_ebs_volume_type = "gp2"
-elasticsearch_ebs_volume_iops = "100"
-elasticsearch_ebs_volume_size = "50"
-elasticsearch_ebs_volume_type = "gp2"
-postgresql_ebs_volume_iops = "100"
-postgresql_ebs_volume_size = "50"
-postgresql_ebs_volume_type = "gp2"
+
+# eg: delete_on_termination = true or false
+delete_on_termination = true
+
+# eg: automate_server_instance_type = "m5.large"
+automate_server_instance_type = ""
+
+# eg: chef_server_instance_type = "m5.large"
+chef_server_instance_type = ""
+
+# eg: opensearch_server_instance_type = "m5.large"
+opensearch_server_instance_type = ""
+
+# eg: postgresql_server_instance_type = "m5.large"
+postgresql_server_instance_type = ""
+
+# eg: automate_lb_certificate_arn = "arn:aws:acm...."
+automate_lb_certificate_arn = ""
+
+# eg: chef_server_lb_certificate_arn = "arn:aws:acm...."
+chef_server_lb_certificate_arn = ""
+
+# eg: automate_ebs_volume_iops = "100"
+automate_ebs_volume_iops = ""
+
+# eg: automate_ebs_volume_size = "200"
+automate_ebs_volume_size = ""
+
+# eg: automate_ebs_volume_type = "gp3"
+automate_ebs_volume_type = ""
+
+# eg: chef_ebs_volume_iops = "100"
+chef_ebs_volume_iops = ""
+
+# eg: chef_ebs_volume_size = "200"
+chef_ebs_volume_size = ""
+
+# eg: chef_ebs_volume_type = "gp3"
+chef_ebs_volume_type = ""
+
+# eg: opensearch_ebs_volume_iops = "100"
+opensearch_ebs_volume_iops = ""
+
+# eg: opensearch_ebs_volume_size = "200"
+opensearch_ebs_volume_size = ""
+
+# eg: opensearch_ebs_volume_type = "gp3"
+opensearch_ebs_volume_type = ""
+
+# eg: postgresql_ebs_volume_iops = "100"
+postgresql_ebs_volume_iops = ""
+
+# eg: postgresql_ebs_volume_size = "200"
+postgresql_ebs_volume_size = ""
+
+# eg: postgresql_ebs_volume_type = "gp3"
+postgresql_ebs_volume_type = ""
+
+## === ===
+
+# Enabale/Disable load balancer logs
+# eg lb_access_logs = "false"
+lb_access_logs = "false"
+
+# ======================================================
+
+# ============== EC2 Instance Tags =====================
 X-Contact = ""
 X-Dept = ""
 X-Project = ""
+# ======================================================
+
+# ============== Deprecated ============================
+#Deprecated Config - below config is not supported
+#aws_automate_route53_prefix = ""
+#aws_chef_server_route53_prefix = ""
+#aws_route53_hosted_zone = "saas.chef.io"
+#postgresql_db_identifier = ""
+#elasticsearch_domain_name = ""
+#rds_postgresql_instance_type = "db.t3.medium"
+#rds_postgresql_restore_identifier = ""
+#datadog_api_key = "DATADOG_API_KEY"
+#use_existing_managed_infra = false
+#X-Production = "false"
+#X-Customer = ""
+# ======================================================
 `
 
 const haExistingNodesConfigTemplate = `
-# This is a Chef Automate AWS HA mode configuration file. You can run
+# This is a Chef Automate on-prem HA mode configuration file. You can run
 # 'chef-automate deploy' with this config file and it should
 # successfully create a new Chef Automate HA instances with default settings.
 
 [architecture.existing_infra]
+## === INPUT NEEDED ===
+# Eg.: ssh_user = "ubuntu"
+ssh_user = ""
+
+# custom ssh group name, it will be defaulted to ssh_user
+# Eg.: ssh_group_name = "ubuntu"
+ssh_group_name = ""
+
+# private ssh key file path to access instances
+# Eg.: ssh_key_file = "~/.ssh/A2HA.pem"
+ssh_key_file = ""
+
+# custome ssh port no to connect instances, default will be 22
+# Eg.: ssh_port = "22"
+ssh_port = ""
+
 secrets_key_file = "/hab/a2_deploy_workspace/secrets.key"
 secrets_store_file = "/hab/a2_deploy_workspace/secrets.json"
 architecture = "existing_nodes"
 workspace_path = "/hab/a2_deploy_workspace"
-ssh_user = "centos"
-# private ssh key file path to access instances
-ssh_key_file = "~/.ssh/A2HA.pem"
-sudo_password = ""
-# logging_monitoring_management = "{{ .LoggingMonitoringManagement }}"
-# new_elk = "{{ .NewElk }}"
-# existing_elk_instance_ip "{{ .ExistingElk }}"
-# existing_elk_port "{{ .ExistingElkPort }}"
-# existing_elk_cert "{{ .ExistingElkCert }}"
-# existing_elk_username "{{ .ExistingElkUsername }}"
-# existing_elk_password "{{ .ExistingElkPassword }}"
+# DON'T MODIFY THE BELOW LINE (backup_mount)
 backup_mount = "/mnt/automate_backups"
 
+# Eg.: backup_config = "object_storage" or "file_system"
+backup_config = ""
+# If backup_config = "object_storage" fill out [object_storage.config] as well 
+## Object storage similar to AWS S3 Bucket
+
+# this is the path where the automate backups will be stored
+automate_base_path = "automate"
+# this is the path where the opensearch backups will be stored
+opensearch_base_path = "elasticsearch"
+
+[object_storage.config]
+# for gcs we need to provide the bucket name and service_account json file path
+# google_service_account_file = "/home/user/MY-GOOGLE-ACCOUNT-SERVICE.json"
+google_service_account_file = ""
+# location = s3 or gcs 
+location = "" 
+bucket_name = ""
+access_key = ""
+secret_key = ""
+# For S3 bucket, default endpoint value is "https://s3.amazonaws.com"
+# Include protocol to the enpoint value. Eg: https://customdns1.com or http://customdns2.com
+endpoint = ""
+# [Optional] Mention object_storage region if applicable
+# Eg: region = "us-west-1"
+region = ""
+
+# ============== EC2 Nodes Config ======================
 [automate.config]
-# admin_password = ""
-# automate load balancer fqdn IP or path
+## === INPUT NEEDED ===
+
+# Password for Automate UI for 'admin' user.
+admin_password = ""
+
+# Automate Load Balancer FQDN eg.: "chefautomate.example.com"
 fqdn = ""
-instance_count = "1"
+
+# Add Automate Load Balancer root-ca
+# root_ca = """automate_lb_root_ca_contents"""
+
+# No. of Automate Frontend Machine or VM eg.: instance_count = "2"
+instance_count = ""
+
+## === ===
+
 # teams_port = ""
+# config_file will be deprecated
 config_file = "configs/automate.toml"
 
-[chef_server.config]
-instance_count = "1"
+# Set enable_custom_certs = true to provide custom certificates during deployment
+enable_custom_certs = false
 
-[elasticsearch.config]
-instance_count = "3"
+# Add Automate node internal public and private keys
+# private_key = """private_key_contents"""
+# public_key = """public_key_contents"""
+
+# [[automate.config.certs_by_ip]]
+# ip = ""
+# private_key = """private_key_contents"""
+# public_key = """public_key_contents"""
+
+[chef_server.config]
+## === INPUT NEEDED ===
+
+# Chefserver Load Balancer FQDN eg.: "chefserver.example.com"
+fqdn = ""
+
+# Add Chefserver Load Balancer root-ca
+# lb_root_ca = """chef_server_lb_root_ca_contents"""
+
+# No. of Chef Server Frontend Machine or VM eg.: instance_count = "2"
+instance_count = ""
+
+# Set enable_custom_certs = true to provide custom certificates during deployment
+enable_custom_certs = false
+
+# Add Chef Server node internal public and private keys
+# private_key = """private_key_contents"""
+# public_key = """public_key_contents"""
+
+# [[chef_server.config.certs_by_ip]]
+# ip = ""
+# private_key = """private_key_contents"""
+# public_key = """public_key_contents"""
+
+## === ===
+
+[opensearch.config]
+## === INPUT NEEDED ===
+
+# No. of OpenSearch DB Backend Machine or VM eg.: instance_count = "3"
+instance_count = ""
+
+# Set enable_custom_certs = true to provide custom certificates during deployment
+enable_custom_certs = false
+# Add OpenSearch root-ca and keys
+# root_ca = """root_ca_contents"""
+# admin_key = """admin_private_key_contents"""
+# admin_cert = """admin_public_key_contents"""
+# private_key = """private_key_contents"""
+# public_key = """public_key_contents"""
+# [[opensearch.config.certs_by_ip]]
+# ip = ""
+# private_key = """private_key_contents"""
+# public_key = """public_key_contents"""
+
+## === ===
 
 [postgresql.config]
-instance_count = "3"
+## === INPUT NEEDED ===
+
+# No. of Postgresql DB Backend Machine or VM eg.: instance_count = "3"
+instance_count = ""
+
+# Set enable_custom_certs = true to provide custom certificates during deployment
+enable_custom_certs = false
+# Add postgresql root-ca and keys
+# root_ca = """root_ca_contents"""
+# private_key = """private_key_contents"""
+# public_key = """public_key_contents"""
+# [[postgresql.config.certs_by_ip]]
+# ip = ""
+# private_key = """private_key_contents"""
+# public_key = """public_key_contents"""
+
+## === ===
 
 [existing_infra.config]
+## === INPUT NEEDED ===
+
+# provide comma-seperated IP addresses of nodes, like ["192.0.0.1", "192.0.0.2", "192.0.0.2"]
+# No. of IP address should be the same as the No. of instance_count count mentioned above in
+# automate.config, chef_server.config, opensearch.config and postgresql.config
 automate_private_ips = []
 chef_server_private_ips = []
-elasticsearch_ips = []
-elasticsearch_private_ips = []
+opensearch_private_ips = []
 postgresql_private_ips = []
+## === ===
+
+# ============== External Datbase Services ======================
+
+## === INPUT NEEDED ===
+# In case you are trying to deploy with AWS Managed Services set type as "aws"
+# If you are trying external managed database set type as "self-managed"
+
+[external.database]
+
+# eg type = "aws" or "self-managed"
+type = ""
+
+[external.database.postgre_sql]
+
+# eg: instance_url = "managed-rds-db.c5gkx.ap-northeast-1.rds.amazonaws.com:5432"
+instance_url = ""
+
+# eg: username = "postgres"
+superuser_username = ""
+
+# eg: password = "Progress123"
+superuser_password = ""
+
+# eg: dbuser_username = "postgres"
+dbuser_username = ""
+
+# eg: dbuser_password = "Progress123"
+dbuser_password = ""
+
+# In case of AWS managed RDS leave it blank
+# eg: postgresql_root_cert = """<cert content>"""
+postgresql_root_cert = """"""
+
+[external.database.open_search]
+
+# eg: managed_opensearch_domain_name = "managed-services-os"
+opensearch_domain_name = ""
+
+# eg: opensearch_domain_url = "search-managed-services-os.us-east-1.es.amazonaws.com"
+opensearch_domain_url = ""
+
+# eg: opensearch_username = "admin"
+opensearch_username = ""
+
+# eg: opensearch_user_password = "Progress@123"
+opensearch_user_password = ""
+
+# In case of AWS managed opensearch leave it blank
+# eg: opensearch_root_cert = """<cert content>"""
+opensearch_root_cert = """"""
+
+[external.database.open_search.aws]
+
+# eg: aws_os_snapshot_role_arn = "arn:aws:iam::1127583934333:role/managed-services"
+aws_os_snapshot_role_arn = ""
+
+# eg: os_snapshot_user_access_key_id = "AKIA..........PQS7Q7A"
+os_snapshot_user_access_key_id = ""
+
+# eg: os_snapshot_user_access_key_secret = "skP4Mqihj....................anAXAX"
+os_snapshot_user_access_key_secret = ""
+
 `
 
 var UsageTemplate string = `
@@ -143,4 +582,48 @@ Global Flags:
   -d, --debug                Enable debug output
       --no-check-version     Disable version check
       --result-json string   Write command result as JSON to PATH	  
+`
+
+const certificateTemplate = `
+[postgresql]
+  root-ca-filepath = "file-path.pem"
+  [ip1]
+    public-key-filepath = "file-path.pem"
+    private-key-filepath = "file-path.pem"
+  [ip2]
+    public-key-filepath = "file-path.pem"
+    private-key-filepath = "file-path.pem"
+  [ip3]
+    public-key-filepath = "file-path.pem"
+    private-key-filepath = "file-path.pem"
+[opensearch]
+  root-ca-filepath = "file-path.pem"
+  admin-public-key-filepath=""
+  admin-private-key-filepath=""
+  [ip1]
+    public-key-filepath = "file-path.pem"
+    private-key-filepath = "file-path.pem"
+  [ip2]
+    public-key-filepath = "file-path.pem"
+    private-key-filepath = "file-path.pem"
+  [ip3]
+    public-key-filepath = "file-path.pem"
+    private-key-filepath = "file-path.pem"
+[automate]
+root-ca-filepath = "file-path.pem"
+[ip1]
+  public-key = "file-path.pem"
+  private-key = "file-path.pem"
+[ip2]
+  public-key = "file-path.pem"
+  private-key = "file-path.pem"
+[chef_server]
+root-ca-filepath = "file-path.pem"
+[ip1]
+  public-key-filepath = "file-path.pem"
+  private-key-filepath = "file-path.pem"
+[ip2]
+  public-key-filepath = "file-path.pem"
+  private-key-filepath = "file-path.pem"
+
 `

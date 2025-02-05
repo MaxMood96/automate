@@ -29,6 +29,7 @@ func Zip2Path(zipPath string, extractPath string) error {
 	defer reader.Close() // nolint: errcheck
 
 	for _, curFile := range reader.File {
+		buf := make([]byte, 1024)
 		rc, err := curFile.Open()
 		if err != nil {
 			return err
@@ -48,7 +49,19 @@ func Zip2Path(zipPath string, extractPath string) error {
 			if err != nil {
 				return err
 			}
-			_, err = io.Copy(f, rc) // nosemgrep: go.lang.security.decompression_bomb.potential-dos-via-decompression-bomb
+			for {
+				n, err := rc.Read(buf)
+				if err != nil && err != io.EOF {
+					return err
+				}
+				if n == 0 {
+					break
+				}
+
+				if _, err := f.Write(buf[:n]); err != nil {
+					return err
+				}
+			}
 			cerr := rc.Close()
 			ferr := f.Close()
 			if err != nil {
@@ -67,7 +80,7 @@ func Zip2Path(zipPath string, extractPath string) error {
 }
 
 // ConvertZipToTarGz extracts the profile to a tmp dir and archives the file as a tar.gz.
-func ConvertZipToTarGz(zipPath string, tarPath string) error {
+func ConvertZipToTarGz(zipPath string, tarPath string, firejailPath string) error {
 	// should we make this user specific
 	tmpPath, err := ioutil.TempDir("", "inspec-upload")
 	if err != nil {
@@ -109,7 +122,7 @@ func ConvertZipToTarGz(zipPath string, tarPath string) error {
 		return err
 	}
 
-	err = inspec.Archive(tmpPath, tarPath)
+	err = inspec.Archive(tmpPath, tarPath, firejailPath)
 	if err != nil {
 		return err
 	}

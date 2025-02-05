@@ -13,8 +13,8 @@ import {
   OnDestroy
 } from '@angular/core';
 import { ActivatedRoute, Router, ParamMap } from '@angular/router';
-import { Subject, Observable } from 'rxjs';
-import * as moment from 'moment/moment';
+import { Subject, Observable, Subscription } from 'rxjs';
+import moment from 'moment';
 import {
   StatsService,
   SuggestionsService,
@@ -23,16 +23,22 @@ import {
   ReportQuery,
   ReportingSummaryStatus
 } from '../shared/reporting';
-import { LayoutFacadeService, Sidebar } from 'app/entities/layout/layout.facade';
+import { LayoutFacadeService, Sidebar } from '../../../entities/layout/layout.facade';
 import { saveAs } from 'file-saver';
 import {
   Chicklet,
   ReportingFilterTypes
-} from 'app/types/types';
-import { DateTime } from 'app/helpers/datetime/datetime';
+} from '../../../types/types';
+import { DateTime } from '../../../helpers/datetime/datetime';
 import { pickBy } from 'lodash/fp';
 import { FilterC } from './types';
-
+import { Store } from '@ngrx/store';
+import { NgrxStateAtom } from '../../../ngrx.reducers';
+import { AckDownloadReports } from '../../../entities/download-reports/download-reports.actions';
+import { CreateNotification } from '../../../entities/notifications/notification.actions';
+import { Type } from '../../../entities/notifications/notification.model';
+import { AppConfigService } from '../../../services/app-config/app-config.service';
+import { DownloadReportsService } from '../../../entities/download-reports/download-reports.service';
 
 @Component({
   templateUrl: './reporting.component.html',
@@ -171,7 +177,7 @@ export class ReportingComponent implements OnInit, OnDestroy {
   downloadStatusVisible = false;
   downloadInProgress = false;
   downloadFailed = false;
-  endDate$: Observable<Date>;
+  endDate$: Observable<Date> | any;
   filters$: Observable<FilterC[]>;
   ChefDateTime = DateTime.CHEF_DATE_TIME;
 
@@ -183,6 +189,7 @@ export class ReportingComponent implements OnInit, OnDestroy {
   // Used to notify all subscriptions to unsubscribe
   // http://stackoverflow.com/a/41177163/319074
   private isDestroyed: Subject<boolean> = new Subject<boolean>();
+  private downloadReportsSubscription: Subscription;
 
   constructor(
     private router: Router,
@@ -191,8 +198,11 @@ export class ReportingComponent implements OnInit, OnDestroy {
     public reportQuery: ReportQueryService,
     public reportData: ReportDataService,
     private route: ActivatedRoute,
-    private layoutFacade: LayoutFacadeService
-  ) { }
+    private layoutFacade: LayoutFacadeService,
+    private store: Store<NgrxStateAtom>,
+    public appConfigService: AppConfigService,
+    public downloadReportsService: DownloadReportsService
+  ) {}
 
   private getAllUrlParameters(): Observable<Chicklet[]> {
     return this.route.queryParamMap.pipe(map((params: ParamMap) => {
@@ -247,11 +257,18 @@ export class ReportingComponent implements OnInit, OnDestroy {
         }
         return filter;
       })));
+
+    this.downloadReportsSubscription = this.downloadReportsService.obs$.subscribe(() => {
+      this.hideDownloadStatus();
+    });
   }
 
   ngOnDestroy() {
     this.isDestroyed.next(true);
     this.isDestroyed.complete();
+    if (this.downloadReportsSubscription) {
+      this.downloadReportsSubscription.unsubscribe();
+    }
   }
 
   toggleDownloadDropdown() {
@@ -280,21 +297,43 @@ export class ReportingComponent implements OnInit, OnDestroy {
     const reportQuery = this.reportQuery.getReportQuery();
     const filename = `${reportQuery.endDate.format('YYYY-M-D')}.${format}`;
 
+    let fileSize = 0;
+    const maxFileSizeElement = 1000000000;
+
     const onComplete = () => this.downloadInProgress = false;
     const onError = _e => this.downloadFailed = true;
-    const types = { 'json': 'application/json', 'csv': 'text/csv' };
     const onNext = data => {
-      const type = types[format];
-      const blob = new Blob([data], { type });
-      saveAs(blob, filename);
+      if (this.appConfigService.isLargeReportingEnabled) {
+        this.store.dispatch(new CreateNotification({
+          type: Type.info,
+          message: 'Download request is submitted. You will get notification once it is ready for download.'
+        }));
+        this.store.dispatch(new AckDownloadReports(data.acknowledgement_id));
+        this.downloadReportsService.initiateLongPolling();
+      } else {
+        const types = { 'json': 'application/json', 'csv': 'text/csv' };
+        const type = types[format];
+        const blob = new Blob([data], { type });
+        fileSize = blob.size;
+        const fileUrl = URL.createObjectURL(blob);
+        saveAs(fileUrl, filename);
+      }
       this.hideDownloadStatus();
+      if (fileSize > maxFileSizeElement) {
+        window.location.reload();
+      }
     };
 
     this.downloadList = [filename];
-    this.showDownloadStatus();
+    if (!this.appConfigService.isLargeReportingEnabled) {
+      this.showDownloadStatus();
+    }
     this.statsService.downloadReport(format, reportQuery).pipe(
       finalize(onComplete))
-      .subscribe(onNext, onError);
+      .subscribe((event: any) => {
+        onNext(event);
+        onError('');
+      });
   }
 
   showDownloadStatus() {
@@ -312,7 +351,7 @@ export class ReportingComponent implements OnInit, OnDestroy {
   onEndDateChanged(event) {
     const queryParams = {...this.route.snapshot.queryParams};
     const endDate = moment.utc(event.detail);
-
+    queryParams['start_time'] = moment(endDate).format('YYYY-MM-DD');
     queryParams['end_time'] = moment(endDate).format('YYYY-MM-DD');
 
     this.router.navigate([], {queryParams});
@@ -338,6 +377,10 @@ export class ReportingComponent implements OnInit, OnDestroy {
     let filterValue = value.text;
     let typeName = type.name;
 
+    if (value.text === undefined) {
+      filterValue = value;
+    }
+
     if (type.name === 'profile_with_version') {
       if ( value.id ) {
         typeName = 'profile_id';
@@ -348,8 +391,8 @@ export class ReportingComponent implements OnInit, OnDestroy {
       }
     } else if (type.name === 'node') {
       if ( value.id ) {
-        typeName = 'node_id';
-        filterValue = value.id;
+        typeName = 'node_name';
+        filterValue = value.title;
         this.reportQuery.setFilterTitle(typeName, value.id, value.title);
       } else {
         typeName = 'node_name';

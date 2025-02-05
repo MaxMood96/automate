@@ -6,7 +6,19 @@ output "ssh_key_file" {
   value = var.ssh_key_file
 }
 
-output "automate_frontend_urls" {
+output "ssh_user" {
+  value = var.ssh_user
+}
+
+output "ssh_group_name" {
+  value = var.ssh_group_name
+}
+
+output "ssh_port" {
+  value = var.ssh_port
+}
+
+output "automate_frontend_url" {
   value = "https://${var.automate_fqdn}"
 }
 
@@ -18,22 +30,19 @@ output "chef_server_private_ips" {
   value = formatlist("%s", var.existing_chef_server_private_ips)
 }
 
-output "elasticsearch_private_ips" {
-  value = formatlist("%s", var.existing_elasticsearch_private_ips)
+output "opensearch_private_ips" {
+  value = formatlist("%s", var.existing_opensearch_private_ips)
 }
 
 output "postgresql_private_ips" {
   value = formatlist("%s", var.existing_postgresql_private_ips)
 }
 
-output "elasticsearch_public_ips" {
-  value = formatlist("%s", var.existing_elasticsearch_ips)
-}
-
 output "automate_ssh" {
   value = formatlist(
-    "ssh -i %s %s@%s",
+    "ssh -i %s -p %s %s@%s",
     var.ssh_key_file,
+    var.ssh_port,
     var.ssh_user,
     var.existing_automate_private_ips,
   )
@@ -41,8 +50,9 @@ output "automate_ssh" {
 
 output "chef_server_ssh" {
   value = formatlist(
-    "ssh -i %s %s@%s",
+    "ssh -i %s -p %s %s@%s",
     var.ssh_key_file,
+    var.ssh_port,
     var.ssh_user,
     var.existing_chef_server_private_ips,
   )
@@ -50,22 +60,20 @@ output "chef_server_ssh" {
 
 output "postgresql_ssh" {
   value = formatlist(
-    "ssh -i %s %s@%s",
+    "ssh -i %s -p %s %s@%s",
     var.ssh_key_file,
+    var.ssh_port,
     var.ssh_user,
     var.existing_postgresql_private_ips,
   )
 }
 
-output "elasticsearch_ssh" {
+output "opensearch_ssh" {
   value = formatlist(
-    "ssh -i %s %s@%s",
+    "ssh -i %s -p %s %s@%s",
     var.ssh_key_file,
+    var.ssh_port,
     var.ssh_user,
-    var.existing_elasticsearch_ips,
+    var.existing_opensearch_private_ips,
   )
-}
-
-output "ops_dashboard_addresses" {
-  value = formatlist("https://%s:5601/app/kibana#/dashboards?_g=()", var.existing_elasticsearch_ips)
 }

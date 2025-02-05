@@ -13,7 +13,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
 package docs
 
 import (
@@ -25,7 +24,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/chef/automate/components/automate-cli/pkg/status"
 )
@@ -38,10 +37,11 @@ var skipCommands = []string{
 }
 
 type cmdOption struct {
-	Name         string
-	Shorthand    string `yaml:",omitempty"`
-	DefaultValue string `yaml:"default_value,omitempty"`
-	Usage        string `yaml:",omitempty"`
+	Name           string
+	Shorthand      string `yaml:",omitempty"`
+	DefaultValue   string `yaml:"default_value,omitempty"`
+	Usage          string `yaml:",omitempty"`
+	CompatibleWith string `yaml:"compatible_with_options,omitempty"`
 }
 
 type cmdDoc struct {
@@ -54,6 +54,8 @@ type cmdDoc struct {
 	Example          string      `yaml:",omitempty"`
 	SeeAlso          []string    `yaml:"see_also,omitempty"`
 	Aliases          []string    `yaml:"aliases,omitempty"`
+	CompatibleWith   string      `yaml:"compatible_with,omitempty"`
+	SupportedOn      string      `yaml:"supported_on,omitempty"`
 }
 
 type statusDoc struct {
@@ -148,6 +150,8 @@ func GenYamlCustom(cmd *cobra.Command, w io.Writer, linkHandler func(string) str
 		yamlDoc.InheritedOptions = genFlagResult(flags)
 	}
 
+	yamlDoc.CompatibleWith, yamlDoc.SupportedOn = getCompatibleWithFromAnnotations(cmd)
+
 	if hasSeeAlso(cmd) {
 		result := []string{}
 		if cmd.HasParent() {
@@ -188,17 +192,19 @@ func genFlagResult(flags *pflag.FlagSet) []cmdOption {
 		// Using len(flag.ShorthandDeprecated) > 0 can't handle this, others are ok.
 		if !(len(flag.ShorthandDeprecated) > 0) && len(flag.Shorthand) > 0 {
 			opt := cmdOption{
-				Name:         flag.Name,
-				Shorthand:    flag.Shorthand,
-				DefaultValue: flag.DefValue,
-				Usage:        forceMultiLine(flag.Usage),
+				Name:           flag.Name,
+				Shorthand:      flag.Shorthand,
+				DefaultValue:   flag.DefValue,
+				Usage:          forceMultiLine(flag.Usage),
+				CompatibleWith: getCompatibleWithFromAnnotationsForFlag(flag),
 			}
 			result = append(result, opt)
 		} else {
 			opt := cmdOption{
-				Name:         flag.Name,
-				DefaultValue: forceMultiLine(flag.DefValue),
-				Usage:        forceMultiLine(flag.Usage),
+				Name:           flag.Name,
+				DefaultValue:   forceMultiLine(flag.DefValue),
+				Usage:          forceMultiLine(flag.Usage),
+				CompatibleWith: getCompatibleWithFromAnnotationsForFlag(flag),
 			}
 			result = append(result, opt)
 		}
@@ -231,6 +237,30 @@ func newStatusDoc() *statusDoc {
 	sort.Sort(byExitCode(errors))
 
 	return &statusDoc{Errors: errors}
+}
+
+func getCompatibleWithFromAnnotations(cmd *cobra.Command) (string, string) {
+	annotations := cmd.Annotations
+	if len(annotations) > 0 {
+		if annotations[Tag] == "" && annotations[Compatibility] == CompatiblewithHA {
+			return annotations[Compatibility], BastionHost
+		} else if annotations[Tag] == "" && annotations[Compatibility] == "" {
+			return "", BastionHost
+		} else {
+			return annotations[Compatibility], annotations[Tag]
+		}
+	}
+
+	return "", BastionHost
+
+}
+
+func getCompatibleWithFromAnnotationsForFlag(flag *pflag.Flag) string {
+	if len(flag.Annotations["compatibility"]) > 0 {
+		return flag.Annotations["compatibility"][0]
+	}
+
+	return ""
 }
 
 // ToYamlFile takes

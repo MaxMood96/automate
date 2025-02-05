@@ -1,12 +1,14 @@
 package integration
 
 import (
+	"os"
 	"time"
 
 	"github.com/golang/protobuf/ptypes"
 	rrule "github.com/teambition/rrule-go"
 
 	"github.com/chef/automate/api/external/data_lifecycle"
+	"github.com/chef/automate/api/interservice/license_control"
 )
 
 const (
@@ -33,7 +35,7 @@ const (
 	svcsDisconnectedServicesJobThreshold       = "9m"
 	svcsDeleteDisconnectedServicesJobName      = "delete_disconnected_services"
 	svcsDeleteDisconnectedServicesJobThreshold = "23d"
-	testRecurrence                             = "FREQ=DAILY;DTSTART=20191106T180323Z;INTERVAL=2"
+	testRecurrence                             = "DTSTART:20191106T180323Z\nRRULE:FREQ=DAILY;INTERVAL=2"
 )
 
 // TestDataLifecycleConfigure tests configuring data lifecycle jobs in all
@@ -44,6 +46,15 @@ func (suite *GatewayTestSuite) TestDataLifecycleConfigure() {
 
 	// Get the existing global status so we can set everything back to the
 	// way we found it later.
+
+	licenseClient, _ := suite.clients.LicenseControlClient()
+
+	updateRequest := &license_control.UpdateRequest{
+		LicenseData: os.Getenv("A2_LICENSE"),
+		Force:       true,
+	}
+
+	licenseClient.Update(suite.ctx, updateRequest)
 	oldStatus, err := dlClient.GetStatus(suite.ctx, &data_lifecycle.GetStatusRequest{})
 	suite.Require().NoError(err)
 
@@ -240,6 +251,15 @@ func (suite *GatewayTestSuite) TestDataLifecycleConfigure() {
 // if our job was successfully run.
 func (suite *GatewayTestSuite) TestDataLifecycleRun() {
 	dlClient := data_lifecycle.NewDataLifecycleClient(suite.gwConn)
+
+	licenseClient, _ := suite.clients.LicenseControlClient()
+
+	updateRequest := &license_control.UpdateRequest{
+		LicenseData: os.Getenv("A2_LICENSE"),
+		Force:       true,
+	}
+
+	licenseClient.Update(suite.ctx, updateRequest)
 
 	oldStatus, err := dlClient.GetStatus(suite.ctx, &data_lifecycle.GetStatusRequest{})
 	suite.Require().NoError(err)
@@ -625,6 +645,14 @@ func (suite *GatewayTestSuite) TestConvertJobStatusToJobSetting() {
 		},
 	}
 
+	licenseClient, _ := suite.clients.LicenseControlClient()
+
+	updateRequest := &license_control.UpdateRequest{
+		LicenseData: os.Getenv("A2_LICENSE"),
+		Force:       true,
+	}
+
+	licenseClient.Update(suite.ctx, updateRequest)
 	generatedSettings := jobStatusesToJobSettings(statuses)
 
 	// Rather than deep compare our expected settings with the generated settings

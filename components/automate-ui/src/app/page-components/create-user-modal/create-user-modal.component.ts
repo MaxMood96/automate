@@ -5,15 +5,16 @@ import { Subject, combineLatest } from 'rxjs';
 import { takeUntil, filter } from 'rxjs/operators';
 import { isNil } from 'lodash/fp';
 
-import { NgrxStateAtom } from 'app/ngrx.reducers';
-import { HttpStatus } from 'app/types/types';
-import { Regex } from 'app/helpers/auth/regex';
-import { UsernameMapper } from 'app/helpers/auth/username-mapper';
-import { ChefValidators } from 'app/helpers/auth/validator';
-import { EntityStatus } from 'app/entities/entities';
-import { Utilities } from 'app/helpers/utilities/utilities';
-import { CreateUserPayload, CreateUser } from 'app/entities/users/user.actions';
-import { createStatus, createError } from 'app/entities/users/user.selectors';
+import { NgrxStateAtom } from '../../ngrx.reducers';
+import { HttpStatus } from '../../types/types';
+import { Regex } from '../../helpers/auth/regex';
+import { UsernameMapper } from '../../helpers/auth/username-mapper';
+import { ChefValidators } from '../../helpers/auth/validator';
+import { EntityStatus } from '../../entities/entities';
+import { Utilities } from '../../helpers/utilities/utilities';
+import { CreateUserPayload, CreateUser } from '../../entities/users/user.actions';
+import { createStatus, createError } from '../../entities/users/user.selectors';
+import { TelemetryService } from '../../services/telemetry/telemetry.service';
 
 // pattern for valid usernames
 const USERNAME_PATTERN = '[0-9A-Za-z_@.+-]+';
@@ -37,7 +38,8 @@ export class CreateUserModalComponent implements OnInit, OnDestroy {
 
   constructor(
     private store: Store<NgrxStateAtom>,
-    fb: FormBuilder
+    fb: FormBuilder,
+    private telemetryService: TelemetryService
   ) {
     this.createUserForm = fb.group({
       // Must stay in sync with error checks in create-user-modal.component.html
@@ -110,6 +112,7 @@ export class CreateUserModalComponent implements OnInit, OnDestroy {
     };
 
     this.store.dispatch(new CreateUser(userCreateReq));
+    this.telemetryService.track('Settings_Users_Create');
   }
 
   handleUsernameInput(event: KeyboardEvent): void {

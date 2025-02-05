@@ -10,7 +10,7 @@
   ],
   "swagger": "2.0",
   "info": {
-    "description": "# Authentication\nThe Chef Automate API typically uses an API token passed in the header of your API request.\n\nTo create admin token can and set it as an environment variable use the following command:\n\n```\nexport TOKEN=`chef-automate iam token create <TOKEN-NAME> --admin`\n```\n\nAn admin token has unlimited access the entire Chef Automate API.\n\nPass the token as part of the API call. For example:\n\n```\ncurl -s -H \"api-token: $TOKEN\" https://automate.example.com/apis/iam/v2/policies -v\n```\n\nTo create api tokens with limited permissions, use your admin token to create a standard token. You can then write a policy that exactly defines the API access for the standard token.\n\nIn this example, the `curl` command creates the new token and the `export` command saves it as an environment variable with the name \"TOKEN2\".\n\n```\ncurl -s -H \"api-token: $TOKEN\" -d '{\"name\":\"New Token\", \"id\":\"new-token\"}' https://automate.example.com/apis/iam/v2/tokens\n  {\n    \"token\": {\n      \"id\": \"new-token\",\n      \"name\": \"New Token\",\n      \"value\": \"bww8EEpr39_eYMnQ2zybtrP9uzk=\",\n      \"active\": true,\n      \"created_at\": \"2020-02-26T19:36:07Z\",\n      \"updated_at\": \"2020-02-26T19:36:07Z\",\n      \"projects\": []\n    }\n  }\n\nexport TOKEN2=bww8EEpr39_eYMnQ2zybtrP9uzk=\n```\n\nThe Chef Automate documentation covers policies, authentication, and authorization in greater detail.\n* **[API Tokens](https://automate.chef.io/docs/api-tokens/)** explains authentication in Chef Automate.\n* **[Authorization Overview](https://automate.chef.io/docs/iam-v2-overview)** explains authorization in Chef Automate.\n",
+    "description": "# Authentication\nThe Chef Automate API typically uses an API token passed in the header of your API request.\n\nTo create admin token can and set it as an environment variable use the following command:\n\n```\nexport TOKEN=`chef-automate iam token create <TOKEN-NAME> --admin`\n```\n\nAn admin token has unlimited access the entire Chef Automate API.\n\nPass the token as part of the API call. For example:\n\n```\ncurl -s -H \"api-token: $TOKEN\" https://automate.example.com/apis/iam/v2/policies -v\n```\n\nTo create api tokens with limited permissions, use your admin token to create a standard token. You can then write a policy that exactly defines the API access for the standard token.\n\nIn this example, the `curl` command creates the new token and the `export` command saves it as an environment variable with the name \"TOKEN2\".\n\n```\ncurl -s -H \"api-token: $TOKEN\" -d '{\"name\":\"New Token\", \"id\":\"new-token\"}' https://automate.example.com/apis/iam/v2/tokens\n  {\n    \"token\": {\n      \"id\": \"new-token\",\n      \"name\": \"New Token\",\n      \"value\": \"bww8EEpr39_eYMnQ2zybtrP9uzk=\",\n      \"active\": true,\n      \"created_at\": \"2020-02-26T19:36:07Z\",\n      \"updated_at\": \"2020-02-26T19:36:07Z\",\n      \"projects\": []\n    }\n  }\n\nexport TOKEN2=bww8EEpr39_eYMnQ2zybtrP9uzk=\n```\n\nThe Chef Automate documentation covers policies, authentication, and authorization in greater detail.\n* **[API Tokens](https://automate.chef.io/docs/api-tokens/)** explains authentication in Chef Automate.\n* **[Authorization Overview](https://automate.chef.io/docs/iam-v2-overview)** explains authorization in Chef Automate.\n\n# Status Codes\n\n| Status Code | Name                  | Description                          | Remark                                                                                                                                                                                                                                                      |\n|-------------|-----------------------|--------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|\n| 200         | OK                    | Correct Id, Auth token and JSON body | The API worked as expected.                                                                                                                                                                                                                                  |\n| 400         | Bad Request           | Wrong JSON body                      | The JSON body contains a key or value missing, sometimes when there is no JSON request passed.  In some APIs like `IAM Project Rules`, the API request body validation is given the highest preference. And will return this error even before the Auth token validation. |\n| 401         | Unauthorized          | Wrong Auth token                     | Wrong or no auth token provided.                                                                                                                                                                                                                             |\n| 403         | Forbidden             | Unauthorized access to Resources     | Unauthorised Resource ID is passed to the API.  The error is returned in case of no Auth token is passed for some APIs like `Node Export` and `ReportExport`.                                                                                                  |\n| 404         | Not Found             | Wrong Id in URL                      | Wrong or no Id while creating, updating, retrieving, or deleting resources.                                                                                                                                                                                   |\n| 409         | Conflict              | Existing id                          | Existing resource id provided while creating resources.                                                                                                                                                                                                      |\n| 405         | Method Not Allowed    | Server does support the method       | Server knows the request, but unfortunately, the target resource does not have a method to serve the request.                                                                                                                                                                  |\n| 500         | Internal Server Error | Server encountered error             | Generic status code returned while processing an invalid request or server logics.                                                                                                                                                                           |\n| 503         | Service Unavailable   | Server is down or unable to serve    | Generic status code returned when the server gets too busy or into an unserviceable state.  This can be because of overwhelming requests like calling `Bulk Delete Nodes by Filter` without JSON body.                                                         |\n",
     "title": "Chef Automate API Documentation",
     "termsOfService": "https://www.chef.io/terms-and-conditions-of-use/",
     "contact": {
@@ -1903,14 +1903,174 @@
         }
       }
     },
+    "/api/v0/compliance/reporting/assets/config": {
+      "put": {
+        "description": "SetAssetConfig sets the compliance config with the parameters of no of days\nAnd API returns the policy name and no of the days which will set in the compliance data base\n\nAuthorization Action:\n```\ncompliance:reports:update\n```",
+        "tags": [
+          "Comp_Assets"
+        ],
+        "summary": "Set Unreachable Assets Config",
+        "operationId": "ReportingService_SetAssetConfig",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.ComplianceConfigRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.ComplianceConfigResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/grpc.gateway.runtime.Error"
+            }
+          }
+        }
+      }
+    },
+    "/api/v0/compliance/reporting/assets/config/search": {
+      "get": {
+        "description": "GetAssetConfig gets the config details from the compliance data base \nand API return the policy name and no of days\nAuthorization Action:\n```\ncompliance:reports:get\n```",
+        "tags": [
+          "Comp_Assets"
+        ],
+        "summary": "Get Assets Config",
+        "operationId": "ReportingService_GetAssetConfig",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.ComplianceConfigResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/grpc.gateway.runtime.Error"
+            }
+          }
+        }
+      }
+    },
+    "/api/v0/compliance/reporting/assets/count": {
+      "post": {
+        "description": "Count the compliance assets based on different filter options.\nThe API returns the response based on reported and unreported assets\n\nAuthorization Action:\n```\ncompliance:reports:list\n```",
+        "tags": [
+          "Comp_Assets"
+        ],
+        "summary": "Assets Count",
+        "operationId": "ReportingService_AssetCount",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.ListFilters"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.AssetSummary"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/grpc.gateway.runtime.Error"
+            }
+          }
+        }
+      }
+    },
+    "/api/v0/compliance/reporting/assets/search": {
+      "post": {
+        "description": "Lists the compliance assets based on different filter options.\nThe API works with filtering assets based on collected, uncollected, unreported and unreachable assets\n\nAuthorization Action:\n```\ncompliance:reports:list\n```",
+        "tags": [
+          "Comp_Assets"
+        ],
+        "summary": "List Assets",
+        "operationId": "ReportingService_ListAsset",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.AssetListRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.AssetListResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/grpc.gateway.runtime.Error"
+            }
+          }
+        }
+      }
+    },
     "/api/v0/compliance/reporting/controls": {
       "post": {
-        "description": "Lists controls from the last run, with optional filtering.\nSupports filtering, but not pagination or sorting.\nLimited to 100 results by default.\n\nAuthorization Action:\n```\ncompliance:controlItems:list\n```",
+        "description": "Lists controls from the last run, with optional filtering.\nSupports filtering,pagination but not sorting.\nLimited to 100 results by default.\n\nAuthorization Action:\n```\ncompliance:controlItems:list\n```",
         "tags": [
           "ReportingService"
         ],
         "summary": "List Controls",
         "operationId": "ReportingService_ListControlItems",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.ControlItemRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.ControlItems"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/grpc.gateway.runtime.Error"
+            }
+          }
+        }
+      }
+    },
+    "/api/v0/compliance/reporting/controls/search": {
+      "post": {
+        "description": "Lists controls from the last run, with optional filtering.\nSupports filtering,pagination but not sorting.\nLimited to 100 results by default.\nGets the summary of each control.\n\nThe API supports date range filters when `end_time` is the current time\nand `start_time` is any time in last 90 days. In case, the `end_time` is any\ndate other than the current date, the API would return data only for the `end_time`.\n\nExample:\n```\n{\"filters\":\n[\n{\"type\":\"start_time\",\"values\":[\"2019-09-09T00:00:00Z\"]},\n{\"type\":\"end_time\",\"values\":[\"2019-09-11T23:59:59Z\"]}\n],\n\"page_number\":1, \"size\": 3,\n}\n```\n\nAuthorization Action:\n```\ncompliance:controlItems:list\n```",
+        "tags": [
+          "ReportingService"
+        ],
+        "summary": "List Controls Search",
+        "operationId": "ReportingService_ListControlItemsRange",
         "parameters": [
           {
             "name": "body",
@@ -2001,6 +2161,47 @@
         }
       }
     },
+    "/api/v0/compliance/reporting/nodeheader/id/{id}": {
+      "post": {
+        "description": "Show specific details about node, report and metadate provided the report ID.\nSupports filtering, but not pagination or sorting.\n\nAuthorization Action:\n```\ncompliance:nodeheader:get\n```",
+        "tags": [
+          "ReportingService"
+        ],
+        "summary": "Show Node Header Info From Report ID",
+        "operationId": "ReportingService_ReadNodeHeader",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Unique identifier.",
+            "name": "id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.Query"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.NodeHeaderInfo"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/grpc.gateway.runtime.Error"
+            }
+          }
+        }
+      }
+    },
     "/api/v0/compliance/reporting/nodes/id/{id}": {
       "get": {
         "description": "Show a specific node by ID.\nSupports filtering by profile or control.\nDoes not support pagination or sorting.\n\nAuthorization Action:\n```\ncompliance:reportNodes:get\n```",
@@ -2036,7 +2237,7 @@
     },
     "/api/v0/compliance/reporting/nodes/search": {
       "post": {
-        "description": "List all nodes, with optional filtering, pagination, and sorting.\nMax return payload size is 4MB, use pagination to fetch remaining data.\n\n| Sort parameter | Sort value |\n| --- | --- |\n| environment | environment.lower |\n| latest_report.controls.failed.critical | controls_sums.failed.critical |\n| latest_report.controls.failed.total | controls_sums.failed.total |\n| latest_report.end_time (default) | end_time |\n| latest_report.status | status |\n| name | node_name.lower |\n| platform | platform.full |\n| status | status |\n\nExample:\n```\n{\n\"filters\":[\n{\"type\":\"environment\",\"values\":[\"dev*\"]},\n{\"type\":\"start_time\",\"values\":[\"2019-10-26T00:00:00Z\"]},\n{\"type\":\"end_time\",\"values\":[\"2019-11-05T23:59:59Z\"]}\n],\n\"page\":1,\"per_page\":100,\n\"sort\":\"environment\",\"order\":\"ASC\"\n}\n```\n\nAuthorization Action:\n```\ncompliance:reportNodes:list\n```",
+        "description": "List all nodes, with optional filtering, pagination, and sorting.\nMax return payload size is 4MB, use pagination to fetch remaining data.\n| Sort parameter | Sort value |\n| --- | --- |\n| environment | environment.lower |\n| latest_report.controls.failed.critical | controls_sums.failed.critical |\n| latest_report.controls.failed.total | controls_sums.failed.total |\n| latest_report.end_time (default) | end_time |\n| latest_report.status | status |\n| name | node_name.lower |\n| platform | platform.full |\n| status | status |\n\nThe API supports date range filters when `end_time` is the current time\nand `start_time` is any time in last 90 days. In case, the `end_time` is any\ndate other than the current date, the API would return data only for the `end_time`.\n\nExample:\n```\n{\n\"filters\":[\n{\"type\":\"environment\",\"values\":[\"dev*\"]},\n{\"type\":\"start_time\",\"values\":[\"2019-10-26T00:00:00Z\"]},\n{\"type\":\"end_time\",\"values\":[\"2019-11-05T23:59:59Z\"]}\n],\n\"page\":1,\"per_page\":100,\n\"sort\":\"environment\",\"order\":\"ASC\"\n}\n```\n\nAuthorization Action:\n```\ncompliance:reportNodes:list\n```",
         "tags": [
           "ReportingService"
         ],
@@ -2070,7 +2271,7 @@
     },
     "/api/v0/compliance/reporting/profiles": {
       "post": {
-        "description": "List all profiles in use, with optional filtering.\nSupports pagination, filtering, and sorting.\nValid sort fields: name, title\n\nAuthorization Action:\n```\ncompliance:reportProfiles:list\n```",
+        "description": "List all profiles in use, with optional filtering.\nSupports pagination, filtering, and sorting.\nValid sort fields: name, title\n\nThe API supports date range filters when `end_time` is the current time\nand `start_time` is any time in last 90 days. In case, the `end_time` is any\ndate other than the current date, the API would return data only for the `end_time`.\n\nExample:\n```\n{\"filters\":\n[\n{\"type\":\"start_time\",\"values\":[\"2019-09-09T00:00:00Z\"]},\n{\"type\":\"end_time\",\"values\":[\"2019-09-11T23:59:59Z\"]}\n],\n\"page\":1, \"per_page\": 3,\n}\n```\nAuthorization Action:\n```\ncompliance:reportProfiles:list\n```",
         "tags": [
           "ReportingService"
         ],
@@ -2125,6 +2326,81 @@
             "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.ReportIds"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/grpc.gateway.runtime.Error"
+            }
+          }
+        }
+      }
+    },
+    "/api/v0/compliance/reporting/reportcontrols/id/{id}": {
+      "post": {
+        "description": "Lists controls from the last run, with optional filtering.\nSupports filtering and pagination. Maximum 100 search can be \nmade when specifying the pagination from and size. Sum of from+size\nshould be less that 100. By default 10 results will be returned.\nAuthorization Action:\n```\ncompliance:ControlElements:list\n```",
+        "tags": [
+          "ReportingService"
+        ],
+        "summary": "List Control Info",
+        "operationId": "ReportingService_ListControlInfo",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Unique identifier.",
+            "name": "id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.Query"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.ControlElements"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/grpc.gateway.runtime.Error"
+            }
+          }
+        }
+      }
+    },
+    "/api/v0/compliance/reporting/reportmanager/export": {
+      "post": {
+        "description": "Export multiple reports.\nSupports filtering by profile or control. API returns an acknowledgement ID.\n\nAuthorization Action:\n```\ncompliance:reports:list\n```",
+        "tags": [
+          "ReportingService"
+        ],
+        "summary": "Export reports",
+        "operationId": "ReportingService_ExportReportManager",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.Query"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.CustomReportResponse"
             }
           },
           "default": {
@@ -2339,7 +2615,7 @@
     },
     "/api/v0/compliance/reporting/stats/summary": {
       "post": {
-        "description": "Returns summary statistics for compliance reports. \nGeneral report summary information is the default. \nAdding a `type` value of `nodes` or `controls` will return summary statistics for that object.\nSupports filtering.\n\nExample:\n```\n{\n\"type\":\"nodes\",\n\"filters\":[\n{\"type\":\"environment\",\"values\":[\"dev*\"]},\n{\"type\":\"start_time\",\"values\":[\"2019-10-26T00:00:00Z\"]},\n{\"type\":\"end_time\",\"values\":[\"2019-11-05T23:59:59Z\"]}\n]\n}\n```\n\nAuthorization Action:\n```\ncompliance:reportSummary:get\n```",
+        "description": "Returns summary statistics for compliance reports. \nGeneral report summary information is the default. \nAdding a `type` value of `nodes` or `controls` will return summary statistics for that object.\nSupports filtering.\n\nThe API supports date range filters when `end_time` is the current time\nand `start_time` is any time in last 90 days. In case, the `end_time` is any\ndate other than the current date, the API would return data only for the `end_time`.\n\nExample:\n```\n{\n\"type\":\"nodes\",\n\"filters\":[\n{\"type\":\"environment\",\"values\":[\"dev*\"]},\n{\"type\":\"start_time\",\"values\":[\"2019-10-26T00:00:00Z\"]},\n{\"type\":\"end_time\",\"values\":[\"2019-11-05T23:59:59Z\"]}\n]\n}\n```\n\nAuthorization Action:\n```\ncompliance:reportSummary:get\n```",
         "tags": [
           "StatsService"
         ],
@@ -7411,6 +7687,30 @@
             "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/chef.automate.api.notifications.URLValidationResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/grpc.gateway.runtime.Error"
+            }
+          }
+        }
+      }
+    },
+    "/api/v0/reportmanager/requests": {
+      "get": {
+        "description": "Returns the details of the download report requests placed by the user.\n\nAuthorization Action:\n```\nreportmanager:requests:list\n```",
+        "tags": [
+          "ReportManagerService"
+        ],
+        "summary": "List Download Report Requests",
+        "operationId": "ReportManagerService_ListDownloadReportRequests",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/chef.automate.api.report_manager.ListDownloadReportRequestsResponse"
             }
           },
           "default": {
@@ -12672,6 +12972,87 @@
     "chef.automate.api.compliance.reporting.stats.v1.UpdateTelemetryReportedResponse": {
       "type": "object"
     },
+    "chef.automate.api.compliance.reporting.v1.AssetListRequest": {
+      "type": "object",
+      "properties": {
+        "assets_type": {
+          "type": "string",
+          "title": "Asset Type as collected, unreported, unreachable, uncollected"
+        },
+        "filters": {
+          "type": "array",
+          "title": "List of the filters to be applied",
+          "items": {
+            "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.ListFilter"
+          }
+        },
+        "from": {
+          "description": "The offset for paginating requests. An offset defines a place in the results in order to show the next page of the results.",
+          "type": "integer",
+          "format": "int32"
+        },
+        "size": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Size of the asset list"
+        },
+        "sort": {
+          "type": "string",
+          "title": "Sort required from the which field"
+        }
+      }
+    },
+    "chef.automate.api.compliance.reporting.v1.AssetListResponse": {
+      "type": "object",
+      "properties": {
+        "assets": {
+          "type": "array",
+          "title": "Assets list as per the filters applied",
+          "items": {
+            "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.Assets"
+          }
+        }
+      }
+    },
+    "chef.automate.api.compliance.reporting.v1.AssetSummary": {
+      "type": "object",
+      "properties": {
+        "collected": {
+          "title": "Accessing the collected from Collected Message",
+          "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.Collected"
+        },
+        "total_assets": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Total number of total assets"
+        },
+        "uncollected": {
+          "title": "Total number of not collected assests",
+          "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.Uncollected"
+        }
+      }
+    },
+    "chef.automate.api.compliance.reporting.v1.Assets": {
+      "type": "object",
+      "properties": {
+        "first_run": {
+          "type": "string",
+          "title": "First Run details of asset"
+        },
+        "last_run": {
+          "type": "string",
+          "title": "Last run details of asset"
+        },
+        "node_uuid": {
+          "type": "string",
+          "title": "Node UUid for the asset"
+        },
+        "status": {
+          "type": "string",
+          "title": "Status of the last run of the asset"
+        }
+      }
+    },
     "chef.automate.api.compliance.reporting.v1.Attribute": {
       "type": "object",
       "properties": {
@@ -12682,6 +13063,57 @@
         "options": {
           "description": "The options defined for the attribute.",
           "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.Option"
+        }
+      }
+    },
+    "chef.automate.api.compliance.reporting.v1.Collected": {
+      "type": "object",
+      "properties": {
+        "failed": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Total collected and failed in the assets"
+        },
+        "passed": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Total collected and passsed in the assets"
+        },
+        "skipped": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Total collected and skipped in the assets"
+        },
+        "waived": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Total collected and waived in the assets"
+        }
+      }
+    },
+    "chef.automate.api.compliance.reporting.v1.ComplianceConfigRequest": {
+      "type": "object",
+      "title": "ComplianceConfigRequest to update no of days in the config",
+      "properties": {
+        "value": {
+          "type": "integer",
+          "format": "int32",
+          "title": "No of days for the config"
+        }
+      }
+    },
+    "chef.automate.api.compliance.reporting.v1.ComplianceConfigResponse": {
+      "type": "object",
+      "title": "ComplianceConfigResponse to get the policy name and no of days",
+      "properties": {
+        "policy_name": {
+          "type": "string",
+          "title": "Policy name to get from config"
+        },
+        "value": {
+          "type": "integer",
+          "format": "int32",
+          "title": "No of days to get for config"
         }
       }
     },
@@ -12745,6 +13177,53 @@
         }
       }
     },
+    "chef.automate.api.compliance.reporting.v1.ControlElement": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "The control's unique ID.",
+          "type": "string"
+        },
+        "impact": {
+          "description": "The severity of the control.",
+          "type": "number",
+          "format": "float"
+        },
+        "profile": {
+          "description": "Profile name.",
+          "type": "string"
+        },
+        "profile_id": {
+          "type": "string",
+          "title": "Profile id"
+        },
+        "results": {
+          "description": "The total number of results.",
+          "type": "integer",
+          "format": "int32"
+        },
+        "status": {
+          "type": "string",
+          "title": "The control's status"
+        },
+        "title": {
+          "description": "The control's compact description.",
+          "type": "string"
+        }
+      }
+    },
+    "chef.automate.api.compliance.reporting.v1.ControlElements": {
+      "type": "object",
+      "properties": {
+        "control_elements": {
+          "type": "array",
+          "title": "List of control elements",
+          "items": {
+            "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.ControlElement"
+          }
+        }
+      }
+    },
     "chef.automate.api.compliance.reporting.v1.ControlItem": {
       "type": "object",
       "properties": {
@@ -12792,6 +13271,11 @@
           "items": {
             "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.ListFilter"
           }
+        },
+        "page_number": {
+          "type": "integer",
+          "format": "int32",
+          "title": "The offset for paginating requests. An offset defines a place in the results in order to show the next page of the results. (Default 1)"
         },
         "size": {
           "description": "The maximum number of controls to return (Default 100).",
@@ -12844,6 +13328,14 @@
         "waived": {
           "description": "Intentionally blank.",
           "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.Total"
+        }
+      }
+    },
+    "chef.automate.api.compliance.reporting.v1.CustomReportResponse": {
+      "type": "object",
+      "properties": {
+        "acknowledgement_id": {
+          "type": "string"
         }
       }
     },
@@ -13002,6 +13494,17 @@
         }
       }
     },
+    "chef.automate.api.compliance.reporting.v1.ListFilters": {
+      "type": "object",
+      "properties": {
+        "filters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.ListFilter"
+          }
+        }
+      }
+    },
     "chef.automate.api.compliance.reporting.v1.Node": {
       "type": "object",
       "properties": {
@@ -13038,6 +13541,75 @@
           "items": {
             "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.Kv"
           }
+        }
+      }
+    },
+    "chef.automate.api.compliance.reporting.v1.NodeHeaderInfo": {
+      "type": "object",
+      "properties": {
+        "end_time": {
+          "description": "The time that the report was completed.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "environment": {
+          "description": "The environment of the node making the report.",
+          "type": "string"
+        },
+        "node_id": {
+          "description": "The reporting node's unique ID.",
+          "type": "string"
+        },
+        "node_name": {
+          "description": "The reporting node name.",
+          "type": "string"
+        },
+        "platform": {
+          "description": "Intentionally blank.",
+          "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.Platform"
+        },
+        "profiles": {
+          "description": "The profiles run as part of this report.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/chef.automate.api.compliance.reporting.v1.NodeHeaderProfileInfo"
+          }
+        },
+        "roles": {
+          "description": "The Roles associated with the node.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "status": {
+          "description": "The status of the run the report was made from.",
+          "type": "string"
+        },
+        "status_message": {
+          "description": "The status message of the report.",
+          "type": "string"
+        },
+        "version": {
+          "description": "The version of the report.",
+          "type": "string"
+        }
+      }
+    },
+    "chef.automate.api.compliance.reporting.v1.NodeHeaderProfileInfo": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "The name of the profile. Must be unique.",
+          "type": "string"
+        },
+        "status": {
+          "description": "The status of the profile in the generated report.",
+          "type": "string"
+        },
+        "status_message": {
+          "description": "A message to detail the reason why a profile is skipped or failed in the generated report.",
+          "type": "string"
         }
       }
     },
@@ -13760,6 +14332,21 @@
           "description": "The total number of controls.",
           "type": "integer",
           "format": "int32"
+        }
+      }
+    },
+    "chef.automate.api.compliance.reporting.v1.Uncollected": {
+      "type": "object",
+      "properties": {
+        "unreachable": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Total count of unreachable assets"
+        },
+        "unreported": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Total count of unreported assets"
         }
       }
     },
@@ -20228,6 +20815,49 @@
         }
       }
     },
+    "chef.automate.api.report_manager.DownloadRequestResponse": {
+      "type": "object",
+      "properties": {
+        "acknowledgement_id": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration": {
+          "type": "string"
+        },
+        "ended_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "err_message": {
+          "type": "string"
+        },
+        "report_size": {
+          "type": "string",
+          "format": "int64"
+        },
+        "report_type": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      }
+    },
+    "chef.automate.api.report_manager.ListDownloadReportRequestsResponse": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/chef.automate.api.report_manager.DownloadRequestResponse"
+          }
+        }
+      }
+    },
     "chef.automate.api.secrets.DeleteResponse": {
       "type": "object"
     },
@@ -20344,6 +20974,9 @@
           "type": "string"
         },
         "deployment_id": {
+          "type": "string"
+        },
+        "deployment_type": {
           "type": "string"
         },
         "license_id": {
@@ -20520,12 +21153,20 @@
       "x-displayName": "Reporting"
     },
     {
+      "name": "ReportManagerService",
+      "x-displayName": "Report Manager"
+    },
+    {
       "name": "ProfilesService",
       "x-displayName": "Profiles"
     },
     {
       "name": "StatsService",
       "x-displayName": "Stats"
+    },
+    {
+      "name": "Comp_Assets",
+      "x-displayName": "Assets Management"
     },
     {
       "name": "ConfigMgmt",
@@ -20602,7 +21243,14 @@
         "ReportingService",
         "StatsService",
         "JobsService",
-        "ProfilesService"
+        "ProfilesService",
+        "Comp_Assets"
+      ]
+    },
+    {
+      "name": "Report Manager",
+      "tags": [
+        "ReportManagerService"
       ]
     },
     {

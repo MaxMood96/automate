@@ -6,8 +6,8 @@ draft = false
 
 [menu]
   [menu.automate]
-    title = "Configure Postgresql"
-    identifier = "automate/configuring_automate/postgresql/postgresql.md Postgresql"
+    title = "Configure PostgreSQL"
+    identifier = "automate/configuring_automate/postgresql/postgresql.md PostgreSQL"
     parent = "automate/configuring_automate/postgresql"
     weight = 10
 +++
@@ -22,20 +22,25 @@ These configuration directions are intended for in the initial deployment of Che
 
 Add the following settings to your `config.toml`:
 
+{{< warning >}}
+{{% automate/char-warn %}}
+{{< /warning >}}
+
+
 ```toml
 [global.v1.external.postgresql]
 enable = true
 nodes = ["<pghostname1>:<port1>", "<pghostname2>:<port2>", "..."]
 
-# To use postgres with SSL, uncomment and fill out the following:
-# [global.v1.external.postgresql.ssl]
-# enable = true
+# To use PostgreSQL with SSL, Set enable = true then, uncomment root_cert and fill out the certificate value. 
+[global.v1.external.postgresql.ssl]
+enable = false
 # root_cert = """$(cat </path/to/root/cert.pem>)"""
 
 [global.v1.external.postgresql.auth]
 scheme = "password"
 
-# Create these postgres users before starting the Automate deployment;
+# Create these PostgreSQL users before starting the Automate deployment;
 # Automate assumes they already exist.
 [global.v1.external.postgresql.auth.password.superuser]
 username = "<admin username>"

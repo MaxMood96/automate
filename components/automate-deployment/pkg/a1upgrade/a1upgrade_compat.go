@@ -41,8 +41,7 @@ const samlDetectedMsg = `
           https://automate.chef.io/docs/configuration/#saml
 
       Alternatively, you may ignore this warning and continue this upgrade by entering 'y' below.
-      You may set up SAML for Chef Automate v2 anytime after upgrading.
-`
+      You may set up SAML for Chef Automate v2 anytime after upgrading.`
 
 const noBackupConfiguredMsg = `
     * FAILURE: No backup settings are configured for your Chef Automate v1 installation.
@@ -213,18 +212,18 @@ type CompatCheckerSkips struct {
 	ExternalESCheck       bool
 	FIPSCheck             bool
 	SAMLCheck             bool
-	WorkflowCheck         bool
+	//WorkflowCheck         bool
 }
 
 // @afiune delete me when workflow feature is completed, as well as the skip flags
-func (s *CompatCheckerSkips) SkipWorkflowCheck() {
-	s.WorkflowCheck = true
-}
+//func (s *CompatCheckerSkips) SkipWorkflowCheck() {
+//	s.WorkflowCheck = true
+//}
 
 func (c *CompatChecker) RunAutomateChecks(a1Config *A1Config, skip CompatCheckerSkips) error {
 	fips := a1Config.DeliveryRunning.Delivery.FIPS.Enabled
-	workflow := a1Config.DeliveryRunning.Delivery.Delivery.GitRepos
-	esClusterUrls := a1Config.DeliveryRunning.Delivery.Elasticsearch.ClusterURLS
+	// workflow := a1Config.DeliveryRunning.Delivery.Delivery.GitRepos
+	esClusterUrls := a1Config.DeliveryRunning.Delivery.Opensearch.ClusterURLS
 	proxyHost := a1Config.DeliveryRunning.Delivery.Delivery.Proxy.Host
 	backupRetention := a1Config.DeliveryRunning.Delivery.Backup.Retention.Enabled
 	backupType := a1Config.DeliveryRunning.Delivery.Backup.Type
@@ -288,12 +287,12 @@ func (c *CompatChecker) RunAutomateChecks(a1Config *A1Config, skip CompatChecker
 
 	c.ProxyConfigured(proxyHost)
 
-	if !skip.WorkflowCheck {
-		err := c.WorkflowInUse(workflow)
-		if err != nil {
-			return err
-		}
-	}
+	//if !skip.WorkflowCheck {
+	//	err := c.WorkflowInUse(workflow)
+	//	if err != nil {
+	//		return err
+	//	}
+	//}
 
 	// We do not provide a `--skip-*` flag for this check because it's unlikely
 	// to provide any value: we do not have marketplace support for A2; in
@@ -311,7 +310,7 @@ func (c *CompatChecker) RunAutomateChecks(a1Config *A1Config, skip CompatChecker
 
 func (c *CompatChecker) RunChefServerChecks(a1Config *A1Config) error {
 	deliveryRunning := a1Config.DeliveryRunning.Delivery
-	a1EsConfig := &deliveryRunning.Elasticsearch
+	a1EsConfig := &deliveryRunning.Opensearch
 	a1PgConfig := &deliveryRunning.PostgreSQL
 
 	chefServerConfig := a1Config.ChefServerRunning.PrivateChef
@@ -501,30 +500,30 @@ func (c *CompatChecker) WorkflowGitReposValid(gitReposDir string) error {
 }
 
 // WorkflowInUse
-func (c *CompatChecker) WorkflowInUse(workflowDir string) error {
-	// The workflow dir `git_repos` is always set in the A1 config.
-	// We look to see whether the configured directory contains anything
-	// to decide if workflow is in use.
-	_, err := os.Stat(workflowDir)
-	if os.IsNotExist(err) {
-		return nil
-	}
-
-	dircheck, err := directoryEmpty(workflowDir)
-	if err != nil {
-		return err
-	}
-	if dircheck {
-		return nil
-	}
-
-	_, err = c.Msgs.WriteString(workflowInUseMsg)
-	if err != nil {
-		return err
-	}
-	c.Failures++
-	return nil
-}
+//func (c *CompatChecker) WorkflowInUse(workflowDir string) error {
+//	// The workflow dir `git_repos` is always set in the A1 config.
+//	// We look to see whether the configured directory contains anything
+//	// to decide if workflow is in use.
+//	_, err := os.Stat(workflowDir)
+//	if os.IsNotExist(err) {
+//		return nil
+//	}
+//
+//	dircheck, err := directoryEmpty(workflowDir)
+//	if err != nil {
+//		return err
+//	}
+//	if dircheck {
+//		return nil
+//	}
+//
+//	_, err = c.Msgs.WriteString(workflowInUseMsg)
+//	if err != nil {
+//		return err
+//	}
+//	c.Failures++
+//	return nil
+//}
 
 func (c *CompatChecker) RunningMarketplaceImage(omnibusRoot string) error {
 	marketplacePkgPath := path.Join(omnibusRoot, "chef-marketplace")
@@ -541,7 +540,7 @@ func (c *CompatChecker) RunningMarketplaceImage(omnibusRoot string) error {
 }
 
 func (c *CompatChecker) ChefServerElasticsearchConfigValid(csEsConfig *OpscodeSolr4,
-	a1EsConfig *DeliveryRunningElasticsearch,
+	a1EsConfig *DeliveryRunningOpensearch,
 	csErchefConfig *OpscodeErchef) error {
 
 	esEnabled := csEsConfig.Enable

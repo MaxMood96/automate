@@ -66,6 +66,9 @@ do_deploy() {
     docker exec -t "$_frontend1_container_name" \
         "$cli_bin" bootstrap bundle create -o bootstrap.abb
 
+    docker exec -t "$_frontend1_container_name" \
+        "$cli_bin" license apply "$A2_LICENSE"    
+
     docker exec -t "$_frontend2_container_name" \
         "$cli_bin" deploy config.toml \
             --product chef-server \
@@ -76,7 +79,12 @@ do_deploy() {
             --bootstrap-bundle bootstrap.abb \
             --accept-terms-and-mlsa
 
-    "$cli_bin" bootstrap bundle unpack bootstrap.abb
+      "$cli_bin" bootstrap bundle unpack bootstrap.abb      
+
+     docker exec -t "$_frontend2_container_name" \
+        "$cli_bin" license apply "$A2_LICENSE"           
+
+    docker exec -t "$_frontend2_container_name" sleep 50 
 
     start_loadbalancer "$frontend1_ip" "$frontend2_ip"
 
@@ -173,7 +181,7 @@ EOH
 do_test_deploy() {
     ## skipping status test because of the missing file in automate - /etc/opscode/chef-server-running.json 
     ## adding smoke tag or else all the test will be considered skipping only the status test
-    hab pkg exec chef/automate-cs-nginx chef-server-ctl test --smoke --skip-status --skip=response_headers
+    hab pkg exec chef/automate-cs-nginx chef-server-ctl test --smoke --skip-status
 }
 
 do_cleanup() {

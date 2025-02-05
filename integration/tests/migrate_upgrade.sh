@@ -47,11 +47,20 @@ do_deploy() {
         --skip-preflight \
         --self-test \
         --yes
+
+
+    do_apply_license
 }
 
 do_prepare_upgrade() {
     # The a1stub test harness in the old version of A2 does not clean up the A1 version
     # manifest it creates.
     rm -f /opt/delivery/version-manifest.txt
-    do_prepare_upgrade_default
+    # use latest current here
+    #shellcheck disable=SC2154
+    download_manifest_version "current" "20220329091442" "$test_manifest_dir/20220329091442.json"
+    set_test_manifest "20220329091442.json"
+    set_version_file
+    local cli_bin="chef-automate"
+    download_cli "latest" "${cli_bin}"
 }

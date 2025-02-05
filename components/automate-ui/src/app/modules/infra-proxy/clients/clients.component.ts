@@ -4,13 +4,14 @@ import { combineLatest, Subject } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
 import { isNil } from 'lodash/fp';
 
-import { NgrxStateAtom } from 'app/ngrx.reducers';
-import { EntityStatus } from 'app/entities/entities';
-import { LayoutFacadeService, Sidebar } from 'app/entities/layout/layout.facade';
-import { GetClients, DeleteClient } from 'app/entities/clients/client.action';
-import { Client } from 'app/entities/clients/client.model';
-import { getAllStatus, clientList, deleteStatus } from 'app/entities/clients/client.selectors';
-import { Regex } from 'app/helpers/auth/regex';
+import { NgrxStateAtom } from '../../../ngrx.reducers';
+import { EntityStatus } from '../../../entities/entities';
+import { LayoutFacadeService, Sidebar } from '../../../entities/layout/layout.facade';
+import { GetClients, DeleteClient } from '../../../entities/clients/client.action';
+import { Client } from '../../../entities/clients/client.model';
+import { getAllStatus, clientList, deleteStatus } from '../../../entities/clients/client.selectors';
+import { Regex } from '../../../helpers/auth/regex';
+import { TelemetryService } from '../../../services/telemetry/telemetry.service';
 
 @Component({
   selector: 'app-clients',
@@ -33,15 +34,16 @@ export class ClientsComponent implements OnInit, OnDestroy {
   public current_page = 1;
   public per_page = 100;
   public total: number;
-  public clientToDelete: Client;
+  public clientToDelete: Client | any;
   public deleteModalVisible = false;
   public deleting = true;
   private isDestroyed = new Subject<boolean>();
-  public openClientModal = new EventEmitter<void>();
+  public openClientModal = new EventEmitter<boolean>();
 
   constructor(
     private store: Store<NgrxStateAtom>,
-    private layoutFacade: LayoutFacadeService
+    private layoutFacade: LayoutFacadeService,
+    private telemetryService: TelemetryService
   ) {}
 
   ngOnInit() {
@@ -84,19 +86,22 @@ export class ClientsComponent implements OnInit, OnDestroy {
     this.current_page = 1;
     this.loading = true;
     this.searchValue = currentText;
-    if ( currentText !== ''  && !Regex.patterns.NO_WILDCARD_ALLOW_HYPHEN.test(currentText)) {
+    if ( currentText !== ''  &&
+      !Regex.patterns.NO_WILDCARD_ALLOW_HYPHEN_AND_DOT.test(currentText)) {
       this.loading = false;
       this.clients.length = 0;
       this.total = 0;
     } else {
       this.getClientsData();
     }
+    this.telemetryService.track('InfraServer_Clients_Search');
   }
 
-  onPageChange(event: number): void {
+  onPageChange(event: number | any): void {
     this.current_page = event;
     this.loading = true;
     this.getClientsData();
+    this.telemetryService.track('InfraServer_Clients_GetClientsData');
   }
 
   getClientsData() {
@@ -135,6 +140,7 @@ export class ClientsComponent implements OnInit, OnDestroy {
     this.store.dispatch(new DeleteClient({
       server_id: this.serverId, org_id: this.orgId, name: this.clientToDelete.name
     }));
+    this.telemetryService.track('InfraServer_Clients_Delete');
   }
 
   public closeDeleteModal(): void {
@@ -147,5 +153,6 @@ export class ClientsComponent implements OnInit, OnDestroy {
     this.per_page = $event.pageSize;
     this.loading = true;
     this.getClientsData();
+    this.telemetryService.track('InfraServer_Clients_GetClientsData');
   }
 }

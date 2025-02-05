@@ -2,6 +2,7 @@
 #shellcheck disable=SC2154
 #stable channel
 
+
 pkg_name=compliance-service
 pkg_description="Compliance API service"
 pkg_origin=chef
@@ -30,15 +31,18 @@ pkg_binds_optional=(
   [authn-service]="port"
   [notifications-service]="port"
 )
-inspec_release="chef/inspec/4.51.1/20211201163039"
+#Adding it to use compliance with firejail
+pkg_svc_user=root
+inspec_release="chef/inspec/4.56.61/20240809111842"
 pkg_deps=(
-  core/coreutils
-  "${local_platform_tools_origin:-chef}/automate-platform-tools"
+  core/coreutils/8.32/20240105213308
+  chef/automate-platform-tools/0.1.0/20241212061203
   "${inspec_release}"
-  chef/mlsa
-  core/grpcurl              # Used in habitat/hooks/health_check
-  core/jq-static            # Used in habitat/hooks/health_check
-  core/bash
+  chef/mlsa/1.0.1/20240125084021
+  core/grpcurl/1.8.5/20240109144108              # Used in habitat/hooks/health_check
+  core/jq-static/1.6/20240107004905           # Used in habitat/hooks/health_check
+  core/bash/5.1/20240105214248
+  core/firejail/0.9.72/20240109161319
 )
 
 if [[ -n "$AUTOMATE_OSS_BUILD" ]]; then
@@ -47,7 +51,7 @@ else
   # WARNING: chef/automate-compliance-profiles is managed by Expeditor
   # See .expeditor/update-compliance-profiles.sh for details
   pkg_deps+=(
-      chef/automate-compliance-profiles/1.0.0/20211110062104
+      chef/automate-compliance-profiles/1.0.0/20241223075138
   )
 fi
 
@@ -62,13 +66,16 @@ scaffolding_go_binary_list=(
 
 do_prepare() {
   do_default_prepare
-
+   
   GO_LDFLAGS="${GO_LDFLAGS} -X main.EXECUTABLE_PATH=$(pkg_path_for chef/inspec)/bin/inspec"
-  export GO_LDFLAGS
+ export GO_LDFLAGS
+  
 }
 
 do_install() {
   do_default_install
+
+  echo $HOME
 
   inspec_sem_version=$(awk -F  '/' '{print $3}' <<< ${inspec_release})
   build_line "Setting InSpec version ${inspec_sem_version}"
@@ -81,10 +88,21 @@ do_install() {
   build_line "Setting perms on inspec_runner"
   chown root: "${pkg_prefix}/bin/inspec_runner"
   chmod u+s "${pkg_prefix}/bin/inspec_runner"
+
+  mkdir -p "${pkg_prefix}/data/firejail"
+
+  cp -r firejail/* "${pkg_prefix}/data/firejail"
+
+
 }
 
 do_strip() {
   if [[ "${CHEF_DEV_ENVIRONMENT}" != "true" ]]; then
     do_default_strip
   fi
+}
+
+do_before() {
+  do_default_before
+  git config --global --add safe.directory /src
 }

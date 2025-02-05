@@ -1,15 +1,16 @@
 import { Component, Input, OnInit, OnDestroy, EventEmitter, Output } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { combineLatest, Subject } from 'rxjs';
-import { NgrxStateAtom } from 'app/ngrx.reducers';
-import { LayoutFacadeService, Sidebar } from 'app/entities/layout/layout.facade';
+import { NgrxStateAtom } from '../../../ngrx.reducers';
+import { LayoutFacadeService, Sidebar } from '../../../entities/layout/layout.facade';
 import { filter, takeUntil } from 'rxjs/operators';
 import { isNil } from 'lodash/fp';
-import { GetEnvironments, DeleteEnvironment } from 'app/entities/environments/environment.action';
-import { Environment } from 'app/entities/environments/environment.model';
-import { getAllStatus, deleteStatus, environmentList } from 'app/entities/environments/environment.selectors';
-import { EntityStatus } from 'app/entities/entities';
-import { Regex } from 'app/helpers/auth/regex';
+import { GetEnvironments, DeleteEnvironment } from '../../../entities/environments/environment.action';
+import { Environment } from '../../../entities/environments/environment.model';
+import { getAllStatus, deleteStatus, environmentList } from '../../../entities/environments/environment.selectors';
+import { EntityStatus } from '../../../entities/entities';
+import { Regex } from '../../../helpers/auth/regex';
+import { TelemetryService } from '../../../services/telemetry/telemetry.service';
 
 @Component({
   selector: 'app-environments',
@@ -29,7 +30,7 @@ export class EnvironmentsComponent implements OnInit, OnDestroy {
   public deleting = true;
 
   public current_page = 1;
-  public environments: Environment[] = [];
+  public environments: Environment[] | any = [];
   public per_page = 100;
   public searchValue = '';
   public total: number;
@@ -41,7 +42,8 @@ export class EnvironmentsComponent implements OnInit, OnDestroy {
 
   constructor(
     private store: Store<NgrxStateAtom>,
-    private layoutFacade: LayoutFacadeService
+    private layoutFacade: LayoutFacadeService,
+    private telemetryService: TelemetryService
   ) {
   }
 
@@ -96,9 +98,10 @@ export class EnvironmentsComponent implements OnInit, OnDestroy {
     } else {
       this.getEnvironmentData();
     }
+    this.telemetryService.track('InfraServer_Environments_Search');
   }
 
-  onPageChange(event: number): void {
+  onPageChange(event: number | any): void {
     this.current_page = event;
     this.loading = true;
     this.getEnvironmentData();
@@ -135,6 +138,7 @@ export class EnvironmentsComponent implements OnInit, OnDestroy {
     this.store.dispatch(new DeleteEnvironment({
       server_id: this.serverId, org_id: this.orgId, name: this.environmentToDelete.name
     }));
+    this.telemetryService.track('InfraServer_Environments_Delete');
   }
 
   public closeDeleteModal(): void {

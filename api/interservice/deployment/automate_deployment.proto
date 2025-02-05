@@ -5,6 +5,7 @@ package chef.automate.domain.deployment;
 option go_package = "github.com/chef/automate/api/interservice/deployment";
 
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
 import "config/deployment/config_request.proto";
 import "config/deployment/automate_config.proto";
 
@@ -46,6 +47,7 @@ service Deployment {
 	rpc BackupIntegrityShow(BackupIntegrityShowRequest) returns (BackupIntegrityShowResponse);
 	rpc ValidateBackupIntegrity(ValidateBackupIntegrityRequest) returns (ValidateBackupIntegrityResponse);
 	rpc Upgrade(UpgradeRequest) returns (UpgradeResponse);
+	rpc IsValidUpgrade(UpgradeRequest) returns (ValidatedUpgradeResponse);
 	rpc SetLogLevel(SetLogLevelRequest) returns (SetLogLevelResponse);
 	rpc GenerateAdminToken(GenerateAdminTokenRequest) returns (GenerateAdminTokenResponse);
 	rpc DeployID (DeployIDRequest) returns (DeployIDResponse);
@@ -56,6 +58,11 @@ service Deployment {
 	rpc Usage(UsageRequest) returns (UsageResponse);
 	rpc GetCLIExecutable(GetCLIExecutableRequest) returns (stream GetCLIExecutableResponse);
 	rpc BootstrapBundle (BootstrapBundleRequest) returns (stream BootstrapBundleResponse);
+	rpc ControlIndexUpgradeStatus(google.protobuf.Empty) returns (ControlIndexUpgradeStatusResponse);
+}
+
+message ControlIndexUpgradeStatusResponse {
+	string status = 1;
 }
 
 message BootstrapBundleRequest {
@@ -185,7 +192,9 @@ message ServiceVersionsRequest {}
 
 message SystemLogsRequest {}
 
-message UpgradeStatusRequest {}
+message UpgradeStatusRequest {
+	string versions_path = 1;
+}
 
 message UpgradeStatusResponse {
 	UpgradeState state = 1;
@@ -206,6 +215,9 @@ message UpgradeStatusResponse {
 	// is_converge_disable is true if converging has been disabled.
 	// This will prevent things from upgrading
 	bool is_converge_disable = 8;
+	// is_converge_compatable is true in case the upgrade is minor/patch, and upgrading to major with --major flag
+	// and is false, if the next upgrade is major and does not provided --major flag.
+	bool is_converge_compatable = 9;
 
 	enum UpgradeState {
 		// UNKNOWN indicates that we were not able to
@@ -388,6 +400,11 @@ message LicenseStatusResponse {
 	string license_id    = 2;
 	string customer_name = 3;
 	google.protobuf.Timestamp expiration_date = 4;
+	string deployment_id=5;
+	string deployment_type=6;
+	string license_type = 7;
+	google.protobuf.Timestamp deployment_at=8;
+    bool   grace_period = 9;
 }
 
 message LicenseApplyRequest {
@@ -654,12 +671,20 @@ message CancelBackupResponse {
 
 message UpgradeRequest {
 	string version = 1;
+	bool is_major_upgrade = 2;
+	string versions_path = 3;
 }
 
 message UpgradeResponse {
 	string previous_version = 1;
 	string next_version = 2;
 	string task_id = 3;
+}
+
+message ValidatedUpgradeResponse {
+	string current_version = 1;
+	string target_version = 2;
+	string target_major = 3;
 }
 
 message CurrentReleaseManifestRequest {}

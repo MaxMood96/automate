@@ -5,7 +5,7 @@ module AutomateCluster
     class Output < Base
       include Enumerable
 
-      SSH_NODE_TYPES = %w{ automate elasticsearch chef_server postgresql }.freeze
+      SSH_NODE_TYPES = %w{ automate opensearch chef_server postgresql }.freeze
 
       attr_reader :output
 
@@ -51,7 +51,8 @@ module AutomateCluster
             'ssh',
             ssh_options,
             '-i', config.ssh_key_file,
-            "#{config.ssh_user}@#{ip}"
+            "#{config.ssh_user}@#{ip}",
+            '-p', config.ssh_port
           ].compact.join(' ')
         end
       end

@@ -37,13 +37,13 @@ data "vsphere_virtual_machine" "template" {
 
 
 locals {
-# This script is meant to be run once at VM provision time only
+  # This script is meant to be run once at VM provision time only
   mount_data_disk = templatefile("${path.module}/mount_data_disk.tpl", {
     disk_dev                = var.vsphere_linux_datadisk_dev,
     lvm_volume_allocate_pct = var.vsphere_linux_lvm_allocate_pct,
     tmp_path                = var.tmp_path
   })
-# This script is meant to be run once at VM provision time only
+  # This script is meant to be run once at VM provision time only
   mount_nfs_share = templatefile("${path.module}/mount_nfs_share.tpl", {
     mount_point = var.nfs_mount_path
   })
@@ -95,6 +95,7 @@ resource "vsphere_virtual_machine" "chef_automate_postgresql" {
     host        = self.default_ip_address
     type        = "ssh"
     user        = var.vsphere_linux_sshuser
+    port        = var.vsphere_linux_sshport
     private_key = file(var.vsphere_linux_sshkeyfile)
     script_path = "${var.tmp_path}/tf_inline_script_vsphere.sh"
   }
@@ -144,8 +145,8 @@ resource "vsphere_virtual_machine" "chef_automate_postgresql" {
   }
 }
 
-resource "vsphere_virtual_machine" "chef_automate_elasticsearch" {
-  count = var.elasticsearch_instance_count
+resource "vsphere_virtual_machine" "chef_automate_opensearch" {
+  count = var.opensearch_instance_count
 
   name = format(
     "${var.tag_name}_${random_id.random.hex}_backend_elasticsearch_%02d",
@@ -170,6 +171,7 @@ resource "vsphere_virtual_machine" "chef_automate_elasticsearch" {
     host        = self.default_ip_address
     type        = "ssh"
     user        = var.vsphere_linux_sshuser
+    port        = var.vsphere_linux_sshport
     private_key = file(var.vsphere_linux_sshkeyfile)
     script_path = "${var.tmp_path}/tf_inline_script_vsphere.sh"
   }
@@ -245,6 +247,7 @@ resource "vsphere_virtual_machine" "chef_automate" {
     host        = self.default_ip_address
     type        = "ssh"
     user        = var.vsphere_linux_sshuser
+    port        = var.vsphere_linux_sshport
     private_key = file(var.vsphere_linux_sshkeyfile)
     script_path = "${var.tmp_path}/tf_inline_script_vsphere.sh"
   }
@@ -320,6 +323,7 @@ resource "vsphere_virtual_machine" "chef_server" {
     host        = self.default_ip_address
     type        = "ssh"
     user        = var.vsphere_linux_sshuser
+    port        = var.vsphere_linux_sshport
     private_key = file(var.vsphere_linux_sshkeyfile)
     script_path = "${var.tmp_path}/tf_inline_script_vsphere.sh"
   }

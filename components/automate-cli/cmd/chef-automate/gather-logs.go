@@ -21,6 +21,7 @@ import (
 	"github.com/spf13/cobra"
 
 	api "github.com/chef/automate/api/interservice/deployment"
+	"github.com/chef/automate/components/automate-cli/pkg/docs"
 	"github.com/chef/automate/components/automate-cli/pkg/status"
 	"github.com/chef/automate/components/automate-deployment/pkg/client"
 	"github.com/chef/automate/components/automate-deployment/pkg/gatherlogs"
@@ -39,8 +40,12 @@ func newGatherLogsCmd() *cobra.Command {
 		Use:   "gather-logs [/path/to/log/bundle.tar.gz]",
 		Short: "Gather system diagnostics and logs",
 		Long:  "Collect system diagnostics and logs from Chef Automate and other services",
-		RunE:  runGatherLogsCmd,
-		Args:  cobra.RangeArgs(0, 3),
+		//PersistentPreRunE: WarnLicenseStatusForExpiry,
+		RunE: runGatherLogsCmd,
+		Args: cobra.RangeArgs(0, 3),
+		Annotations: map[string]string{
+			docs.Tag: docs.BastionHost,
+		},
 	}
 
 	gatherLogsCmd.Flags().BoolVarP(
@@ -116,7 +121,7 @@ var gatherLogsCmdFlags = struct {
 
 func runGatherLogsCmd(cmd *cobra.Command, args []string) error {
 	if isA2HARBFileExist() {
-		return executeAutomateClusterCtlCommandAsync("gather-logs", args, gatherLogsHelpDoc)
+		return executeAutomateClusterCtlCommandAsync("gather-logs", args, gatherLogsHelpDoc, false)
 	}
 	// Ensure we can write to any user given log locations
 	overridePath := ""
@@ -136,10 +141,10 @@ func runGatherLogsCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	if gatherLogsCmdFlags.localFallback {
-		return runGatherLogsLocalCmd(overridePath, gatherLogsCmdFlags.logLines)
+		return gatherLogsForBackendNodes(overridePath, gatherLogsCmdFlags.logLines)
 	}
 
-	return gatherLogsFromServer(overridePath, gatherLogsCmdFlags.logLines)
+	return gatherLogsFromServerForFrontendNodes(overridePath, gatherLogsCmdFlags.logLines)
 }
 
 const recoveryMsg = `
@@ -442,6 +447,8 @@ func runGatherLogsLocalCmd(outfileOverride string, logLines uint64) error {
 	g.AddCopiesFromPath("config", "/hab/svc")
 	g.AddCopiesFromPath("logs", "/hab/svc")
 
+	g.AddCopiesFromPath("pg_log", "/hab/svc")
+
 	// local status
 	g.AddCommand("df_h", "df", "-h")
 	g.AddCommand("df_i", "df", "-i")
@@ -633,4 +640,42 @@ func tryRevertingAnyNginxConfChanges() {
 
 func init() {
 	RootCmd.AddCommand(newGatherLogsCmd())
+}
+
+// gatherLogsFromServerForFrontendNodes checks for hab svc status and for deployment service error
+// Gather the logs for all frontend nodes
+func gatherLogsFromServerForFrontendNodes(outfileOverride string, logLines uint64) error {
+	habSupErrorMsg := `
+	* * * chef-automate node services are down
+	* * * No gather-logs collected
+	`
+	//check for hab svc status
+	_, habSupError := exec.Command("hab", "svc", "status").CombinedOutput()
+
+	if habSupError != nil {
+		return status.WithRecovery(habSupError, habSupErrorMsg)
+	}
+	_, err := client.Connection(client.DefaultClientTimeout)
+	//check for deployment service error and if err return local gather-logs
+	if status.ErrorType(err) == "DeploymentServiceCallError" || status.ErrorType(err) == "DeploymentServiceUnreachableError" {
+		return runGatherLogsLocalCmd(outfileOverride, logLines)
+	}
+
+	return gatherLogsFromServer(outfileOverride, logLines)
+}
+
+// gatherLogsForBackendNodes checks for hab svc status
+// Gather the logs for all backend nodes
+func gatherLogsForBackendNodes(outfileOverride string, logLines uint64) error {
+	habSupErrorMsg := `
+	* * * Backend node services are down
+	* * * No gather-logs collected
+	`
+	//check for hab svc status
+	_, habSupError := exec.Command("hab", "svc", "status").CombinedOutput()
+
+	if habSupError != nil {
+		return status.WithRecovery(habSupError, habSupErrorMsg)
+	}
+	return runGatherLogsLocalCmd(outfileOverride, logLines)
 }

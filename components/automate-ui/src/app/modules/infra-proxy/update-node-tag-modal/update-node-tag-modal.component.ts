@@ -3,15 +3,16 @@ import { combineLatest, Subject } from 'rxjs';
 import { isNil } from 'lodash/fp';
 import { takeUntil } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
-import { NgrxStateAtom } from 'app/ngrx.reducers';
+import { NgrxStateAtom } from '../../../ngrx.reducers';
 import {
   updateTagsStatus,
   nodeTags
-} from 'app/entities/infra-nodes/infra-nodes.selectors';
+} from '../../../entities/infra-nodes/infra-nodes.selectors';
 import {
   UpdateNodeTags
-} from 'app/entities/infra-nodes/infra-nodes.actions';
-import { EntityStatus } from 'app/entities/entities';
+} from '../../../entities/infra-nodes/infra-nodes.actions';
+import { EntityStatus } from '../../../entities/entities';
+import { TelemetryService } from '../../../services/telemetry/telemetry.service';
 
 @Component({
   selector: 'app-update-node-tag-modal',
@@ -36,7 +37,8 @@ export class UpdateNodeTagModalComponent implements OnInit, OnDestroy {
   public updatingTags = false;
 
   constructor(
-    private store: Store<NgrxStateAtom>
+    private store: Store<NgrxStateAtom>,
+    private telemetryService: TelemetryService
   ) {  }
 
   ngOnInit(): void {
@@ -88,9 +90,10 @@ export class UpdateNodeTagModalComponent implements OnInit, OnDestroy {
 
   addTags() {
     if (this.inputTxt !== '') {
-      this.tags = this.tags.concat(this.inputTxt.replace(/^[,\s]+|[,\s]+$/g, '')
+      this.tags = this.tags.concat(this.inputTxt.replace(/^[,\s]+$|^[,\s]+$/g, '')
         .replace(/,[,\s]*,/g, ',').split(',').map(item => item.trim()));
       this.updateTags('add', this.tags);
+      this.telemetryService.track('InfraServer_Nodes_UpdateTags');
     }
   }
 

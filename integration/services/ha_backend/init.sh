@@ -64,12 +64,12 @@ ha_backend_setup() {
     openssl req -new -key "$certdir/odfe-admin.key" -out "$certdir/odfe-admin.csr" -subj '/C=US/ST=Washington/L=Seattle/O=Chef Software Inc/CN=chefadmin'
 
     #Use the CSR to generate the signed odfe and postgresql Certificates:
-    openssl x509 -req -in "$certdir/odfe-${ha_backend_container1}.csr" -CA "$certdir/MyRootCA.pem" -CAkey "$certdir/MyRootCA.key" -CAcreateserial -out "$certdir/odfe-${ha_backend_container1}.pem" -sha256
-    openssl x509 -req -in "$certdir/odfe-${ha_backend_container2}.csr" -CA "$certdir/MyRootCA.pem" -CAkey "$certdir/MyRootCA.key" -CAcreateserial -out "$certdir/odfe-${ha_backend_container2}.pem" -sha256
-    openssl x509 -req -in "$certdir/postgresql.csr" -CA "$certdir/MyRootCA.pem" -CAkey "$certdir/MyRootCA.key" -CAcreateserial -out "$certdir/postgresql.pem" -sha256
+    openssl x509 -extfile <(printf "subjectAltName=DNS:chefnode") -req -in "$certdir/odfe-${ha_backend_container1}.csr" -CA "$certdir/MyRootCA.pem" -CAkey "$certdir/MyRootCA.key" -CAcreateserial -out "$certdir/odfe-${ha_backend_container1}.pem" -sha256
+    openssl x509 -extfile <(printf "subjectAltName=DNS:chefnode") -req -in "$certdir/odfe-${ha_backend_container2}.csr" -CA "$certdir/MyRootCA.pem" -CAkey "$certdir/MyRootCA.key" -CAcreateserial -out "$certdir/odfe-${ha_backend_container2}.pem" -sha256
+    openssl x509 -extfile <(printf "subjectAltName=DNS:chefpostgresql") -req -in "$certdir/postgresql.csr" -CA "$certdir/MyRootCA.pem" -CAkey "$certdir/MyRootCA.key" -CAcreateserial -out "$certdir/postgresql.pem" -sha256
 
     #Use the CSR to generate the signed admin Certificate:
-    openssl x509 -req -in "$certdir/odfe-admin.csr" -CA "$certdir/MyRootCA.pem" -CAkey "$certdir/MyRootCA.key" -CAcreateserial -out "$certdir/odfe-admin.pem" -sha256
+    openssl x509 -extfile <(printf "subjectAltName=DNS:chefadmin") -req -in "$certdir/odfe-admin.csr" -CA "$certdir/MyRootCA.pem" -CAkey "$certdir/MyRootCA.key" -CAcreateserial -out "$certdir/odfe-admin.pem" -sha256
 
     docker cp "$HA_BACKEND_DIR/setup.sh" "${ha_backend_container1}:/setup.sh"
     docker cp "$HA_BACKEND_DIR/setup.sh" "${ha_backend_container2}:/setup.sh"
@@ -86,7 +86,7 @@ ha_backend_setup() {
         echo "Trying to create dbuser (attempt #${try})"
         errcode="0"
         output="$(docker exec --env PGPASSWORD="$ha_admin_pg_password" --env HAB_LICENSE=accept-no-persist "$ha_backend_container1" \
-	hab pkg exec core/postgresql11 -- psql \
+	hab pkg exec core/postgresql13 -- psql \
             -h 127.0.0.1 -p 7432 -U admin -d postgres -c \
             "CREATE USER dbuser WITH PASSWORD '$ha_admin_pg_password'")" || errcode="$?"
         if [ "$errcode" -eq "0" ]; then
@@ -103,25 +103,25 @@ ha_backend_setup() {
     fi
 
     cat <<DOC > "$ha_backend_config"
-[global.v1.external.elasticsearch]
+[global.v1.external.opensearch]
 enable = true
 nodes = ["https://${ha_backend_container1_ip}:9200", "https://${ha_backend_container2_ip}:9200"]
 
-[global.v1.external.elasticsearch.backup]
+[global.v1.external.opensearch.backup]
 enable = true
 location = "fs"
 
-[global.v1.external.elasticsearch.backup.fs]
+[global.v1.external.opensearch.backup.fs]
 path = "/services/ha_backend_backups"
 
-[global.v1.external.elasticsearch.auth]
+[global.v1.external.opensearch.auth]
 scheme = "basic_auth"
 
-[global.v1.external.elasticsearch.auth.basic_auth]
+[global.v1.external.opensearch.auth.basic_auth]
 username = "${HA_BACKEND_USER}"
 password = "${HA_BACKEND_PASSWORD}"
 
-[global.v1.external.elasticsearch.ssl]
+[global.v1.external.opensearch.ssl]
 # defaults from automate-ha-backend
 server_name = "chefnode"
 root_cert = """$(cat "${certdir}/MyRootCA.pem")"""

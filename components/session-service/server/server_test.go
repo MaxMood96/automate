@@ -459,8 +459,7 @@ func TestCallbackHandler(t *testing.T) {
 			hdlr.ServeHTTP(w, r)
 			resp := w.Result()
 
-			require.Equal(t, http.StatusSeeOther, resp.StatusCode)
-			require.Contains(t, resp.Header.Get("Location"), fmt.Sprintf("/signin#id_token=%s&state=%s", newIDToken, clientState))
+			require.Equal(t, http.StatusOK, resp.StatusCode)
 
 			// this process gives us a new session id, so we just check that the old one
 			// is no more, and find new one
@@ -524,8 +523,7 @@ func TestCallbackHandler(t *testing.T) {
 			hdlr.ServeHTTP(w, r)
 			resp := w.Result()
 
-			require.Equal(t, http.StatusSeeOther, resp.StatusCode)
-			require.Contains(t, resp.Header.Get("Location"), fmt.Sprintf("/signin#id_token=%s&state=%s", newIDToken, clientState))
+			require.Equal(t, http.StatusOK, resp.StatusCode)
 
 			// this process gives us a new session id, so we just check that the old one
 			// is no more, and find new one
@@ -584,8 +582,7 @@ func TestCallbackHandler(t *testing.T) {
 			hdlr.ServeHTTP(w, r)
 			resp := w.Result()
 
-			require.Equal(t, http.StatusSeeOther, resp.StatusCode)
-			require.Contains(t, resp.Header.Get("Location"), fmt.Sprintf("/signin#id_token=%s&state=%s", newIDToken, clientState1))
+			require.Equal(t, http.StatusOK, resp.StatusCode)
 
 			// this process gives us a new session id, so we just check that the old one
 			// is no more, and find new one
@@ -986,6 +983,7 @@ func hasCookieWithAnySessionID(t *testing.T, resp *http.Response) {
 	require.NotEmpty(t, sessionID, "there is a session ID cookie")
 }
 
+//Not using below function. Should it be removed?
 func hasCookieRemovingAnySessionIDs(t *testing.T, resp *http.Response) {
 	assertion := false
 	t.Helper()
@@ -1144,6 +1142,10 @@ type testOAuth2Config struct {
 	err     error
 	idToken *go_oidc.IDToken
 	code    string
+}
+
+func (x *testOAuth2Config) RefreshTokenValidator(refreshToken string) (*http.Response, error) {
+	return &http.Response{}, nil
 }
 
 func (x *testOAuth2Config) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource {

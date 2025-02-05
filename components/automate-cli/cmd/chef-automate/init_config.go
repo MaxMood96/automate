@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/chef/automate/api/config/deployment"
+	"github.com/chef/automate/components/automate-cli/pkg/docs"
 	"github.com/chef/automate/components/automate-cli/pkg/status"
 	"github.com/chef/automate/components/automate-deployment/pkg/toml"
 )
@@ -23,6 +24,7 @@ var initConfigFlags = struct {
 	certPath        string
 	fqdn            string
 	esMem           string
+	osMem           string
 }{}
 
 func init() {
@@ -31,11 +33,13 @@ func init() {
 		"file",
 		"config.toml",
 		"File path to write the config")
+	initConfigCmd.PersistentFlags().SetAnnotation("file", docs.Compatibility, []string{docs.CompatiblewithStandalone})
 	initConfigCmd.PersistentFlags().StringVar(
 		&initConfigFlags.channel,
 		"channel",
 		"current",
 		"Release channel to deploy all services from")
+	initConfigCmd.PersistentFlags().SetAnnotation("channel", docs.Compatibility, []string{docs.CompatiblewithStandalone})
 	initConfigCmd.PersistentFlags().StringVar(
 		&initConfigFlags.upgradeStrategy,
 		"upgrade-strategy",
@@ -66,6 +70,12 @@ func init() {
 		"",
 		"The amount of system memory to allocate to Elasticsearch's heap.  (default: 25% of system memory)")
 
+	initConfigCmd.PersistentFlags().StringVar(
+		&initConfigFlags.osMem,
+		"os-mem",
+		"",
+		"The amount of system memory to allocate to Opensearch's heap.  (default: 25% of system memory)")
+
 	RootCmd.AddCommand(initConfigCmd)
 }
 
@@ -75,6 +85,7 @@ var initConfigCmd = &cobra.Command{
 	Long:  "Initialize default configuration and save it to a file.",
 	Annotations: map[string]string{
 		NoCheckVersionAnnotation: NoCheckVersionAnnotation,
+		docs.Compatibility:       docs.CompatiblewithStandalone,
 	},
 	RunE: runInitConfigCmd,
 }
@@ -102,6 +113,7 @@ func runInitConfigCmd(cmd *cobra.Command, args []string) error {
 		deployment.InitialTLSCerts(initConfigFlags.keyPath, initConfigFlags.certPath),
 		deployment.InitialFQDN(initConfigFlags.fqdn),
 		deployment.ESMem(initConfigFlags.esMem),
+		deployment.OSMem(initConfigFlags.osMem),
 	)
 	if err != nil {
 		return status.Wrap(err, status.ConfigError, "Generating initial configuration failed")

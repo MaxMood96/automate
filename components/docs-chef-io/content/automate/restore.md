@@ -57,10 +57,19 @@ Ensure access for the backup type used:
 1. To restore a backup to a machine with less memory than the original system, adjust for the appropriate lower memory settings by creating a `patch.toml` file that specifies the heapsize, and providing the file at restore time:
 
      ```toml
-       [elasticsearch.v1.sys.runtime]
+       [opensearch.v1.sys.runtime]
          heapsize = "4096m"
          # Use "m" for megabytes and "g" for gigabytes
      ```
+
+{{< note >}}
+
+- If restoring the backup from an older version of Automate, you must provide the `--airgap-bundle </path/to/current/bundle>` with your restore command.
+
+- In a non-airgapped or Internet-connected environment, the user can create an airgap-bundle using the `chef-automate airgap-bundle create --version <CURRENT_INSTALLED_VERSION>` command.
+
+{{< /note >}}
+
 
 ## Restore From a Filesystem Backup
 
@@ -70,6 +79,7 @@ Meet the required [prerequisites]({{< ref "restore.md#prerequisites" >}}) before
 
 If you have [configured the backup directory]({{< relref "backup.md#backup-to-a-filesystem" >}}) to a directory other than the default directory (`/var/opt/chef-automate/backups`), you must supply the backup directory.
 Without a backup ID, Chef Automate uses the most recent backup in the backup directory.
+
 
 To restore on a new host, run:
 
@@ -90,7 +100,7 @@ chef-automate backup restore </path/to/backups/>BACKUP_ID --patch-config </path/
 ```
 
 Restores from a filesystem backup may fail with incorrect directory permissions.
-Run the [`fix-repo-permissions` command]({{< ref "cli_chef_automate/#chef-automate-backup-fix-repo-permissions" >}}) to address such issues:
+Run the [`fix-repo-permissions` command]({{< relref "cli/#chef-automate-backup-fix-repo-permissions" >}}) to address such issues:
 
 ```shell
 sudo chef-automate backup fix-repo-permissions <path>
@@ -129,7 +139,7 @@ chef-automate backup restore --airgap-bundle </path/to/bundle> gs://bucket_name/
 Use the `--patch-config` option with a [configuration patch file]({{< relref "restore.md#prerequisites" >}}) to restore to a host with a different FQDN than that of the backup host.
 
 Restores from a filesystem backup may fail with incorrect directory permissions.
-Run the [`fix-repo-permissions` command]({{< ref "cli_chef_automate/#chef-automate-backup-fix-repo-permissions" >}}) to address such issues:
+Run the [`fix-repo-permissions` command]({{< relref "cli/#chef-automate-backup-fix-repo-permissions" >}}) to address such issues:
 
 ```shell
 sudo chef-automate backup fix-repo-permissions <path>
@@ -144,19 +154,19 @@ See how to [back up to AWS S3]({{< ref "backup/#backup-to-aws-s3" >}}).
 To restore from an AWS S3 bucket backup on a new host, run:
 
 ```shell
-chef-automate backup restore s3://bucket_name/path/to/backups/BACKUP_ID
+chef-automate backup restore s3://bucket_name/path/to/backups/BACKUP_ID --s3-access-key <access_key> --s3-secret-key <secret_key>
 ```
 
 To restore from an AWS S3 bucket backup on an existing Chef Automate host, run:
 
 ```shell
-chef-automate backup restore s3://bucket_name/path/to/backups/BACKUP_ID --skip-preflight
+chef-automate backup restore s3://bucket_name/path/to/backups/BACKUP_ID --skip-preflight --s3-access-key <access_key> --s3-secret-key <secret_key>
 ```
 
 Use the `--patch-config` option with a [configuration patch file]({{< relref "restore.md#prerequisites" >}}) to restore to a host with a different FQDN than that of the backup host:
 
 ```shell
-chef-automate backup restore s3://bucket_name/path/to/backups/BACKUP_ID --patch-config </path/to/patch.toml> --skip-preflight
+chef-automate backup restore s3://bucket_name/path/to/backups/BACKUP_ID --patch-config </path/to/patch.toml> --skip-preflight --s3-access-key <access_key> --s3-secret-key <secret_key>
 ```
 
 A successful restore shows the timestamp of the backup used at the end of the status output:
@@ -197,12 +207,14 @@ Success: Restored backup 20180517223558
 
 ## Troubleshooting
 
-Set the log level to `debug` before re-running a failed restore to output debug info to the Chef Automate log:
+1. Set the log level to `debug` before re-running a failed restore to output debug info to the Chef Automate log:
 
-```shell
-chef-automate debug set-log-level deployment-service debug
-```
+     ```shell
+     chef-automate debug set-log-level deployment-service debug
+     ```
+
+1. If you have already deployed Chef Automate and are getting this error in the logs while restoring: `The Access Key ID you provided does not exist in our records`. Before proceeding, delete the `.tmp` folder in the configured backup directory (the default directory is `/var/opt/chef-automate/backups`).
 
 ## References
 
-See the [`chef-automate backup restore` command reference]({{< ref "cli_chef_automate/#chef-automate-backup-restore" >}}).
+See the [`chef-automate backup restore` command reference]({{< relref "cli/#chef-automate-backup-restore" >}}).

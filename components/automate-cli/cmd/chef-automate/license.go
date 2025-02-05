@@ -19,6 +19,7 @@ import (
 	"github.com/chef/automate/api/external/compliance/reporting"
 	api "github.com/chef/automate/api/interservice/deployment"
 	"github.com/chef/automate/components/automate-cli/pkg/client/apiclient"
+	"github.com/chef/automate/components/automate-cli/pkg/docs"
 	generator "github.com/chef/automate/components/automate-cli/pkg/reportgenerator"
 	"github.com/chef/automate/components/automate-cli/pkg/status"
 	"github.com/chef/automate/components/automate-deployment/pkg/client"
@@ -26,14 +27,22 @@ import (
 )
 
 var licenseCmd = &cobra.Command{
-	Use:   "license COMMAND",
-	Short: "Chef Automate license management",
+	Use:               "license COMMAND",
+	Short:             "Chef Automate license management",
+	PersistentPreRunE: preLicenseCmd,
+	Annotations: map[string]string{
+		docs.Tag: docs.BastionHost,
+	},
 }
 
 var licenseStatusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Retrieve Chef Automate license status",
-	RunE:  runLicenseStatusCmd,
+	Use:               "status",
+	Short:             "Retrieve Chef Automate license status",
+	RunE:              runLicenseStatusCmd,
+	PersistentPreRunE: preLicenseCmd,
+	Annotations: map[string]string{
+		docs.Tag: docs.BastionHost,
+	},
 }
 
 var licenseApplyLong = `Apply Chef Automate license token.
@@ -41,11 +50,15 @@ var licenseApplyLong = `Apply Chef Automate license token.
 `
 
 var licenseApplyCmd = &cobra.Command{
-	Use:   "apply LICENSE",
-	Short: "Apply Chef Automate license",
-	Long:  licenseApplyLong,
-	RunE:  runLicenseApplyCmd,
-	Args:  cobra.ExactArgs(1),
+	Use:               "apply LICENSE",
+	Short:             "Apply Chef Automate license",
+	Long:              licenseApplyLong,
+	RunE:              runLicenseApplyCmd,
+	PersistentPreRunE: preLicenseCmd,
+	Args:              cobra.ExactArgs(1),
+	Annotations: map[string]string{
+		docs.Tag: docs.BastionHost,
+	},
 }
 
 var licenseUsageCmd = &cobra.Command{
@@ -64,9 +77,10 @@ var uniqueNodeCounterCmd = &cobra.Command{
 		validateArgs()
 		startTime, _ := convertStringToTime(CommandFlags.StartTime)
 		endTime, _ := convertStringToTime(CommandFlags.EndTime)
-		generator.GenerateNodeCount(CommandFlags.ESHostname, CommandFlags.ESPort, startTime, endTime)
+		generator.GenerateNodeCount(CommandFlags.ESHostname, CommandFlags.ESPort, CommandFlags.ESUserID, CommandFlags.ESPassword, startTime, endTime, CommandFlags.FileName)
 		return nil
 	},
+	PersistentPreRunE: getPreLicenseReportCmd("nodecount"),
 }
 
 var nodeUsageCommand = &cobra.Command{
@@ -76,9 +90,10 @@ var nodeUsageCommand = &cobra.Command{
 		validateArgs()
 		startTime, _ := convertStringToTime(CommandFlags.StartTime)
 		endTime, _ := convertStringToTime(CommandFlags.EndTime)
-		generator.GenerateNodeRunReport(CommandFlags.ESHostname, CommandFlags.ESPort, startTime, endTime)
+		generator.GenerateNodeRunReport(CommandFlags.ESHostname, CommandFlags.ESPort, CommandFlags.ESUserID, CommandFlags.ESPassword, startTime, endTime, CommandFlags.FileName)
 		return nil
 	},
+	PersistentPreRunE: getPreLicenseReportCmd("nodeinfo"),
 }
 
 var complianceUniqueResourceCounterCmd = &cobra.Command{
@@ -88,21 +103,23 @@ var complianceUniqueResourceCounterCmd = &cobra.Command{
 		validateArgs()
 		startTime, _ := convertStringToTime(CommandFlags.StartTime)
 		endTime, _ := convertStringToTime(CommandFlags.EndTime)
-		generator.GenerateComplianceResourceRunCount(CommandFlags.ESHostname, CommandFlags.ESPort, startTime, endTime)
+		generator.GenerateComplianceResourceRunCount(CommandFlags.ESHostname, CommandFlags.ESPort, CommandFlags.ESUserID, CommandFlags.ESPassword, startTime, endTime, CommandFlags.FileName)
 		return nil
 	},
+	PersistentPreRunE: getPreLicenseReportCmd("complianceresourcecount"),
 }
 
 var complianceResourceUsageCmd = &cobra.Command{
 	Use:   "complianceResourceRunReport",
-	Short: "Generates daily Infra Client Run reports for a span of time duration",
+	Short: "Generates daily Compliance scan reports for a span of time duration",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		validateArgs()
 		startTime, _ := convertStringToTime(CommandFlags.StartTime)
 		endTime, _ := convertStringToTime(CommandFlags.EndTime)
-		generator.GenerateComplianceResourceRunReport(CommandFlags.ESHostname, CommandFlags.ESPort, startTime, endTime)
+		generator.GenerateComplianceResourceRunReport(CommandFlags.ESHostname, CommandFlags.ESPort, CommandFlags.ESUserID, CommandFlags.ESPassword, startTime, endTime, CommandFlags.FileName)
 		return nil
 	},
+	PersistentPreRunE: getPreLicenseReportCmd("complianceresourceinfo"),
 }
 
 var noLicenseAppliedMsg = `
@@ -121,13 +138,20 @@ var licenseInfoFmt = `
 Licensed to:     %s
 License ID:      %s
 Expiration Date: %s
-
+Deployment ID:   %s
+Deployment Type: %s
+Deployment Date: %s
+License Type:    %s
+Grace Period:    %t
 `
 
 var startTimeFormat = "start time of the report in yyyy-mm-dd format"
 var endTimeFormat = "end time of the report in yyyy-mm-dd format"
-var hostnameES = "hostname of the ES host"
-var portES = "port of the ES host"
+var hostnameES = "hostname of the OpenSource host"
+var portES = "port of the OpenSource host"
+var userNameES = "username of the OpenSource host"
+var passwordES = "password of the OpenSource host"
+var fileName = "file name for the report Ex: complianceUniqueResourceCount"
 
 type usageResult struct {
 	StartTimestamp   string           `json:"start_timestamp"`
@@ -167,14 +191,23 @@ func runLicenseStatusCmd(cmd *cobra.Command, args []string) error {
 		writer.Printf(licenseInfoFmt,
 			response.CustomerName,
 			response.LicenseId,
-			time.Unix(response.ExpirationDate.GetSeconds(), 0).UTC().Format(time.RFC3339))
+			time.Unix(response.ExpirationDate.GetSeconds(), 0).UTC().Format(time.RFC3339), response.DeploymentId, response.DeploymentType,
+			time.Unix(response.DeploymentAt.GetSeconds(), 0).UTC().Format(time.RFC3339),
+			response.LicenseType,
+			response.GracePeriod,
+		)
 
 		// Add notice if license is expired
-		if time.Now().Unix() > response.ExpirationDate.GetSeconds() {
+		if !response.GracePeriod && time.Now().Unix() > response.ExpirationDate.GetSeconds() {
 			return status.New(
 				status.LicenseError,
 				"This license has expired. Please contact sales@chef.io to renew your Chef Automate license.",
 			)
+		}
+
+		// Add notice if grace period is active
+		if response.GracePeriod {
+			writer.Warn("This license is in the grace period. Please contact sales@chef.io to renew your Chef Automate license.")
 		}
 
 		return nil
@@ -359,6 +392,9 @@ var CommandFlags = struct {
 	EndTime    string
 	ESHostname string
 	ESPort     string
+	ESUserID   string
+	ESPassword string
+	FileName   string
 }{}
 
 func validateArgs() {
@@ -376,7 +412,7 @@ func validateArgs() {
 	}
 	e, err := convertStringToTime(CommandFlags.EndTime)
 	if err != nil {
-		fmt.Println("The start time has to be in yyyy-mm-dd format")
+		fmt.Println("The end time has to be in yyyy-mm-dd format")
 		os.Exit(1)
 	}
 
@@ -402,19 +438,80 @@ func init() {
 	licenseCmd.AddCommand(complianceResourceUsageCmd)
 	uniqueNodeCounterCmd.Flags().StringVarP(&CommandFlags.StartTime, "start_time", "s", "", startTimeFormat)
 	uniqueNodeCounterCmd.Flags().StringVarP(&CommandFlags.EndTime, "end_time", "e", "", endTimeFormat)
-	uniqueNodeCounterCmd.Flags().StringVarP(&CommandFlags.ESHostname, "es_hostname", "n", "localhost", hostnameES)
-	uniqueNodeCounterCmd.Flags().StringVarP(&CommandFlags.ESPort, "es_port", "p", "10141", portES)
+	uniqueNodeCounterCmd.Flags().StringVarP(&CommandFlags.ESHostname, "os_hostname", "n", "localhost", hostnameES)
+	uniqueNodeCounterCmd.Flags().StringVarP(&CommandFlags.ESPort, "os_port", "p", "10168", portES)
+	uniqueNodeCounterCmd.Flags().StringVarP(&CommandFlags.ESUserID, "os_username", "u", "admin", userNameES)
+	uniqueNodeCounterCmd.Flags().StringVarP(&CommandFlags.ESPassword, "os_password", "P", "admin", passwordES)
+	uniqueNodeCounterCmd.Flags().StringVarP(&CommandFlags.FileName, "fileName", "f", "", fileName)
 	nodeUsageCommand.Flags().StringVarP(&CommandFlags.StartTime, "start_time", "s", "", startTimeFormat)
 	nodeUsageCommand.Flags().StringVarP(&CommandFlags.EndTime, "end_time", "e", "", endTimeFormat)
 	nodeUsageCommand.Flags().StringVarP(&CommandFlags.ESHostname, "es_hostname", "n", "localhost", hostnameES)
-	nodeUsageCommand.Flags().StringVarP(&CommandFlags.ESPort, "es_port", "p", "10141", portES)
+	nodeUsageCommand.Flags().StringVarP(&CommandFlags.ESPort, "es_port", "p", "10168", portES)
+	nodeUsageCommand.Flags().StringVarP(&CommandFlags.ESUserID, "os_username", "u", "admin", userNameES)
+	nodeUsageCommand.Flags().StringVarP(&CommandFlags.ESPassword, "os_password", "P", "admin", passwordES)
+	nodeUsageCommand.Flags().StringVarP(&CommandFlags.FileName, "fileName", "f", "", fileName)
 	complianceUniqueResourceCounterCmd.Flags().StringVarP(&CommandFlags.StartTime, "start_time", "s", "", startTimeFormat)
 	complianceUniqueResourceCounterCmd.Flags().StringVarP(&CommandFlags.EndTime, "end_time", "e", "", endTimeFormat)
 	complianceUniqueResourceCounterCmd.Flags().StringVarP(&CommandFlags.ESHostname, "es_hostname", "n", "localhost", hostnameES)
-	complianceUniqueResourceCounterCmd.Flags().StringVarP(&CommandFlags.ESPort, "es_port", "p", "10141", portES)
+	complianceUniqueResourceCounterCmd.Flags().StringVarP(&CommandFlags.ESPort, "es_port", "p", "10168", portES)
+	complianceUniqueResourceCounterCmd.Flags().StringVarP(&CommandFlags.ESUserID, "os_username", "u", "admin", userNameES)
+	complianceUniqueResourceCounterCmd.Flags().StringVarP(&CommandFlags.ESPassword, "os_password", "P", "admin", passwordES)
+	complianceUniqueResourceCounterCmd.Flags().StringVarP(&CommandFlags.FileName, "fileName", "f", "", fileName)
 	complianceResourceUsageCmd.Flags().StringVarP(&CommandFlags.StartTime, "start_time", "s", "", startTimeFormat)
 	complianceResourceUsageCmd.Flags().StringVarP(&CommandFlags.EndTime, "end_time", "e", "", endTimeFormat)
 	complianceResourceUsageCmd.Flags().StringVarP(&CommandFlags.ESHostname, "es_hostname", "n", "localhost", hostnameES)
-	complianceResourceUsageCmd.Flags().StringVarP(&CommandFlags.ESPort, "es_port", "p", "10141", portES)
+	complianceResourceUsageCmd.Flags().StringVarP(&CommandFlags.ESPort, "es_port", "p", "10168", portES)
+	complianceResourceUsageCmd.Flags().StringVarP(&CommandFlags.ESUserID, "os_username", "u", "admin", userNameES)
+	complianceResourceUsageCmd.Flags().StringVarP(&CommandFlags.ESPassword, "os_password", "P", "admin", passwordES)
+	complianceResourceUsageCmd.Flags().StringVarP(&CommandFlags.FileName, "fileName", "f", "", fileName)
 	licenseApplyCmd.Flags().BoolVarP(&licenseCmdFlags.forceSet, "force", "f", false, "Force set license")
+}
+
+func preLicenseCmd(cmd *cobra.Command, args []string) error {
+	err := commandPrePersistent(cmd)
+	if err != nil {
+		return status.Wrap(err, status.CommandExecutionError, "unable to set command parent settings")
+	}
+	if isA2HARBFileExist() {
+		output, err := RunCmdOnSingleAutomateNode(cmd, args)
+		if err != nil {
+			return err
+		}
+		writer.Print(output)
+		// NOTE: used os.exit as need to stop next lifecycle method to execute
+		os.Exit(0)
+	}
+	return nil
+}
+
+func getPreLicenseReportCmd(fileNamePrefix string) func(*cobra.Command, []string) error {
+	commandWithFileName := func(cmd *cobra.Command, args []string) error {
+		err := commandPrePersistent(cmd)
+		if err != nil {
+			return status.Wrap(err, status.CommandExecutionError, "unable to set command parent settings")
+		}
+		reportFileName := CommandFlags.FileName
+		if reportFileName == "" {
+			reportFileName = fmt.Sprintf("%s_%s_%s.csv", fileNamePrefix, CommandFlags.StartTime, CommandFlags.EndTime)
+			args = append(args, "-f", reportFileName)
+			CommandFlags.FileName = reportFileName
+		}
+		if isA2HARBFileExist() {
+
+			infra, err := getAutomateHAInfraDetails()
+			if err != nil {
+				fmt.Print(err)
+				return err
+			}
+
+			err = RunCmdOnSingleAutomateNodeNCopyReport(cmd, args, reportFileName, infra)
+			if err != nil {
+				return err
+			}
+			// NOTE: used os.exit as need to stop next lifecycle method to execute
+			os.Exit(0)
+		}
+		return nil
+	}
+	return commandWithFileName
 }

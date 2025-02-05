@@ -33,17 +33,17 @@ Create a `config.toml` file with default values for your Chef Automate installat
 sudo ./chef-automate init-config
 ```
 
-You can customize your FQDN, login name, and other values, by changing the values in the `config.toml` in your editor.
+You can customize your FQDN, login name, and other values, by changing the values in the `config.toml` in your editor. Add Elasticsearch heap size setting at the end of `config` as shown below. The recommended heap size is 50% of total memory but should not exceed more than 32 GB.
 
-If you have requirements around data size and/or redundancy, see [Configuring External
-Data Stores]({{< relref "#configuring-external-data-stores" >}}) for information on
-configuring Chef Automate to use an externally-deployed PostgreSQL database cluster
-and/or Elasticsearch cluster. If you have requirements around a highly-available
-deployment of Chef Automate, please reach out to a Customer Success or Professional
-Services representative for assistance.
+```toml
+[elasticsearch.v1.sys.runtime]
+heapsize = "...g" # ... must be replaced with a number in GB example, 4g mean (4 GB)
+```
 
-See [Configuring Chef Automate]({{< relref "configuration.md" >}}) for more information
-on configuration settings.
+If you have requirements around data size and/or redundancy, see [Configuring External Data Stores]({{< relref "#configuring-external-data-stores" >}}) for information on configuring Chef Automate to use an externally-deployed PostgreSQL database cluster and/or OpenSearch cluster. If you have requirements around a highly-available
+deployment of Chef Automate, please reach out to a Customer Success or Professional Services representative for assistance.
+
+See [Configuring Chef Automate]({{< relref "configuration.md" >}}) for more information on configuration settings.
 
 ## Deploy Chef Automate
 
@@ -53,9 +53,9 @@ sudo ./chef-automate deploy config.toml
 
 Deployment takes a few minutes. The first step is accepting the terms of service in the command line, after which the installer performs a series of pre-flight checks;
 any unsuccessful checks have information for resolving issues or skipping the check.
-Run the deploy command again, after resolving any pre-flight issues.
+Run the deploy command again after resolving any pre-flight issues.
 
-At the end of the deployment process you will see:
+At the end of the deployment process, you will see:
 
 ```shell
 Deploy complete
@@ -65,11 +65,7 @@ The deployment process writes login credentials to the `automate-credentials.tom
 
 ## Open Chef Automate
 
-Navigate to `https://{{< example_fqdn "automate" >}}` in a browser and log in to Chef Automate with
-the credentials provided in `automate-credentials.toml`.  Once you log in, Chef Automate
-prompts you for a license.
-
-When your Chef Automate instance is equipped with internet connectivity, you can get a 60-day trial license from there.
+Navigate to `https://{{< example_fqdn "automate" >}}` in a browser and log in to Chef Automate with the credentials provided in `automate-credentials.toml`. Once you log in, Chef Automate prompts you for a license. When your Chef Automate instance is equipped with internet connectivity, you can get a 60-day trial license from there.
 Alternatively, a license obtained by other means can be applied.
 
 ### Configure Data Collection
@@ -99,7 +95,7 @@ You can disable automatic upgrades by modifying the `upgrade_strategy` setting i
 upgrade_strategy = "none"
 ```
 
-To manually initiate an upgrade, run
+To manually initiate an upgrade, run the following command:
 
 ```shell
 chef-automate upgrade run
@@ -109,60 +105,64 @@ This command upgrades Chef Automate to the latest version available from your re
 
 ### Common Problems
 
-If you are unable to open Chef Automate, check that the `config.toml` contains the public DNS as the FQDN.
+If you cannot open Chef Automate, check that the `config.toml` contains the public DNS as the FQDN.
 
 ```shell
 # This is a default Chef Automate configuration file. You can run
-# 'chef-automate deploy' with this config file and it should
+# 'chef-automate deploy' with this config file should
 # successfully create a new Chef Automate instance with default settings.
 
 [global.v1]
 # The external fully qualified domain name.
-# When the application is deployed you should be able to access 'https://<fqdn>/'
-# to login.
+# When the application is deployed, you should be able to access 'https://<fqdn>/'
+# to log in.
 fqdn = "<_Public DNS_name>"
 ```
 
-Once you correct and save the FQDN, run
+Once you correct and save the FQDN, run the following command and retry opening the Chef Automate in your browser.
 
 ```shell
 sudo chef-automate config patch config.toml
 ```
 
-and retry opening Chef Automate in your browser.
-
 ### Configuring External Data Stores
 
-You can configure Chef Automate to use PostgreSQL and Elasticsearch clusters that are not deployed via Chef Automate itself.
-The directions provided below are intended for use only during initial deployment of Chef Automate.
+You can configure Chef Automate to use PostgreSQL and OpenSearch clusters that are not deployed via Chef Automate. The directions below are intended for use only during the initial deployment of Chef Automate.
 
-#### Configuring External Elasticsearch
+#### Configuring External OpenSearch
 
 {{< note >}}
-Chef Automate supports the official Elasticsearch Service by Elastic. Chef Automate does not test or support alternative services, such as Amazon Elasticsearch Service (Amazon ES).
+Chef Automate supports the official OpenSearch Service by Amazon Web Services. Chef Automate does not test or support alternative services, such as Amazon OpenSearch Service (Amazon OS).
 {{< /note >}}
 
-Add the following to your config.toml:
+**Automate supports OpenSearch connection over HTTPS or HTTP**
+
+Add the following to your `config.toml` for HTTPS connection:
+
+{{< warning >}}
+{{% automate/char-warn %}}
+{{< /warning >}}
+
 
 ```toml
-[global.v1.external.elasticsearch]
+[global.v1.external.opensearch]
   enable = true
-  nodes = ["http://elastic1.example:9200", "http://elastic2.example:9200", "..." ]
+  nodes = ["https://opensearch1.example:9200", "https://opensearch2.example:9200", "..." ]
 
-# Uncomment and fill out if using external elasticsearch with SSL and/or basic auth
-# [global.v1.external.elasticsearch.auth]
-#   scheme = "basic_auth"
-# [global.v1.external.elasticsearch.auth.basic_auth]
-## Create this elasticsearch user before starting the Automate deployment;
-## Automate assumes it exists.
-#   username = "<admin username>"
-#   password = "<admin password>"
-# [global.v1.external.elasticsearch.ssl]
-#  Specify either a root_cert or a root_cert_file
-#  root_cert = """$(cat </path/to/cert_file.crt>)"""
-#  server_name = "<elasticsearch server name>"
+# Uncomment and fill out if using External OpenSearch with SSL and/or basic auth
+[global.v1.external.opensearch.auth]
+  scheme = "basic_auth"
+[global.v1.external.opensearch.auth.basic_auth]
+## Create this OpenSearch user before starting the Chef Automate deployment;
+## Chef Automate assumes it exists.
+  username = "<admin username>"
+  password = "<admin password>"
+[global.v1.external.opensearch.ssl]
+# Specify either a root_cert or a root_cert_file
+  root_cert = """$(cat </path/to/cert_file.crt>)"""
+# server_name = "<opensearch server name>"
 
-# Uncomment and fill out if using external elasticsearch that uses hostname-based routing/load balancing
+# Uncomment and fill out if using external OpenSearch that uses hostname-based routing/load balancing
 # [esgateway.v1.sys.ngx.http]
 #  proxy_set_header_host = "<your external es hostname>:1234"
 
@@ -170,15 +170,37 @@ Add the following to your config.toml:
 #  ssl_verify_depth = "2"
 ```
 
-Because externally-deployed Elasticsearch nodes will not have access to Chef Automate's built-in backup storage services, you must configure Elasticsearch backup settings separately from Chef Automate's primary backup settings. You can configure backups to use either the local filesystem or S3.
+Add the following to your `config.toml` for HTTP connection:
 
-##### Adding Resolvers for Elasticsearch
+{{< warning >}}
+{{% automate/char-warn %}}
+{{< /warning >}}
 
-In case you want to resolve the Elasticsearch node IPs dynamically using DNS servers, you can add resolvers/nameservers to the configuration.
+
+```toml
+[global.v1.external.opensearch]
+  enable = true
+  nodes = ["http://opensearch1.example:9200", "http://opensearch2.example:9200", "..." ]
+
+# Uncomment and fill out if using external OpenSearch with SSL and/or basic auth
+[global.v1.external.opensearch.auth]
+  scheme = "basic_auth"
+[global.v1.external.opensearch.auth.basic_auth]
+## Create this OpenSearch user before starting the Chef Automate deployment;
+## Chef Automate assumes it exists.
+  username = "<admin username>"
+  password = "<admin password>"
+```
+
+Because externally-deployed OpenSearch nodes will not have access to Chef Automate's built-in backup storage services, you must configure OpenSearch backup settings separately from Chef Automate's primary backup settings. You can configure backups to use either the local filesystem or S3.
+
+##### Adding Resolvers for OpenSearch
+
+In case you want to resolve the OpenSearch node IPs dynamically using DNS servers, you can add resolvers/nameservers to the configuration.
 
 Name Servers can be added in two ways:
 
-1. **Add nameserver IPs:** Add the nameservers to your `config.toml` file to resolve the Elasticsearch nodes.
+1. **Add nameserver IPs:** Add the nameservers to your `config.toml` file to resolve the OpenSearch nodes.
 
     ```toml
     [esgateway.v1.sys.ngx.main.resolvers]
@@ -207,40 +229,40 @@ If you wish to reset to the default configuration or to modify the configuration
 1. Open `config.toml` and remove the `esgateway.v1.sys.ngx.main.resolvers` configuration or change the values.
 1. Run `chef-automate config set config.toml` to apply your changes.
 
-##### Backup Externally-Deployed Elasticsearch to Local Filesystem
+##### Backup Externally-Deployed OpenSearch to Local Filesystem
 
-To configure local filesystem backups of Chef Automate data stored in an externally-deployed Elasticsearch cluster:
+To configure local filesystem backups of Chef Automate data stored in an externally-deployed OpenSearch cluster:
 
-1. Ensure that the filesystems you intend to use for backups are mounted to the same path on all Elasticsearch master and data nodes.
-1. Configure the Elasticsearch `path.repo` setting on each node as described in the [Elasticsearch documentation](https://www.elastic.co/guide/en/elasticsearch/reference/6.8/modules-snapshots.html#_shared_file_system_repository).
+1. Ensure that the filesystems you intend to use for backups are mounted to the same path on all OpenSearch master and data nodes.
+1. Configure the OpenSearch `path.repo` setting on each node as described in the [OpenSearch documentation](https://opensearch.org/docs/latest/monitoring-plugins/pa/reference/).
 1. Add the following to your `config.toml`:
 
 ```toml
-[global.v1.external.elasticsearch.backup]
+[global.v1.external.opensearch.backup]
 enable = true
 location = "fs"
 
-[global.v1.external.elasticsearch.backup.fs]
-# The `path.repo` setting you've configured on your Elasticsearch nodes must be
+[global.v1.external.opensearch.backup.fs]
+# The `path.repo` setting you've configured on your OpenSearch nodes must be
 # a parent directory of the setting you configure here:
 path = "/var/opt/chef-automate/backups"
 ```
 
-##### Backup Externally-Deployed Elasticsearch to AWS S3
+##### Backup Externally-Deployed OpenSearch to AWS S3
 
-To configure AWS S3 backups of Chef Automate data stored in an externally-deployed Elasticsearch cluster:
+To configure AWS S3 backups of Chef Automate data stored in an externally-deployed OpenSearch cluster:
 
-1. Install the [`repository-s3` plugin](https://www.elastic.co/guide/en/elasticsearch/plugins/current/repository-s3.html) on all nodes in your Elasticsearch cluster.
-1. If you wish to use IAM authentication to provide your Elasticsearch nodes access to the S3 bucket, you must apply the appropriate IAM policy to each host system in the cluster.
-1. Configure each Elasticsearch node with a S3 client configuration containing the proper S3 endpoint, credentials, and other settings as [described in the Elasticsearch documentation](https://www.elastic.co/guide/en/elasticsearch/plugins/current/repository-s3-client.html).
+1. Install the `repository-s3` plugin on all nodes in your OpenSearch cluster.
+1. If you wish to use IAM authentication to provide your OpenSearch nodes access to the S3 bucket, you must apply the appropriate IAM policy to each host system in the cluster.
+1. Configure each OpenSearch node with a S3 client configuration containing the proper S3 endpoint, credentials, and other settings as described in the OpenSearch documentation.
 1. Enable S3 backups by adding the following settings to your `config.toml`:
 
     ```toml
-    [global.v1.external.elasticsearch.backup]
+    [global.v1.external.opensearch.backup]
     enable = true
     location = "s3"
 
-    [global.v1.external.elasticsearch.backup.s3]
+    [global.v1.external.opensearch.backup.s3]
 
       # bucket (required): The name of the bucket
       bucket = "<bucket name>"
@@ -249,16 +271,14 @@ To configure AWS S3 backups of Chef Automate data stored in an externally-deploy
       # If base_path is not set, backups will be stored at the root of the bucket.
       base_path = "<base path>"
 
-      # name of an s3 client configuration you create in your elasticsearch.yml
-      # see https://www.elastic.co/guide/en/elasticsearch/plugins/current/repository-s3-client.html
+      # name of an s3 client configuration you create in your opensearch.yml
       # for full documentation on how to configure client settings on your
-      # Elasticsearch nodes
+      # OpenSearch nodes
       client = "<client name>"
 
-    [global.v1.external.elasticsearch.backup.s3.settings]
+    [global.v1.external.opensearch.backup.s3.settings]
     ## The meaning of these settings is documented in the S3 Repository Plugin
-    ## documentation. See the following links:
-    ## https://www.elastic.co/guide/en/elasticsearch/plugins/current/repository-s3-repository.html
+    ## documentation.
 
     ## Backup repo settings
     # compress = false
@@ -277,35 +297,39 @@ To configure AWS S3 backups of Chef Automate data stored in an externally-deploy
     # protocol = "https"
     ```
 
-##### Backup Externally-Deployed Elasticsearch to GCS
+##### Backup Externally-Deployed OpenSearch to GCS
 
-To configure Google Cloud Storage Bucket (GCS) backups of Chef Automate data stored in an externally-deployed Elasticsearch cluster:
+To configure Google Cloud Storage Bucket (GCS) backups of Chef Automate data stored in an externally-deployed OpenSearch cluster:
 
-1. Install the [`repository-gcs` plugin](https://www.elastic.co/guide/en/elasticsearch/plugins/current/repository-gcs.html) on all nodes in your Elasticsearch cluster.
-1. Create a storage bucket and configure a service account to access it per the steps [described in the Elasticsearch documentation](https://www.elastic.co/guide/en/elasticsearch/plugins/current/repository-gcs-usage.html).
-1. Configure each Elasticsearch node with a GCS client configuration that contains the proper GCS settings as [described in the Elasticsearch documentation](https://www.elastic.co/guide/en/elasticsearch/plugins/current/repository-gcs-client.html).
+1. Install the `repository-gcs` plugin on all nodes in your OpenSearch cluster.
+1. Create a storage bucket and configure a service account to access it per the steps described in the OpenSearch documentation.
+1. Configure each OpenSearch node with a GCS client configuration that contains the proper GCS settings as described in the OpenSearch documentation.
 1. Enable GCS backups by adding the following settings to your `config.toml`:
 
+{{< warning >}}
+{{% automate/char-warn %}}
+{{< /warning >}}
+
     ```toml
-    [global.v1.external.elasticsearch]
+    [global.v1.external.opensearch]
       enable = true
       nodes = ["https://my-es.cluster"]
       ## If multiple
       # nodes = ["https://my-es.node-1", "https://my-es.node-2", "etc..."]
 
-    ## The following settings are required if you have Elasticsearch setup with basic auth
-    #[global.v1.external.elasticsearch.auth]
+    ## The following settings are required if you have OpenSearch setup with basic auth
+    #[global.v1.external.opensearch.auth]
     #  scheme = "basic_auth"
     #
-    #[global.v1.external.elasticsearch.auth.basic_auth]
+    #[global.v1.external.opensearch.auth.basic_auth]
     #  username = "everyuser"
     #  password = "pass123"
 
-    [global.v1.external.elasticsearch.backup]
+    [global.v1.external.opensearch.backup]
       enable = true
       location = "gcs"
 
-    [global.v1.external.elasticsearch.backup.gcs]
+    [global.v1.external.opensearch.backup.gcs]
       bucket = "<bucket name>"
       # Client name is normally default, but can be set here if you have generated service
       # account credentials with a different client name
@@ -320,20 +344,24 @@ To configure Google Cloud Storage Bucket (GCS) backups of Chef Automate data sto
 
 Add the following settings to your `config.toml`:
 
+{{< warning >}}
+{{% automate/char-warn %}}
+{{< /warning >}}
+
 ```toml
 [global.v1.external.postgresql]
 enable = true
 nodes = ["<pghostname1>:<port1>", "<pghostname2>:<port2>", "..."]
 
-# To use postgres with SSL, uncomment and fill out the following:
-# [global.v1.external.postgresql.ssl]
-# enable = true
+# To use PostgreSQL with SSL, Set enable = true then, uncomment root_cert and fill out the certificate value. 
+[global.v1.external.postgresql.ssl]
+enable = false
 # root_cert = """$(cat </path/to/root/cert.pem>)"""
 
 [global.v1.external.postgresql.auth]
 scheme = "password"
 
-# Create these postgres users before starting the Automate deployment;
+# Create these PostgreSQL users before starting the Automate deployment;
 # Automate assumes they already exist.
 [global.v1.external.postgresql.auth.password.superuser]
 username = "<admin username>"

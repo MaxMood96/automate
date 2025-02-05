@@ -19,7 +19,7 @@ variable "automate_ebs_volume_size" {
 }
 
 variable "automate_ebs_volume_type" {
-  default = "gp2"
+  default = "gp3"
 }
 
 variable "automate_fqdn" {
@@ -44,13 +44,16 @@ variable "aws_ami_id" {
 variable "aws_cidr_block_addr" {
 }
 
-variable "aws_profile" {
-  default     = "default"
-  description = "The AWS profile to use from your ~/.aws/credentials file."
+variable "aws_instance_profile_name" {
+  default = ""
+}
+
+variable "aws_os_snapshot_role_arn" {
+  default = ""
 }
 
 variable "aws_region" {
-  default     = "us-west-1"
+  default     = ""
   description = "The name of the selected AWS region / datacenter."
 }
 
@@ -58,6 +61,10 @@ variable "aws_ssh_key_file" {
 }
 
 variable "aws_ssh_key_pair_name" {
+}
+
+variable "aws_ssh_port" {
+  default = 22
 }
 
 variable "aws_ssh_user" {
@@ -76,7 +83,7 @@ variable "chef_ebs_volume_size" {
 }
 
 variable "chef_ebs_volume_type" {
-  default = "gp2"
+  default = "gp3"
 }
 
 variable "chef_server_instance_count" {
@@ -90,36 +97,63 @@ variable "chef_server_instance_type" {
 variable "chef_server_lb_certificate_arn" {
 }
 
-variable "elasticsearch_ebs_volume_iops" {
-  default = 300
+variable "delete_on_termination" {
+  default = true
 }
 
-variable "elasticsearch_ebs_volume_size" {
-  default = 50
-}
-
-variable "elasticsearch_ebs_volume_type" {
-  default = "gp2"
-}
-
-variable "elasticsearch_instance_count" {
-  default = 3
-}
-
-variable "elasticsearch_listen_port" {
-  default = 9200
-}
-
-variable "elasticsearch_server_instance_type" {
-  default = "m5a.large"
+variable "json_data" {
 }
 
 variable "kibana_listen_port" {
   default = 5601
 }
 
+variable "lb_access_logs" {
+  default = false
+}
+
+variable "managed_opensearch_domain_name" {
+  default = ""
+}
+
+variable "managed_opensearch_domain_url" {
+  default = ""
+}
+
 variable "nfs_mount_path" {
   default = "/mnt/automate_backups"
+}
+
+variable "opensearch_ebs_volume_iops" {
+  default = 300
+}
+
+variable "opensearch_ebs_volume_size" {
+  default = 50
+}
+
+variable "opensearch_ebs_volume_type" {
+  default = "gp3"
+}
+
+variable "opensearch_instance_count" {
+  default = 3
+}
+
+variable "opensearch_listen_port" {
+  default = 9200
+}
+
+variable "opensearch_server_instance_type" {
+  default = "m5a.large"
+}
+
+variable "os_snapshot_user_access_key_id" {
+  default = ""
+}
+
+variable "os_snapshot_user_access_key_secret" {
+  default = ""
 }
 
 variable "pgleaderchk_listen_port" {
@@ -135,7 +169,7 @@ variable "postgresql_ebs_volume_size" {
 }
 
 variable "postgresql_ebs_volume_type" {
-  default = "gp2"
+  default = "gp3"
 }
 
 variable "postgresql_instance_count" {
@@ -150,8 +184,22 @@ variable "postgresql_server_instance_type" {
   default = "t3a.medium"
 }
 
+variable "private_custom_subnets" {
+  default = []
+  type    = list(string)
+}
+
 variable "proxy_listen_port" {
   default = 7432
+}
+
+variable "public_custom_subnets" {
+  default = []
+  type    = list(string)
+}
+
+variable "setup_managed_services" {
+  default = false
 }
 
 variable "ssh_user_sudo_password" {
@@ -170,5 +218,5 @@ variable "tags" {
 }
 
 variable "tmp_path" {
-  default = "/var/tmp"
+  default = "/hab/var/automate-ha"
 }

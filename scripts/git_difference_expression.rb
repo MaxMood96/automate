@@ -6,7 +6,7 @@ require "openssl"
 require "yaml"
 
 MANIFEST_HOST = "packages.chef.io".freeze
-MANIFEST_URL = "/manifests/dev/automate/latest.json".freeze
+MANIFEST_URL = "/manifests/dev/automate/latest_semver.json".freeze
 
 def get_dev_manifest_sha
   http = Net::HTTP.new(MANIFEST_HOST, 443)
@@ -28,7 +28,7 @@ dev_rev = if ENV['GIT_DIFF_BASE']
 
 # check if the dev_rev is actually from this tree.  we only expect to
 # see this until we can get a build through dev.
-`git cat-file -e #{dev_rev}`
+#`git cat-file -e #{dev_rev}`
 dev_rev_invalid = !$?.success?
 
 STDERR.puts("===== CHANGED COMPONENTS =====")

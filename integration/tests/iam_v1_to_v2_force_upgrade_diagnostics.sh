@@ -42,4 +42,11 @@ do_deploy() {
         --accept-terms-and-mlsa \
         --skip-preflight \
         --debug
+    
+    do_apply_license
+}
+
+do_prepare_upgrade() {
+  # use latest current here
+  prepare_upgrade_milestone "current" "20220329091442"
 }

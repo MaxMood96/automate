@@ -2,6 +2,7 @@
 #shellcheck disable=SC2154
 #stable channel
 
+
 pkg_name=automate-workflow-web
 pkg_origin=chef
 pkg_version="1.0.0"
@@ -15,7 +16,7 @@ pkg_deps=(
 pkg_build_deps=(
   core/make
   core/gcc
-  core/node/"$(cat "$PLAN_CONTEXT/../.nvmrc")"
+  core/node18/"$(cat "$PLAN_CONTEXT/../.nvmrc")"
   core/phantomjs
 )
 pkg_description="Web interface for Chef Automate Workflow"
@@ -50,3 +51,4 @@ do_build() {
 do_install() {
   cp -R dist "$pkg_prefix"
 }
+

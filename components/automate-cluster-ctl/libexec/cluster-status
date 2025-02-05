@@ -18,15 +18,25 @@ class AutomateClusterStatus < AutomateCluster::Command
     be_service_data = []
     fe_service_data = []
 
-    wait_while 'Fetching service status' do
-      fe_service_data += fe_status('automate') if name.nil? || name == 'automate'
-      fe_service_data += fe_status('chef_server') if name.nil? || name == 'chef_server'
-      be_service_data += postgresql_status if name.nil? || name == 'postgresql'
-      be_service_data += elasticsearch_status if name.nil? || name == 'elasticsearch'
-    end
-
-    render_status(['Service', 'Public IP', 'Status', 'Elasticsearch'], fe_service_data, title: "Frontend Services")
-    render_status(['Service', 'Public IP', 'Health', 'Process', 'Uptime', 'Role'], be_service_data, title: 'Backend Services')
+    # store the secret envs so we can pass them to the command
+    store_secret_envs
+    
+    if AutomateCluster::Config.aws.setup_managed_services == true
+      wait_while 'Fetching service status' do
+        fe_service_data += fe_status('automate') if name.nil? || name == 'automate'
+        fe_service_data += fe_status('chef_server') if name.nil? || name == 'chef_server'
+      end
+      render_status(['Service', 'IP Address', 'Status', 'Opensearch'], fe_service_data, title: "Frontend Services")
+    else    
+      wait_while 'Fetching service status' do
+        fe_service_data += fe_status('automate') if name.nil? || name == 'automate'
+        fe_service_data += fe_status('chef_server') if name.nil? || name == 'chef_server'
+        be_service_data += postgresql_status if name.nil? || name == 'postgresql'
+        be_service_data += opensearch_status if name.nil? || name == 'opensearch'
+      end
+      render_status(['Service', 'IP Address', 'Status', 'Opensearch'], fe_service_data, title: "Frontend Services")
+      render_status(['Service', 'IP Address', 'Health', 'Process', 'Uptime', 'Role'], be_service_data, title: 'Backend Services')
+    end  
   end
 
   def automate_status_code(code)
@@ -46,6 +56,18 @@ class AutomateClusterStatus < AutomateCluster::Command
 
   def fe_sudo_password
     @fe_sudo_password ||= AutomateCluster.secrets['fe_sudo_password'] || AutomateCluster.secrets['sudo_password']
+  end
+
+  # store the sudo_password from the env variable in the secrets hash
+  def store_secret_envs
+    sudo_password = ENV['sudo_password']
+    # If the sudo_password is set, store it in the secrets hash
+    if sudo_password
+      # Set a new secret
+      secrets.set('sudo_password', sudo_password)
+      # Save the updated secrets store to disk
+      secrets.save(File.expand_path(AutomateCluster::Config.secrets_store_file))
+    end
   end
 
   def fe_status(service)
@@ -74,10 +96,10 @@ class AutomateClusterStatus < AutomateCluster::Command
     service_data
   end
 
-  def elasticsearch_status
+  def opensearch_status
     service_data = []
-    AutomateCluster.hab_info.service_data('elasticsearch') do |ip, data|
-      service_data << be_service_summary_for('elasticsearch', ip, data)
+    AutomateCluster.hab_info.service_data('opensearch') do |ip, data|
+      service_data << be_service_summary_for('opensearch', ip, data)
     end
 
     service_data
@@ -102,8 +124,8 @@ class AutomateClusterStatus < AutomateCluster::Command
     state_entered = data.dig('process', 'state_entered')
     elapsed = state_entered.nil? ? 0 : elasped_time(Time.now.utc.to_i - state_entered)
     [
-      service, ip, data.dig('health_check', 'status'),
-      "#{data.dig('process', 'state') || 'Unknown' } (pid: #{data.dig('process', 'pid')})",
+      service, ip, data.dig('health_check', 'status') || 'Unknown',
+      data.dig('process', 'state') ? "#{data.dig('process', 'state') } (pid: #{data.dig('process', 'pid')})" : "Unknown",
       elapsed, data['role']
     ]
   end

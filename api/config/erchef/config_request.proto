@@ -31,6 +31,8 @@ message ConfigRequest {
 			chef.automate.infra.config.TLSCredentials tls = 11;
 			Memory memory = 12;
 			chef.automate.infra.config.External.Automate external_automate = 13;
+			IBrowse ibrowse = 14;
+			HealthCheck health = 15;
 
 			message Network {
 				google.protobuf.Int32Value port = 1 [ (chef.automate.api.port) = { name: "service", default: 10203, protocol: "https" } ];
@@ -62,6 +64,13 @@ message ConfigRequest {
 				google.protobuf.StringValue base_resource_url = 4;
 				google.protobuf.BoolValue strict_search_result_acls = 5;
 				google.protobuf.StringValue actions_fqdn = 6;
+				google.protobuf.BoolValue cbv_cache_enabled = 7;
+				google.protobuf.Int32Value cbv_cache_item_ttl = 8;
+				google.protobuf.Int32Value s3_url_ttl = 9;
+				google.protobuf.StringValue s3_bucket_name = 10;
+				google.protobuf.BoolValue s3_enabled = 11;
+				google.protobuf.StringValue s3_external_url = 12;
+				google.protobuf.Int32Value s3_url_expiry_window_size_percent = 13;
 			}
 
 			message Indexing {
@@ -75,6 +84,11 @@ message ConfigRequest {
 				google.protobuf.Int32Value pool_queue_max = 8;
 				google.protobuf.Int32Value batch_size = 9;
 				google.protobuf.Int32Value batch_max_wait = 10;
+				google.protobuf.StringValue search_provider = 11;
+				google.protobuf.StringValue search_queue_mode = 12;
+				google.protobuf.StringValue search_auth_username = 13;
+				google.protobuf.StringValue search_auth_password = 14;
+				google.protobuf.BoolValue track_total_hits = 15;
 			}
 
 			message Authz {
@@ -84,6 +98,8 @@ message ConfigRequest {
 				google.protobuf.Int32Value pool_max_size = 4;
 				google.protobuf.Int32Value pool_queue_max = 5;
 				google.protobuf.Int32Value pool_queue_timeout = 6;
+				google.protobuf.Int32Value cleanup_batch_size = 7;
+				google.protobuf.Int32Value node_license = 8;
 			}
 
 			message Sql {
@@ -100,6 +116,12 @@ message ConfigRequest {
 				google.protobuf.Int32Value pool_max_size = 3;
 				google.protobuf.Int32Value pool_queue_max = 4;
 				google.protobuf.BoolValue enabled = 5;
+				google.protobuf.Int32Value pool_max_age = 6;
+				google.protobuf.Int32Value pool_cull_interval = 7;
+				google.protobuf.Int32Value max_connection_duration = 8;
+				google.protobuf.Int32Value ibrowse_timeout= 9;
+
+
 			}
 
 			message Depsolver {
@@ -113,7 +135,16 @@ message ConfigRequest {
 			message Memory {
 				google.protobuf.Int64Value max_bytes = 1;
 			}
+			 
+			message HealthCheck { 
+				google.protobuf.Int32Value health_ping_timeout =  1;
+			}
 
+			message IBrowse {
+				google.protobuf.Int32Value ibrowse_max_pipeline_size = 1;
+				google.protobuf.Int32Value ibrowse_max_sessions = 2;
+				google.protobuf.BoolValue enable_ibrowse_traces = 3;
+			}
 		}
 		message Service {}
 	}

@@ -59,7 +59,7 @@ type A1Upgrade struct {
 	SkipSAMLCheck             bool
 	SkipWorkflowCheck         bool
 	EnableChefServer          bool
-	EnableWorkflow            bool
+	// EnableWorkflow            bool
 }
 
 // Option represents an option that can be applied to an
@@ -69,7 +69,9 @@ type A1Upgrade struct {
 //
 // ```
 // upgrade := NewA1Upgrade(a1upgrade.WithDeliverySecrets("/some/path.json"),
-//                         a1upgrade.WithDeliveryRunning("/some/other/path.json"))
+//
+//	a1upgrade.WithDeliveryRunning("/some/other/path.json"))
+//
 // ```
 type Option func(*A1Upgrade) error
 
@@ -207,12 +209,12 @@ func WithA2ConfigPath(path string, options ...dc.AutomateConfigOpt) Option {
 	}
 }
 
-func WithWorkflowEnabled(enabled bool) Option {
-	return func(u *A1Upgrade) error {
-		u.EnableWorkflow = enabled
-		return nil
-	}
-}
+//func WithWorkflowEnabled(enabled bool) Option {
+//	return func(u *A1Upgrade) error {
+//		u.EnableWorkflow = enabled
+//		return nil
+//	}
+//}
 
 func WithChefServerEnabled(enabled bool) Option {
 	return func(u *A1Upgrade) error {
@@ -312,9 +314,9 @@ func (u *A1Upgrade) SetChefServerEnabled(enabled bool) error {
 	return u.A2Config.SetChefServerEnabled(enabled)
 }
 
-func (u *A1Upgrade) SetWorkflowEnabled(enabled bool) error {
-	return u.A2Config.SetWorkflowEnabled(enabled)
-}
+//func (u *A1Upgrade) SetWorkflowEnabled(enabled bool) error {
+//	return u.A2Config.SetWorkflowEnabled(enabled)
+//}
 
 // Databases returns a slice of A1Databases that need to me migrated
 func (u *A1Upgrade) Databases() []A1Database {
@@ -324,10 +326,10 @@ func (u *A1Upgrade) Databases() []A1Database {
 
 	// If Workflow is enabled, we backup everything from the delivery database
 	// the main reason is that we need types and functions attached to it
-	if u.EnableWorkflow {
-		deliveryDB.includedTables = []string{}
-		deliveryDB.excludedTables = []string{"pg_stat_repl"}
-	}
+	//if u.EnableWorkflow {
+	//	deliveryDB.includedTables = []string{}
+	//	deliveryDB.excludedTables = []string{"pg_stat_repl"}
+	//}
 
 	dbs := []A1Database{deliveryDB}
 
@@ -396,9 +398,9 @@ func SkipWorkflowConfiguredCheck(workflow bool) Option {
 // GenerateA2ConfigIfNoneProvided creates an Automate 2 configuration from
 // Automate 1 configuration if a2ConfigPath is the zero value for a string
 // (""). If a2ConfigPath is not the zero value, it's assumed that
-// 1. an a2 config has been loaded via the initializer options, and:
-// 2. the a2 config that we loaded contains user customizations that we must
-//    not override.
+//  1. an a2 config has been loaded via the initializer options, and:
+//  2. the a2 config that we loaded contains user customizations that we must
+//     not override.
 func (u *A1Upgrade) GenerateA2ConfigIfNoneProvided(a2ConfigPath string) error {
 	if a2ConfigPath != "" {
 		return nil
@@ -441,10 +443,10 @@ func (u *A1Upgrade) GenerateA2ConfigIfNoneProvided(a2ConfigPath string) error {
 		return err
 	}
 
-	err = u.SetWorkflowEnabled(u.EnableWorkflow)
-	if err != nil {
-		return err
-	}
+	//err = u.SetWorkflowEnabled(u.EnableWorkflow)
+	//if err != nil {
+	//	return err
+	//}
 
 	return u.A2Config.ValidateWithGlobalAndDefaults()
 }

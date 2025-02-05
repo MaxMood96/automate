@@ -2,6 +2,7 @@
 #shellcheck disable=SC2154
 #stable channel
 
+
 pkg_name=pg-sidecar-service
 pkg_description="A service providing common functionality to Automate's Postgres consumers"
 pkg_origin=chef
@@ -17,13 +18,13 @@ pkg_exports=(
 )
 pkg_exposes=(port)
 pkg_deps=(
-  chef/mlsa
+  chef/mlsa/1.0.1/20240125084021
   chef/automate-platform-tools
   # Pin postgresql, sqitch_pg, and postgresql client until automate-postgresql
   # is updated.
-  core/postgresql/9.6.11/20190305213451 # for psql and pg_dump
-  core/postgresql-client/9.6.11/20190305213520
-  core/sqitch_pg/3.7.4/20190305225225
+  core/postgresql13/13.18/20241203070217 # for psql and pg_dump
+  core/postgresql13-client/13.18/20241203070721
+  core/sqitch_pg/3.15.0/20240614112821
 )
 pkg_bin_dirs=(bin)
 pkg_scaffolding="${local_scaffolding_origin:-chef}/automate-scaffolding-go"
@@ -33,3 +34,10 @@ scaffolding_go_import_path="${scaffolding_go_base_path}/${scaffolding_go_repo_na
 scaffolding_go_binary_list=(
   "${scaffolding_go_import_path}/cmd/${pkg_name}"
 )
+
+do_before() {
+  do_default_before
+  git config --global --add safe.directory /src
+}
+
+

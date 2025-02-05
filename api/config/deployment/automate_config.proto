@@ -18,7 +18,8 @@ import "config/shared/global.proto";
 import "config/cs_nginx/config_request.proto";
 import "config/deployment/config_request.proto";
 import "config/dex/config_request.proto";
-import "config/elasticsearch/config_request.proto";
+import "config/ocid/config_request.proto";
+import "config/opensearch/config_request.proto";
 import "config/esgateway/config_request.proto";
 import "config/es_sidecar/config_request.proto";
 import "config/gateway/config_request.proto";
@@ -38,8 +39,6 @@ import "config/secrets/config_request.proto";
 import "config/session/config_request.proto";
 import "config/teams/config_request.proto";
 import "config/ui/config_request.proto";
-import "config/workflow_nginx/config_request.proto";
-import "config/workflow_server/config_request.proto";
 import "config/event_gateway/config_request.proto";
 import "config/data_feed/config_request.proto";
 import "config/event_feed/config_request.proto";
@@ -50,6 +49,8 @@ import "config/minio/config_request.proto";
 import "config/builder_memcached/config_request.proto";
 import "config/sample_data/config_request.proto";
 import "config/user_settings/config_request.proto";
+import "config/elasticsearch/config_request.proto";
+import "config/report_manager/config_request.proto";
 
 message AutomateConfig {
 	reserved 26; // automate-blob-store
@@ -85,9 +86,6 @@ message AutomateConfig {
 	chef.automate.domain.erchef.ConfigRequest erchef = 24;
 	chef.automate.domain.cs_nginx.ConfigRequest cs_nginx = 25;
 
-	chef.automate.domain.workflow_server.ConfigRequest workflow = 27;
-	chef.automate.domain.workflow_nginx.ConfigRequest workflow_nginx = 28;
-
 	chef.automate.domain.event.ConfigRequest event_service = 30;
 	chef.automate.domain.nodemanager.ConfigRequest nodemanager = 33;
 	chef.automate.domain.event_gateway.ConfigRequest event_gateway = 37;
@@ -104,4 +102,7 @@ message AutomateConfig {
 	chef.automate.domain.cds.ConfigRequest cds = 46;
 	chef.automate.domain.sample_data.ConfigRequest sample_data = 47;
 	chef.automate.domain.user_settings.ConfigRequest user_settings = 48;
+	chef.automate.infra.opensearch.ConfigRequest opensearch = 49;
+	chef.automate.domain.report_manager.ConfigRequest report_manager = 50;
+    chef.automate.domain.ocid.ConfigRequest ocid = 51;
 }

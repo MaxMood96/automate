@@ -1,16 +1,17 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { Store } from '@ngrx/store';
-import { MatOptionSelectionChange } from '@angular/material/core/option';
+import { MatOptionSelectionChange } from '@angular/material/core';
 import { Observable, Subject } from 'rxjs';
 import { map, takeUntil } from 'rxjs/operators';
 
-import { LayoutFacadeService, Sidebar } from 'app/entities/layout/layout.facade';
-import { ChefSorters } from 'app/helpers/auth/sorter';
-import { NgrxStateAtom } from 'app/ngrx.reducers';
-import { loading } from 'app/entities/entities';
-import { GetRoles, DeleteRole } from 'app/entities/roles/role.actions';
-import { allRoles, getAllStatus } from 'app/entities/roles/role.selectors';
-import { Role } from 'app/entities/roles/role.model';
+import { LayoutFacadeService, Sidebar } from '../../../entities/layout/layout.facade';
+import { ChefSorters } from '../../../helpers/auth/sorter';
+import { NgrxStateAtom } from '../../../ngrx.reducers';
+import { loading } from '../../../entities/entities';
+import { GetRoles, DeleteRole } from '../../../entities/roles/role.actions';
+import { allRoles, getAllStatus } from '../../../entities/roles/role.selectors';
+import { Role } from '../../../entities/roles/role.model';
+import { TelemetryService } from '../../../services/telemetry/telemetry.service';
 
 @Component({
   selector: 'app-roles-list',
@@ -26,7 +27,8 @@ export class RolesListComponent implements OnInit, OnDestroy {
   private isDestroyed = new Subject<boolean>();
   constructor(
     private store: Store<NgrxStateAtom>,
-    private layoutFacade: LayoutFacadeService
+    private layoutFacade: LayoutFacadeService,
+    private telemetryService: TelemetryService
   ) {
     store.select(getAllStatus).pipe(
       map(loading),
@@ -48,7 +50,7 @@ export class RolesListComponent implements OnInit, OnDestroy {
     this.isDestroyed.complete();
   }
 
-  public startRoleDelete($event: MatOptionSelectionChange, role: Role): void {
+  public startRoleDelete($event, role: Role): void {
     if ($event.isUserInput) {
       this.roleToDelete = role;
       this.deleteModalVisible = true;
@@ -58,6 +60,7 @@ export class RolesListComponent implements OnInit, OnDestroy {
   public deleteRole(): void {
     this.closeDeleteModal();
     this.store.dispatch(new DeleteRole(this.roleToDelete));
+    this.telemetryService.track('Settings_Roles_Delete');
   }
 
   public closeDeleteModal(): void {

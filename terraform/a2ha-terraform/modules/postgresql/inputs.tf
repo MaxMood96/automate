@@ -7,12 +7,8 @@ variable "backend_aib_dest_file" {
 variable "backend_aib_local_file" {
 }
 
-variable "elasticsearch_listen_port" {
-  default = 9200
-}
-
-variable "elasticsearch_private_ips" {
-  default = []
+variable "backup_config_efs" {
+  default = "false"
 }
 
 variable "habitat_info" {
@@ -22,6 +18,18 @@ variable "journalbeat_pkg_ident" {
 }
 
 variable "metricbeat_pkg_ident" {
+}
+
+variable "nfs_mount_path" {
+  default = "/mnt/automate_backups"
+}
+
+variable "opensearch_listen_port" {
+  default = 9200
+}
+
+variable "opensearch_private_ips" {
+  default = []
 }
 
 variable "pgleaderchk_listen_port" {
@@ -37,6 +45,15 @@ variable "pgleaderchk_svc_load_args" {
 variable "postgresql_archive_disk_fs_path" {
 }
 
+variable "postgresql_certs_by_ip" {
+  type    = map(map(string))
+  default = {}
+}
+
+variable "postgresql_custom_certs_enabled" {
+  default = false
+}
+
 variable "postgresql_instance_count" {
   default = 3
 }
@@ -49,6 +66,15 @@ variable "postgresql_pg_dump_enabled" {
 }
 
 variable "postgresql_pkg_ident" {
+}
+
+variable "postgresql_private_key" {
+}
+
+variable "postgresql_public_key" {
+}
+
+variable "postgresql_root_ca" {
 }
 
 variable "postgresql_ssl_enable" {
@@ -81,6 +107,10 @@ variable "public_ips" {
 variable "ssh_key_file" {
 }
 
+variable "ssh_port" {
+  default = 22
+}
+
 variable "ssh_user" {
   default = "centos"
 }
@@ -93,5 +123,5 @@ variable "sudo_cmd" {
 }
 
 variable "tmp_path" {
-  default = "/var/tmp"
+  default = "/hab/var/automate-ha"
 }

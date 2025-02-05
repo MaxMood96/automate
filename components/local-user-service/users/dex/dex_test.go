@@ -6,7 +6,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/dexidp/dex/api"
+	"github.com/dexidp/dex/api/v2"
 	"github.com/kylelemons/godebug/pretty"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -26,6 +26,7 @@ func TestDexUsersAdapter(t *testing.T) {
 	// We need to load the dex certs for the dex server because
 	// local user service checks the name the server gives back
 	// matches automate-dex, which is in the automate-dex cert.
+
 	dexCerts := helpers.LoadDevCerts(t, "automate-dex")
 	dexConnFactory := secureconn.NewFactory(*dexCerts)
 
@@ -256,15 +257,15 @@ func TestDexUsersAdapter(t *testing.T) {
 	})
 
 	t.Run("bcrypt hash password", func(t *testing.T) {
-		password := "supercalifragilisticexpialidocious"
+		localUserPass := getPassword()
 
-		hashedPassword, err := adp.HashPassword(password)
+		hashedPassword, err := adp.HashPassword(localUserPass)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		// confirm password hashed properly
-		pwCheck := []byte(password)
+		pwCheck := []byte(localUserPass)
 		err = bcrypt.CompareHashAndPassword(hashedPassword, pwCheck)
 		if err != nil {
 			t.Errorf("expected nil, got %s", err)
@@ -282,9 +283,9 @@ func TestDexUsersAdapter(t *testing.T) {
 
 	t.Run("validate user password, not verified", func(t *testing.T) {
 		email := "bob@chef.io"
-		password := "supercalifragilisticexpialidocious"
+		localUserPass := getPassword()
 
-		ok, err := adp.ValidatePassword(ctx, email, password)
+		ok, err := adp.ValidatePassword(ctx, email, localUserPass)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -294,9 +295,9 @@ func TestDexUsersAdapter(t *testing.T) {
 	})
 	t.Run("validate user password, verified", func(t *testing.T) {
 		email := "alice@chef.io"
-		password := "supercalifragilisticexpialidocious"
+		localUserPass := getPassword()
 
-		ok, err := adp.ValidatePassword(ctx, email, password)
+		ok, err := adp.ValidatePassword(ctx, email, localUserPass)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -306,9 +307,9 @@ func TestDexUsersAdapter(t *testing.T) {
 	})
 	t.Run("validate user password, not found", func(t *testing.T) {
 		email := "catherine@chef.io"
-		password := "supercalifragilisticexpialidocious"
+		localUserPass := getPassword()
 
-		ok, err := adp.ValidatePassword(ctx, email, password)
+		ok, err := adp.ValidatePassword(ctx, email, localUserPass)
 		if err != nil {
 			t.Error("expected err == nil, got not nil")
 		}
@@ -402,4 +403,8 @@ func (d *dexAPI) ListRefresh(context.Context, *api.ListRefreshReq) (*api.ListRef
 
 func (d *dexAPI) RevokeRefresh(context.Context, *api.RevokeRefreshReq) (*api.RevokeRefreshResp, error) {
 	return nil, errors.New("not implemented")
+}
+
+func getPassword() string {
+	return "supercalifragilisticexpialidocious"
 }

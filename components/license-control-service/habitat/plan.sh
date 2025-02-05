@@ -2,6 +2,7 @@
 #shellcheck disable=SC2154
 #stable channel
 
+
 pkg_name=license-control-service
 pkg_description="A2 license control service"
 pkg_origin=chef
@@ -12,7 +13,10 @@ pkg_license=('Chef-MLSA')
 pkg_deps=(
   chef/mlsa
   chef/automate-platform-tools
+  chef/license-audit/1.0.36/20240729060411
 )
+pkg_svc_user=root
+pkg_svc_group=root
 pkg_exports=(
   [port]=service.port
   [host]=service.host
@@ -20,6 +24,7 @@ pkg_exports=(
 pkg_binds=(
   [automate-pg-gateway]="port"
   [pg-sidecar-service]="port"
+  [cereal-service]="port"
 )
 pkg_exposes=(port)
 pkg_scaffolding="${local_scaffolding_origin:-chef}/automate-scaffolding-go"
@@ -35,4 +40,10 @@ do_install() {
 
   build_line "Copying migration files"
   cp -r migrations "${pkg_prefix}/migrations"
+}
+
+
+do_before() {
+  do_default_before
+  git config --global --add safe.directory /src
 }

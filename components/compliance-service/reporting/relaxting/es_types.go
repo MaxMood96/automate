@@ -7,9 +7,27 @@ import (
 )
 
 type ESComplianceRunInfo struct {
-	NodeID   string    `json:"node_uuid"`
-	FirstRun time.Time `json:"first_run"`
-	LastRun  time.Time `json:"last_run"`
+	NodeID       string    `json:"node_uuid"`
+	ResourceId   string    `json:""`
+	ResourceType string    `json:""`
+	Status       string    `json:"status"`
+	FirstRun     time.Time `json:"first_run"`
+	LastRun      time.Time `json:"last_run"`
+	Platform     struct {
+		Name    string `json:"name"`
+		Release string `json:"release"`
+		Full    string `json:"full"`
+	} `json:"platform_version"`
+	ChefServer    string           `json:"chef_server"`
+	Organization  string           `json:"organization"`
+	InspecVersion string           `json:"version"`
+	PolicyName    string           `json:"policy_name"`
+	Profiles      []ProfileRunInfo `json:"profiles"`
+	Recipe        []string         `json:"recipes"`
+	Role          []string         `json:"roles"`
+	ChefTags      []string         `json:"chef_tags"`
+	Environment   string           `json:"environment"`
+	PolicyGroup   string           `json:"policy_group"`
 }
 
 // Used to unmarshal summary documents stored in comp-s-* ElasticSearch indices
@@ -106,6 +124,7 @@ type ESInSpecReportControlsResult struct {
 	StartTime   string  `json:"start_time,omitempty"`
 	Message     string  `json:"message,omitempty"`
 	SkipMessage string  `json:"skip_message,omitempty"`
+	ResourceId  string  `json:"resource_id"`
 }
 
 type ESInSpecReportControlsWaiverData struct {
@@ -288,7 +307,9 @@ type NodeListWithAggregatedComplianceSummary struct {
 }
 
 type ReportId struct {
-	ID string `json:"id"`
+	ReportUuid string `json:"report_uuid"`
+	EndTime    string `json:"end_time"`
+	NodeUuid   string `json:"node_uuid"`
 }
 
 type TimeBucketedReportIds struct {
@@ -303,4 +324,93 @@ type ESMigrationInfo struct {
 
 type EndTimeSource struct {
 	EndTime time.Time `json:"end_time"`
+}
+
+type Control struct {
+	ControlID   string                            `json:"control_id"`
+	Title       string                            `json:"title"`
+	WaivedStr   string                            `json:"waived_str"`
+	WaiverData  interface{}                       `json:"waiver_data"`
+	Impact      float64                           `json:"impact"`
+	EndTime     time.Time                         `json:"end_time"`
+	DailyLatest bool                              `json:"daily_latest"`
+	DayLatest   bool                              `json:"day_latest"`
+	Status      string                            `json:"status"`
+	Nodes       []Node                            `json:"nodes"`
+	StringTags  []ESInSpecReportControlStringTags `json:"string_tags"`
+	Profile     Profile                           `json:"profile"`
+}
+
+type Node struct {
+	NodeUUID    string    `json:"node_uuid"`
+	NodeEndTime time.Time `json:"node_end_time"`
+	Status      string    `json:"status"`
+	DayLatest   bool      `json:"day_latest"`
+	DailyLatest bool      `json:"daily_latest"`
+	ReportUUID  string    `json:"report_uuid"`
+	NodeName    string    `json:"node_name"`
+	Environment string    `json:"environment"`
+	Roles       []string  `json:"roles"`
+	Recipes     []string  `json:"recipes"`
+	Platform    struct {
+		Name    string `json:"name"`
+		Release string `json:"release"`
+		Full    string `json:"full"`
+	} `json:"platform"`
+	PolicyName       string   `json:"policy_name"`
+	PolicyGroup      string   `json:"policy_group"`
+	OrganizationName string   `json:"organization_name"`
+	SourceFQDN       string   `json:"source_fqdn"`
+	ChefTags         []string `json:"chef_tags"`
+	JobID            string   `json:"job_uuid"`
+}
+
+type Profile struct {
+	ProfileID string `json:"profile_id"`
+	Name      string `json:"name"`
+	Title     string `json:"title"`
+}
+
+type NodesUpgradation struct {
+	NodeUUID  string `json:"node_uuid"`
+	EndTime   string `json:"end_time"`
+	DayLatest bool   `json:"day_latest"`
+}
+
+type Status struct {
+	Status string `json:"status"`
+}
+
+type AssetSummary struct {
+	Passed  int32 `json:"passed"`
+	Skipped int32 `json:"skipped"`
+	Failed  int32 `json:"failed"`
+	Waived  int32 `json:"waived"`
+}
+
+type ProfileRunInfo struct {
+	SHA256   string           `json:"sha256"`
+	Controls []ControlRunInfo `json:"controls"`
+	Name     string           `json:"name"`
+	Title    string           `json:"title"`
+	Full     string           `json:"full"`
+}
+
+type ControlRunInfo struct {
+	ID          string                            `json:"id"`
+	ControlTags []ESInSpecReportControlStringTags `json:"control_tags"`
+}
+
+type FirstRunInfo struct {
+	LastRun string `json:"last_run""`
+}
+
+type ControlNodesInfo struct {
+	Status string             `json:"status"`
+	Nodes  []NodesControlInfo `json:"nodes"`
+}
+
+type NodesControlInfo struct {
+	NodeUUID    string    `json:"node_uuid"`
+	NodeEndTime time.Time `json:"node_end_time"`
 }

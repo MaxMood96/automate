@@ -1,5 +1,6 @@
 # stable channel
 
+
 pkg_name=automate-ui
 # Ignore this package when bind data is compiled for deployment service:
 chef_automate_dev_only_pkg=true
@@ -9,7 +10,7 @@ pkg_maintainer="Chef Software Inc. <support@chef.io>"
 pkg_license=("UNLICENSED")
 pkg_svc_user="root" # so we can start nginx properly
 pkg_deps=(
-  core/nginx
+  core/nginx/1.25.4/20240314072919
 )
 pkg_build_deps=()
 pkg_exports=(
@@ -31,3 +32,5 @@ do_build() {
 do_install() {
   return 0
 }
+
+

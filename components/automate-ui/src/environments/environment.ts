@@ -31,6 +31,7 @@ export const environment = {
   user_preference_url: '/api/v0/user-settings',
   compliance_stats_url: '/api/v0/compliance/reporting/stats',
   client_runs_stats_url: '/api/v0/cfgmgmt/telemetry',
+  download_report_list_url: '/api/v0/reportmanager',
   // TODO:eng-ex remove elasticsearch_url when all es requests go through config-mgmt
   // don't forget to remove it from the proxy
   elasticsearch_url: '/api/v0/elasticsearch',
@@ -38,5 +39,7 @@ export const environment = {
   data_feed_url: '/api/v0/datafeed',
   license_id: '00000000-0000-0000-0000-111111111111',
   install_id: '00000000-0000-0000-0000-111111111111',
-  use_default_session: false
+  use_default_session: false,
+  remote_library_url: 'https://licensing-acceptance.chef.co/usage/v1/remoteclient.js',
+  remote_library_url_acceptance: 'https://licensing-acceptance.chef.co/usage/v1/remoteclient.js'
 };

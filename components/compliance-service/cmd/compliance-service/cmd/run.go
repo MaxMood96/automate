@@ -60,6 +60,12 @@ var conf = config.Compliance{
 	DataRetention: config.DataRetention{
 		ComplianceReportDays: 60,
 	},
+	ReportConfig: config.ReportConfig{
+		Endpoint: "127.0.0.1:10152",
+	},
+	CerealConfig: config.CerealConfig{
+		Workers: 1,
+	},
 }
 
 // runCmd represents the run command
@@ -101,7 +107,12 @@ func init() {
 	runCmd.Flags().Int32Var(&conf.DataRetention.ComplianceReportDays, "reports-retention-days", 60, "Number of days to keep compliance reports")
 	runCmd.Flags().StringVar(&conf.Service.ConfigFilePath, "config", "", "config file")
 	runCmd.Flags().IntVar(&conf.Service.MessageBufferSize, "message-buffer-size", 100, "Number of ingest messages allowed to buffer")
-
+	runCmd.Flags().BoolVar(&conf.Service.EnableLargeReporting, "enable-large-reporting", false, "upgrade to support large reporting")
+	runCmd.Flags().IntVar(&conf.Service.LcrOpenSearchRequests, "lcr-open-search-requests", conf.Service.LcrOpenSearchRequests, "number of concurrent requests to communicate with open search for large compliance reporting")
+	runCmd.Flags().BoolVar(&conf.Service.EnableEnhancedReporting, "enable-enhanced-reporting", false, "upgrade to support enhanced compliance reporting")
+	runCmd.Flags().IntVar(&conf.Service.ControlsPopulatorsCount, "control-populators-count", 1, "Number of  workers for control workers")
+	runCmd.Flags().StringVar(&conf.Service.FirejailProfilePath, "firejail-profile-path", conf.Service.FirejailProfilePath, "Firejail profile path")
+	runCmd.Flags().StringVar(&conf.Service.FireJailExecProfilePath, "firejail-exec-profile-path", conf.Service.FireJailExecProfilePath, "Firejail profile path for exec")
 	// Postgres Config Flags
 	runCmd.Flags().StringVar(&conf.Postgres.ConnectionString, "postgres-uri", conf.Postgres.ConnectionString, "PostgreSQL connection string to use")
 	runCmd.Flags().StringVar(&conf.Postgres.Database, "postgres-database", "", "PostgreSQL database to use. Will override postgres-uri")
@@ -156,4 +167,7 @@ func init() {
 
 	// Cereal Service Flags
 	runCmd.Flags().StringVar(&conf.CerealConfig.Endpoint, "cereal-endpoint", conf.CerealConfig.Endpoint, "Cereal Service Endpoint")
+
+	// Report Manager Flags
+	runCmd.Flags().StringVar(&conf.ReportConfig.Endpoint, "report-manager-endpoint", conf.ReportConfig.Endpoint, "Report Manager Service Endpoint")
 }

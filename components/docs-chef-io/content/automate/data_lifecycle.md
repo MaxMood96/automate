@@ -12,15 +12,13 @@ gh_repo = "automate"
     weight = 30
 +++
 
-Data Lifecycle manages the retention of events, service groups, Chef Infra Client runs, compliance reports and scans in Chef Automate.
-Chef Automate stores data from the ingest-service,event-feed-service, compliance-service and applications-service in Elasticsearch or PostgreSQL.
-Over time, you may wish to remove that data from Chef Automate by using the data lifecycle settings.
+Data Lifecycle manages the retention of events, service groups, Chef Infra Client runs, compliance reports, and scans in Chef Automate. Chef Automate stores data from the ingest-service, event-feed-service, compliance-service and applications-service in OpenSearch or PostgreSQL. Over time, you may wish to remove that data from Chef Automate by using the data lifecycle settings.
 
 ## Data Lifecycle
 
 Navigate to _Settings_ > _Data Lifecycle_ and adjust any settings you would like to change. After making changes, use the **Save Changes** button to apply your changes.
 
-Users with `dataLifecycle:*` IAM access are able to see the data lifecycle job statuses, configure jobs, or run jobs.
+Users with `dataLifecycle:*` IAM access can see the data lifecycle job statuses, configure jobs or run jobs. While configuring the data lifecycle in a number of days, please refer to the section on [Impact On OpenSearch Shards](/automate/data_lifecycle/#impact-on-opensearch-shards) to set the appropriate maximum shards per node value.
 
 ![Data Lifecycle](/images/automate/data-lifecycle.png)
 
@@ -45,9 +43,41 @@ The default is to remove Chef Infra Client run data after 30 days, to label node
 The Compliance data lifecycle settings allow you to remove compliance reports and compliance scans after a set amount of days.
 The default is to remove compliance reports after 60 days, and to remove compliance scans after 60 days.
 
+## Impact on OpenSearch Shards
+
+The data retention period set in the data lifecycle settings impacts the number of shards in OpenSearch.
+
+If the number of shards per node grows higher than the max shards per node configured in OpenSearch, you may see failures while ingesting data to Automate. For more information, refer to the [error troubleshoot](/automate/troubleshooting/#issue-maximum-shards-open) document.
+
+The default value for max shards per node in OpenSearch is 1000.
+
+Refer to the following table to calculate the max shards based on your data retention requirement.
+
+| Days | Number of Shards Per Node for <br />Client Run | Number of Shards Per Node for <br />Compliance | Total Number of Shards Per Node |
+| ---- |------------------------------------------------|------------------------------------------------|---------------------------------|
+| 30 | 350                                            | 650                                            | 1000 |
+| 60 | 700                                            | 1300                                           | 2000 |
+| 90 | 1100                                           | 1900                                           | 3000 |
+| 365 | 4000                                           | 8000                                           | 12000 |
+
+To set the value of max shards per node:
+
+1. Create the following configuration in a `.toml` file.
+
+  ```bash
+    [opensearch.v1.sys.cluster]
+    max_shards_per_node = 1000
+  ```
+
+1. Patch the configuration
+
+  ```bash
+    chef-automate config patch </path/to/your-file.toml>
+  ```
+
 ## Data Lifecycle API
 
-Chef Automate stores data from the `ingest-service`, `event-feed-service`, `compliance-service` and `applications-service` in Elasticsearch or PostgreSQL.
+Chef Automate stores data from the `ingest-service`, `event-feed-service`, `compliance-service` and `applications-service` in OpenSearch or PostgreSQL.
 
 The `data-lifecycle` API allows configuring and running lifecycle jobs by data type:
 
@@ -113,7 +143,7 @@ Configure the data lifecycle job settings by creating a JSON file with the desir
         "disabled": false,
         "recurrence": "FREQ=DAILY;DTSTART=20191106T180240Z;INTERVAL=1",
         "purge_policies": {
-          "elasticsearch": [
+          "opensearch": [
             {
               "policy_name": "actions",
               "older_than_days": 30,
@@ -136,7 +166,7 @@ Configure the data lifecycle job settings by creating a JSON file with the desir
         "disabled": false,
         "recurrence": "FREQ=DAILY;DTSTART=20191106T180323Z;INTERVAL=1",
         "purge_policies": {
-          "elasticsearch": [
+          "opensearch": [
             {
               "policy_name": "compliance-reports",
               "older_than_days": 100,
@@ -159,7 +189,7 @@ Configure the data lifecycle job settings by creating a JSON file with the desir
         "disabled": false,
         "recurrence": "FREQ=DAILY;DTSTART=20191106T180243Z;INTERVAL=2",
         "purge_policies": {
-          "elasticsearch": [
+          "opensearch": [
             {
               "policy_name": "feed",
               "older_than_days": 90,
@@ -212,7 +242,7 @@ For example, if you want to configure compliance settings, create a smaller JSON
       "disabled": false,
       "recurrence": "FREQ=DAILY;DTSTART=20191106T180323Z;INTERVAL=1",
       "purge_policies": {
-        "elasticsearch": [
+        "opensearch": [
           {
             "policy_name": "compliance-reports",
             "older_than_days": 100,
@@ -250,7 +280,7 @@ Infra node lifecycle jobs have the following options:
 Purge jobs have the following options:
 
 * `purge_polices` (map) - Configures how old the corresponding data must be in the configured storage before purging occurs.
-  * `elasticsearch` (array) - An array of Elasticsearch purge policies
+  * `opensearch` (array) - An array of OpenSearch purge policies
     * `disabled` (bool) - True or false if this job is enabled.
     * `policy_name` (string) - The name of the purge policy you wish to update.
     * `older_than_days` (int) - The threshold for what qualifies for deletion.
@@ -261,7 +291,7 @@ Services jobs have the following options:
 
 ##### Infra Job Settings
 
-The `infra` data type has four data lifecycle jobs: three are for node lifecycle and one is for purge job with two Elasticsearch purge policies.
+The `infra` data type has four data lifecycle jobs: three are for node lifecycle and one is for purge job with two OpenSearch purge policies.
 
 ```json
 { "job_settings": [
@@ -284,7 +314,7 @@ The `infra` data type has four data lifecycle jobs: three are for node lifecycle
       "disabled": false,
       "recurrence": "FREQ=DAILY;DTSTART=20191106T180240Z;INTERVAL=1",
       "purge_policies": {
-        "elasticsearch": [
+        "opensearch": [
         {
           "policy_name": "actions",
           "older_than_days": 30,
@@ -311,7 +341,7 @@ The `infra` data type has four data lifecycle jobs: three are for node lifecycle
 
 ##### Compliance Job Settings
 
-The `compliance` data type has one compliance purge job with two Elasticsearch purge policies.
+The `compliance` data type has one compliance purge job with two OpenSearch purge policies.
 
 ```json
 { "job_settings": [
@@ -320,7 +350,7 @@ The `compliance` data type has one compliance purge job with two Elasticsearch p
       "disabled": false,
       "recurrence": "FREQ=DAILY;DTSTART=20191106T180323Z;INTERVAL=1",
       "purge_policies": {
-        "elasticsearch": [
+        "opensearch": [
           {
             "policy_name": "compliance-reports",
             "older_than_days": 100,
@@ -344,7 +374,7 @@ The `compliance` data type has one compliance purge job with two Elasticsearch p
 
 ##### Event Feed Job Settings
 
-The `event_feed` data type has one event feed purge job with one Elasticsearch purge policy.
+The `event_feed` data type has one event feed purge job with one OpenSearch purge policy.
 
 ```json
 { "job_settings": [
@@ -352,7 +382,7 @@ The `event_feed` data type has one event feed purge job with one Elasticsearch p
       "disabled": false,
       "recurrence": "FREQ=DAILY;DTSTART=20191106T180243Z;INTERVAL=2",
       "purge_policies": {
-        "elasticsearch": [
+        "opensearch": [
         {
           "policy_name": "feed",
           "older_than_days": 90,

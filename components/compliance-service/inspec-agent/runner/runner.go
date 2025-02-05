@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	neturl "net/url"
@@ -25,7 +26,6 @@ import (
 	"github.com/chef/automate/api/interservice/compliance/ingest/ingest"
 	"github.com/chef/automate/api/interservice/compliance/jobs"
 	"github.com/chef/automate/components/compliance-service/ingest/ingestic"
-	"github.com/chef/automate/components/compliance-service/ingest/ingestic/mappings"
 	"github.com/chef/automate/components/compliance-service/inspec"
 	"github.com/chef/automate/components/compliance-service/inspec-agent/remote"
 	"github.com/chef/automate/components/compliance-service/inspec-agent/resolver"
@@ -33,6 +33,8 @@ import (
 	"github.com/chef/automate/components/compliance-service/scanner"
 	"github.com/chef/automate/lib/cereal"
 )
+
+const maxSize = 1 << 20
 
 var ListenPort int = 2133
 
@@ -418,6 +420,7 @@ func (t *InspecJobTask) Run(ctx context.Context, task cereal.Task) (interface{},
 				job.NodeStatus = types.StatusCompleted
 			case types.JobTypeExec:
 				// call out to do the ssm job
+				job.FireJailExecProfilePath = t.scannerServer.FireJailExecProfilePath
 				jobInfo.InspecErr = remote.RunSSMJob(ctx, &job)
 			}
 		} else if nodeHasSecrets(&job.TargetConfig) {
@@ -425,6 +428,7 @@ func (t *InspecJobTask) Run(ctx context.Context, task cereal.Task) (interface{},
 			case types.JobTypeDetect:
 				jobInfo.DetectInfo, jobInfo.InspecErr = doDetect(&job)
 			case types.JobTypeExec:
+				job.FireJailExecProfilePath = t.scannerServer.FireJailExecProfilePath
 				jobInfo.ExecInfo, jobInfo.InspecErr = doExec(&job)
 			}
 		} else {
@@ -518,7 +522,7 @@ func (t *InspecJobTask) reportIt(ctx context.Context, job *types.InspecJob, cont
 	if report.Environment == "" {
 		report.Environment = "unknown"
 	}
-	report.Type = mappings.DocType
+	report.Type = "_doc"
 	report.NodeName = job.InspecBaseJob.NodeName
 	report.NodeUuid = job.InspecBaseJob.NodeID
 	report.ReportUuid = reportID
@@ -554,8 +558,37 @@ func (t *InspecJobTask) reportIt(ctx context.Context, job *types.InspecJob, cont
 	}
 	stripProfilesMetadata(&report, profilesMissingMeta, RunTimeLimit)
 
-	_, err = t.ingestClient.ProcessComplianceReport(ctx, &report)
+	// send reports in chunks to compliance
+	marshaller, err := json.Marshal(report)
 	if err != nil {
+		return errors.Wrap(err, "Report processing error")
+	}
+
+	reader := bytes.NewReader(marshaller)
+	buffer := make([]byte, maxSize)
+	stream, err := t.ingestClient.ProcessComplianceReport(ctx)
+	if err != nil {
+		return errors.Wrap(err, "Report processing error")
+	}
+
+	for {
+		n, err := reader.Read(buffer)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			logrus.Error("cannot read chunk to buffer: ", err)
+			return errors.Wrap(err, "Report processing error")
+		}
+		request := &ingest.ReportData{Content: buffer[:n]}
+		err = stream.Send(request)
+		if err != nil {
+			return errors.Wrap(err, "Report processing error")
+		}
+	}
+
+	_, err = stream.CloseAndRecv()
+	if err != nil && err != io.EOF {
 		return errors.Wrap(err, "Report processing error")
 	}
 	return nil
@@ -775,7 +808,7 @@ func doExec(job *types.InspecJob) (jsonBytes []byte, err *inspec.Error) {
 	}
 
 	for i, tc := range potentialTargetConfigs(job) {
-		jsonBytes, _, err = inspec.Scan(job.InternalProfiles, &tc, timeout, env, inputs)
+		jsonBytes, _, err = inspec.Scan(job.InternalProfiles, &tc, timeout, env, inputs, job.FireJailExecProfilePath)
 		if err == nil {
 			break
 		}

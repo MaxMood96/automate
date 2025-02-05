@@ -12,7 +12,7 @@ import {
 import { Subject, Observable, of as observableOf } from 'rxjs';
 import { List } from 'immutable';
 import { clamp, compact, isEmpty } from 'lodash';
-import { SearchBarCategoryItem, Chicklet, SuggestionItem } from 'app/types/types';
+import { SearchBarCategoryItem, Chicklet, SuggestionItem } from '../../types/types';
 import {
   debounceTime, switchMap, distinctUntilChanged
 } from 'rxjs/operators';
@@ -116,7 +116,7 @@ export class SearchBarComponent implements OnChanges {
   }
 
   // This is triggered when a user clicks on an item in the dropdown.
-  handleCategoryItemClick(type: SearchBarCategoryItem, event: Event): void {
+  handleCategoryItemClick(type: SearchBarCategoryItem | any, event: Event): void {
     event.stopPropagation();
     if (!this.selectedCategoryType) {
       this.categorySelected(type);
@@ -180,7 +180,7 @@ export class SearchBarComponent implements OnChanges {
             type: type}});
         } else if (!this.suggestions.isEmpty()) {
           const foundSuggestion = this.suggestions.find((suggestion: SuggestionItem,
-            _key: number, _iter: any) => suggestion.title === currentText);
+            _key: number, _iter: any) => (suggestion.title || "").toLowerCase() === (currentText || "").toLowerCase());
 
           if (foundSuggestion) {
             const type = this.selectedCategoryType.type;
@@ -218,7 +218,7 @@ export class SearchBarComponent implements OnChanges {
         if (!this.hasStaticSuggestions()) {
           const type = this.selectedCategoryType.type;
           this.clearSuggestions();
-          this.requestForSuggestions({ text: currentText,
+          this.requestForSuggestions({ text: (currentText || "").toLowerCase(),
             type: type });
         } else {
           this.updateVisibleProvidedSuggestions(currentText);
@@ -240,7 +240,7 @@ export class SearchBarComponent implements OnChanges {
       if (!this.hasStaticSuggestions()) {
         const type = this.selectedCategoryType.type;
         this.clearSuggestions();
-        this.requestForSuggestions({ text: currentText,
+        this.requestForSuggestions({ text: (currentText || "").toLowerCase(),
           type: type });
       } else {
         this.updateVisibleProvidedSuggestions(currentText);
@@ -357,5 +357,9 @@ export class SearchBarComponent implements OnChanges {
 
   hasStaticSuggestions(): boolean {
     return this.selectedCategoryType.providedValues !== undefined;
+  }
+
+  trackCatergory(category) {
+    return category.text
   }
 }

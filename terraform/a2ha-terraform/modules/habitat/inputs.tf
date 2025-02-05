@@ -50,6 +50,10 @@ variable "public_ips" {
 variable "ssh_key_file" {
 }
 
+variable "ssh_port" {
+  default = 22
+}
+
 variable "ssh_user" {
   default = "centos"
 }
@@ -62,5 +66,5 @@ variable "sudo_cmd" {
 }
 
 variable "tmp_path" {
-  default = "/var/tmp"
+  default = "/hab/var/automate-ha"
 }

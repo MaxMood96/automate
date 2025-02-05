@@ -1,0 +1,527 @@
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"net"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"sync"
+	"time"
+	"unicode"
+
+	"github.com/chef/automate/lib/io/fileutils"
+	"github.com/chef/automate/lib/sshutils"
+	"github.com/chef/automate/lib/stringutils"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
+)
+
+var mutex sync.Mutex
+
+type SSHConfig struct {
+	sshUser    string
+	sshPort    string
+	sshKeyFile string
+	hostIP     string
+	timeout    int
+}
+
+type SSHUtil interface {
+	getSSHConfig() *SSHConfig
+	setSSHConfig(sshConfig *SSHConfig)
+	getClientConfig() (*ssh.ClientConfig, error)
+	getConnection() (*ssh.Client, error)
+	connectAndExecuteCommandOnRemote(remoteCommands string, spinner bool) (string, error)
+	connectAndExecuteCommandOnRemoteSteamOutput(remoteCommands string) (string, error)
+	copyFileToRemote(srcFilePath string, destFileName string, removeFile bool) error
+	copyFileFromRemote(remoteFilePath string, outputFileName string) (string, error)
+	connectAndExecuteCommandOnRemoteSuppressLog(remoteCommands string, spinner bool, suppressLog bool) (string, error)
+}
+
+type SSHUtilImpl struct {
+	SshConfig *SSHConfig
+}
+
+func NewSSHUtil(sshconfig *SSHConfig) SSHUtil {
+	// Check if timeout is set, if not set it to default value.
+	checkTimeout(sshconfig)
+
+	return &SSHUtilImpl{
+		SshConfig: sshconfig,
+	}
+}
+
+func (s *SSHUtilImpl) getSSHConfig() *SSHConfig {
+	return s.SshConfig
+}
+
+func (s *SSHUtilImpl) setSSHConfig(sshConfig *SSHConfig) {
+	// Check if timeout is set, if not set it to default value.
+	checkTimeout(sshConfig)
+	s.SshConfig = sshConfig
+}
+
+// Set timeout. Default is 150 seconds.
+func checkTimeout(sshConfig *SSHConfig) {
+	if sshConfig.timeout == 0 {
+		sshConfig.timeout = 150
+	}
+}
+
+func (s *SSHUtilImpl) getClientConfig() (*ssh.ClientConfig, error) {
+	pemBytes, err := ioutil.ReadFile(s.SshConfig.sshKeyFile) // nosemgrep
+	if err != nil {
+		writer.Errorf("Unable to read private key: %v", err)
+		return nil, err
+	}
+	signer, err := ssh.ParsePrivateKey(pemBytes)
+	if err != nil {
+		writer.Errorf("Parsing key failed: %v", err)
+		return nil, err
+	}
+	var (
+		keyErr *knownhosts.KeyError
+	)
+	homePath := os.Getenv("HOME")
+	if homePath == "" {
+		errStr := "Environment variable HOME cannot be empty. Please set a value for HOME env"
+		writer.Errorln(errStr)
+		writer.BufferWriter().Flush()
+		return nil, errors.New(errStr)
+	}
+	sshDirPath := filepath.Join(os.Getenv("HOME"), ".ssh")
+	exists, err := fileutils.PathExists(sshDirPath)
+	if err != nil {
+		errStr := fmt.Sprintf("Error evaluating path: %v\n", err)
+		writer.Errorln(errStr)
+		writer.BufferWriter().Flush()
+		return nil, errors.New(errStr)
+	}
+	if !exists {
+		errStr := fmt.Sprintf("Path %s does not exist", sshDirPath)
+		writer.Errorln(errStr)
+		writer.BufferWriter().Flush()
+		return nil, errors.New(errStr)
+	}
+	// Client config
+	return &ssh.ClientConfig{
+		User: s.SshConfig.sshUser,
+		Auth: []ssh.AuthMethod{ssh.PublicKeys(signer)},
+		HostKeyCallback: ssh.HostKeyCallback(func(host string, remote net.Addr, pubKey ssh.PublicKey) error {
+			mutex.Lock()
+			defer mutex.Unlock()
+			knownHostPath := filepath.Join(sshDirPath, sshutils.AUTOMATE_KNOWN_HOSTS)
+			kh := checkKnownHosts(knownHostPath)
+			hErr := kh(host, remote, pubKey)
+			// Reference: https://blog.golang.org/go1.13-errors
+			// To understand what errors.As is.
+			if errors.As(hErr, &keyErr) && len(keyErr.Want) > 0 {
+				// Reference: https://www.godoc.org/golang.org/x/crypto/ssh/knownhosts#KeyError
+				// if keyErr.Want slice is empty then host is unknown, if keyErr.Want is not empty
+				// and if host is known then there is key mismatch the connection is then rejected.
+				writer.Printf("WARNING: Given hostkeystring is not a key of %s, either a MiTM attack or %s has reconfigured the host pub key.", host, host)
+				return keyErr
+			} else if errors.As(hErr, &keyErr) && len(keyErr.Want) == 0 {
+				// host key not found in known_hosts then give a warning and continue to connect.
+				// writer.Printf("WARNING: %s is not trusted, adding this key to known_hosts file.\n", host)
+				return addHostKey(host, knownHostPath, remote, pubKey)
+			}
+			// writer.Printf("Pub key exists for %s.\n", host)
+			return nil
+		}),
+	}, nil
+}
+
+func (s *SSHUtilImpl) getConnection() (*ssh.Client, error) {
+	config, err := s.getClientConfig()
+	if err != nil {
+		return nil, err
+	}
+	// Open connection
+	addr := s.SshConfig.hostIP
+	if len(strings.TrimSpace(s.SshConfig.sshPort)) > 0 {
+		addr = addr + ":" + s.SshConfig.sshPort
+	} else {
+		addr = addr + ":22"
+	}
+	conn, err := ssh.Dial("tcp", addr, config)
+	if conn == nil || err != nil {
+		writer.Errorf("dial failed:%v\n", err)
+		return nil, err
+	}
+	return conn, err
+}
+
+func createKnownHosts(knownHostPath string) {
+	f, fErr := os.OpenFile(knownHostPath, os.O_CREATE, 0600)
+	if fErr != nil {
+		writer.Errorf("%v", fErr)
+		return
+	}
+	f.Close()
+}
+
+func checkKnownHosts(knownHostPath string) ssh.HostKeyCallback {
+	createKnownHosts(knownHostPath)
+	kh, e := knownhosts.New(knownHostPath)
+	if e != nil {
+		writer.Errorf("%v", e)
+		return nil
+	}
+	return kh
+}
+
+func addHostKey(host, khFilePath string, remote net.Addr, pubKey ssh.PublicKey) error {
+
+	content, err := os.ReadFile(khFilePath)
+	if err != nil {
+		writer.Errorf("Error while reading the known hosts file:%v", err)
+		return err
+	}
+	lastLine := stringutils.GetLastLine(string(content))
+
+	// add host key if host is not found in known_hosts, error object is return, if nil then connection proceeds,
+	// if not nil then connection stops.
+
+	f, fErr := os.OpenFile(khFilePath, os.O_APPEND|os.O_WRONLY, 0600)
+	if fErr != nil {
+		return fErr
+	}
+	defer f.Close()
+
+	knownHosts := knownhosts.Normalize(remote.String())
+	line := knownhosts.Line([]string{knownHosts}, pubKey)
+	if lastLine != "" {
+		line = "\n" + line
+	}
+	_, err = f.WriteString(line)
+	return err
+}
+
+func (s *SSHUtilImpl) connectAndExecuteCommandOnRemote(remoteCommands string, spinner bool) (string, error) {
+	logrus.Debug("Executing command ......")
+	logrus.Debug(remoteCommands)
+
+	// Add sudo password if required
+	remoteCommands = AddSudoPassword(remoteCommands)
+
+	conn, err := s.getConnection()
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+
+	// Open session
+	session, err := conn.NewSession()
+	if err != nil {
+		writer.Errorf("session failed:%v\n", err)
+		return "", err
+	}
+	defer session.Close()
+
+	startSpinnerIfRequired(spinner)
+
+	var output string
+	errCh := make(chan error)
+	go func() {
+		outputByte, err := session.CombinedOutput(remoteCommands)
+		output = string(outputByte)
+		if isSudoPasswordEnabled() {
+			if strings.Contains(output, "Sorry, try again.") || strings.Contains(output, "sudo: a password is required") {
+				errCh <- errors.New("sudo password is incorrect")
+				return
+			}
+			// if sudo password is correct then replace password prompt with empty string from output
+			pattern := regexp.MustCompile(`^\[sudo\] password for .+: `)
+			output = pattern.ReplaceAllString(output, "")
+		}
+		if err != nil {
+			if strings.Contains(output, "sudo: no tty present and no askpass program specified") {
+				errCh <- errors.New("The sudo password is missing. Make sure to provide sudo_password as enviroment variable and pass -E option while running command.")
+				return
+			}
+			errCh <- err
+			return
+		}
+		errCh <- nil
+	}()
+
+	select {
+	case <-time.After(time.Duration(s.SshConfig.timeout) * time.Second):
+		return "", errors.New("command timed out")
+	case err := <-errCh:
+		if err != nil {
+			stopSpinnerIfRequired(spinner)
+			return output, err
+		}
+	}
+
+	stopSpinnerIfRequired(spinner)
+
+	logrus.Debug("Execution of command done......")
+	return output, nil
+}
+
+func (s *SSHUtilImpl) connectAndExecuteCommandOnRemoteSteamOutput(remoteCommands string) (string, error) {
+	logrus.Debug("Executing command ......")
+	logrus.Debug(remoteCommands)
+
+	// Add sudo password if required
+	remoteCommands = AddSudoPassword(remoteCommands)
+
+	conn, err := s.getConnection()
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+
+	// Open session
+	session, err := conn.NewSession()
+	if err != nil {
+		writer.Errorf("session failed:%v", err)
+		return "", err
+	}
+	defer session.Close()
+	/////////////////////
+	cmdWriter, err := session.StdinPipe()
+	if err != nil {
+		writer.Println(err.Error())
+	}
+	cmdReader, err := session.StdoutPipe()
+	if err != nil {
+		writer.Printf("Error creating StdoutPipe for Cmd %s \n", err.Error())
+		os.Exit(1)
+	}
+	cmdError, err := session.StderrPipe()
+	if err != nil {
+		writer.Println(err.Error())
+	}
+
+	spinnerChannel := make(chan string)
+	go showSpinner(spinnerChannel)
+	spinnerChannel <- "start"
+	wr := make(chan []byte, 10)
+	go stdInRoutine(wr, cmdWriter)
+	outchan := make(chan string)
+	go stdOutRoutine(outchan, cmdReader)
+	go stdErrRoutine(spinnerChannel, cmdError)
+
+	err = session.Start(remoteCommands)
+	if err != nil {
+		writer.Printf("Error starting Cmd %s \n", err.Error())
+		os.Exit(1)
+	}
+
+	err = session.Wait()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error waiting for Cmd", err)
+		os.Exit(1)
+	}
+	spinnerChannel <- "stop"
+	output := <-outchan
+	close(spinnerChannel)
+	close(wr)
+	close(outchan)
+	logrus.Debug("Execution of command done......")
+	return output, nil
+}
+
+func (s *SSHUtilImpl) copyFileToRemote(srcFilePath string, destFileName string, removeFile bool) error {
+	cmd := "scp"
+	exec_args := []string{"-P " + s.SshConfig.sshPort, "-o StrictHostKeyChecking=no", "-i", s.SshConfig.sshKeyFile, "-r", srcFilePath, s.SshConfig.sshUser + "@" + s.SshConfig.hostIP + ":/tmp/" + destFileName}
+	if err := exec.Command(cmd, exec_args...).Run(); err != nil {
+		writer.Printf("\n"+"Failed to copy file %s to remote %s:%s %s\n", srcFilePath, s.SshConfig.hostIP, s.SshConfig.sshPort, err.Error())
+		if srcFilePath == "/usr/bin/chef-automate" {
+			writer.Printf("Please copy your chef-automate binary to /usr/bin" + "\n")
+		}
+		return err
+	}
+	if removeFile {
+		cmd := "rm"
+		exec_args := []string{"-rf", srcFilePath}
+		if err := exec.Command(cmd, exec_args...).Run(); err != nil {
+			writer.Printf("Failed to copy file to remote %s:%s %s\n", s.SshConfig.hostIP, s.SshConfig.sshPort, err.Error())
+			return err
+		}
+	}
+	return nil
+}
+
+// This function will copy file from remote to local and return new local file path
+func (s *SSHUtilImpl) copyFileFromRemote(remoteFilePath string, outputFileName string) (string, error) {
+	cmd := "scp"
+	destFileName := "/tmp/" + outputFileName
+	execArgs := []string{"-P " + s.SshConfig.sshPort, "-o StrictHostKeyChecking=no", "-o ConnectTimeout=30", "-i", s.SshConfig.sshKeyFile, "-r", s.SshConfig.sshUser + "@" + s.SshConfig.hostIP + ":" + remoteFilePath, destFileName}
+	if err := exec.Command(cmd, execArgs...).Run(); err != nil {
+		writer.Printf("Failed to copy file from remote %s:%s %s\n", s.SshConfig.hostIP, s.SshConfig.sshPort, err.Error())
+		return "", err
+	}
+	return destFileName, nil
+}
+
+func stdInRoutine(wr chan []byte, cmdWriter io.WriteCloser) {
+	for {
+		select {
+		case d := <-wr:
+			_, err := cmdWriter.Write(d)
+			if err != nil {
+				fmt.Println(err.Error())
+			}
+		}
+	}
+}
+
+func stdOutRoutine(out chan string, cmdReader io.Reader) {
+	scanner := bufio.NewScanner(cmdReader)
+	var sb strings.Builder
+	//var isStringAlphabetic = regexp.MustCompile(`*[a-zA-Z0-9_:]*`).MatchString
+	for {
+		if tkn := scanner.Scan(); tkn {
+			rcv := scanner.Bytes()
+
+			raw := make([]byte, len(rcv))
+			copy(raw, rcv)
+			t := strings.TrimFunc(string(raw), func(r rune) bool {
+				return !unicode.IsGraphic(r)
+			})
+			writer.Println(t)
+			sb.WriteString(t)
+			sb.WriteString("\n")
+		} else {
+			if scanner.Err() != nil {
+				fmt.Println(scanner.Err().Error())
+			}
+			out <- sb.String()
+			return
+		}
+	}
+}
+
+func stdErrRoutine(sr chan string, cmdError io.Reader) {
+	scanner := bufio.NewScanner(cmdError)
+
+	for scanner.Scan() {
+		t := scanner.Text()
+		if len(strings.TrimSpace(t)) > 0 {
+			sr <- "stop"
+		}
+		fmt.Println(t)
+	}
+}
+
+func showSpinner(ch chan string) {
+	for {
+		state := <-ch
+		if strings.EqualFold(strings.TrimSpace(state), "start") {
+			writer.StartSpinner()
+		}
+		if strings.EqualFold(strings.TrimSpace(state), "stop") {
+			writer.StopSpinner()
+		}
+	}
+}
+
+// AddSudoPassword will add sudo password to the remote commands
+func AddSudoPassword(remoteCommands string) string {
+	if isSudoPasswordEnabled() {
+		remoteCommands = fmt.Sprintf(SUDO_PASSWORD_CMD, getSudoPassword()) + remoteCommands + `"`
+	}
+	return remoteCommands
+}
+
+// isSudoPasswordEnabled will check if sudo password is enabled
+func isSudoPasswordEnabled() bool {
+	return len(getSudoPassword()) > 0
+}
+
+// getSudoPassword will return sudo password from env variable
+func getSudoPassword() string {
+	sudoPassword := os.Getenv(SUDO_PASSWORD)
+	return sudoPassword
+}
+
+func startSpinnerIfRequired(spinner bool) {
+	if spinner {
+		writer.StartSpinner()
+	}
+}
+
+func stopSpinnerIfRequired(spinner bool) {
+	if spinner {
+		writer.StopSpinner()
+	}
+}
+
+func (s *SSHUtilImpl) connectAndExecuteCommandOnRemoteSuppressLog(remoteCommands string, spinner bool, suppressLog bool) (string, error) {
+	if !suppressLog {
+		logrus.Debug("Executing command ......")
+		logrus.Debug(remoteCommands)
+	}
+	// Add sudo password if required
+	remoteCommands = AddSudoPassword(remoteCommands)
+	conn, err := s.getConnection()
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+	// Open session
+	session, err := conn.NewSession()
+	if err != nil {
+		if !suppressLog {
+			writer.Errorf("session failed:%v\n", err)
+		}
+		return "", err
+	}
+
+	defer session.Close()
+	startSpinnerIfRequired(spinner)
+	var output string
+	errCh := make(chan error)
+	go func() {
+		// Redirecting command output to /dev/null to suppress it
+		// remoteCommandsWithRedirection := fmt.Sprintf("%s > /dev/null 2>&1", remoteCommands)
+		outputByte, err := session.CombinedOutput(remoteCommands)
+		output = string(outputByte)
+		if isSudoPasswordEnabled() {
+			if strings.Contains(output, "Sorry, try again.") || strings.Contains(output, "sudo: a password is required") {
+				errCh <- errors.New("sudo password is incorrect")
+				return
+			}
+			// if sudo password is correct then replace password prompt with empty string from output
+			pattern := regexp.MustCompile(`^\[sudo\] password for .+: `)
+			output = pattern.ReplaceAllString(output, "")
+		}
+		if err != nil {
+			if strings.Contains(output, "sudo: no tty present and no askpass program specified") {
+				errCh <- errors.New("The sudo password is missing. Make sure to provide sudo_password as environment variable and pass -E option while running command.")
+				return
+			}
+			errCh <- err
+			return
+		}
+		errCh <- nil
+	}()
+	select {
+	case <-time.After(time.Duration(s.SshConfig.timeout) * time.Second):
+		return "", errors.New("command timed out")
+	case err := <-errCh:
+		if err != nil {
+			stopSpinnerIfRequired(spinner)
+			return output, err
+		}
+	}
+	stopSpinnerIfRequired(spinner)
+	if !suppressLog {
+		logrus.Debug("Execution of command done......")
+	}
+
+	return output, nil
+}

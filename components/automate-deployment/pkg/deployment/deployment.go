@@ -15,6 +15,7 @@ import (
 	dc "github.com/chef/automate/api/config/deployment"
 	api "github.com/chef/automate/api/interservice/deployment"
 	"github.com/chef/automate/components/automate-deployment/pkg/certauthority"
+	"github.com/chef/automate/components/automate-deployment/pkg/globalconfig"
 	"github.com/chef/automate/components/automate-deployment/pkg/habpkg"
 	"github.com/chef/automate/components/automate-deployment/pkg/manifest"
 	"github.com/chef/automate/components/automate-deployment/pkg/services"
@@ -134,6 +135,8 @@ func (d *Deployment) UpdateWithUserOverrideConfig(config *dc.AutomateConfig, sec
 	}
 
 	d.ExpectedServices = expectedServices
+	SethealthCheckConfig(d.Config)
+
 	return d.MoveSecretsToSecretStore(secretStore)
 }
 
@@ -158,6 +161,7 @@ func (d *Deployment) MergeIntoUserOverrideConfig(config *dc.AutomateConfig, secr
 	}
 	mergedConfig.SetGlobalConfig()
 	d.Config = mergedConfig
+	SethealthCheckConfig(d.Config)
 
 	return d.MoveSecretsToSecretStore(secretStore)
 }
@@ -173,8 +177,16 @@ func (d *Deployment) ReplaceUserOverrideConfig(config *dc.AutomateConfig, secret
 	}
 	mergedConfig.SetGlobalConfig()
 	d.Config = mergedConfig
+	SethealthCheckConfig(d.Config)
 
 	return d.MoveSecretsToSecretStore(secretStore)
+}
+
+func SethealthCheckConfig(config *dc.AutomateConfig) {
+	if config != nil {
+		globalconfig.HealthCheckInterval = config.Deployment.GetV1().GetSvc().GetHealth().GetHealthCheckInterval().GetValue()
+		globalconfig.Services = config.Deployment.GetV1().GetSvc().GetHealth().GetServices()
+	}
 }
 
 func ContainsAutomateCollection(c *dc.ConfigRequest) bool {
@@ -200,9 +212,9 @@ func CollectionsForConfig(c *dc.ConfigRequest) []string {
 			collections = append(collections, services.ChefServerCollectionName)
 		}
 
-		if c.GetV1().GetSvc().GetEnableWorkflow().GetValue() {
-			collections = append(collections, services.WorkflowCollectionName)
-		}
+		//if c.GetV1().GetSvc().GetEnableWorkflow().GetValue() {
+		//	collections = append(collections, services.WorkflowCollectionName)
+		//}
 
 		if c.GetV1().GetSvc().GetEnableDevMonitoring().GetValue() {
 			collections = append(collections, services.MonitoringCollectionName)
@@ -356,7 +368,7 @@ func (d *Deployment) UpdateExpectedServicesFromManifest() error {
 	// NOTE(ssd) 2018-07-16: Fix for A1 upgrade bug where services are stuck in
 	// Skip state since they were added post-upgrade.
 	if ContainsAutomateCollection(d.Config.GetDeployment()) {
-		a2ServicesWayBackWhen := map[string]bool{"authn-service": true, "authz-service": true, "automate-cli": true, "automate-dex": true, "automate-elasticsearch": true, "automate-gateway": true, "automate-load-balancer": true, "automate-postgresql": true, "automate-ui": true, "compliance-service": true, "config-mgmt-service": true, "deployment-service": true, "es-sidecar-service": true, "ingest-service": true, "license-control-service": true, "local-user-service": true, "notifications-service": true, "session-service": true, "teams-service": true}
+		a2ServicesWayBackWhen := map[string]bool{"authn-service": true, "authz-service": true, "automate-cli": true, "automate-dex": true, "automate-opensearch": true, "automate-gateway": true, "automate-load-balancer": true, "automate-postgresql": true, "automate-ui": true, "compliance-service": true, "config-mgmt-service": true, "deployment-service": true, "es-sidecar-service": true, "ingest-service": true, "license-control-service": true, "local-user-service": true, "notifications-service": true, "session-service": true, "teams-service": true}
 		diff := make([]string, 0, len(serviceMap))
 		for key := range serviceMap {
 			if _, ok := a2ServicesWayBackWhen[key]; !ok {

@@ -11,15 +11,16 @@ import { combineLatest, Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { isNil } from 'lodash/fp';
 
-import { NgrxStateAtom } from 'app/ngrx.reducers';
-import { EntityStatus } from 'app/entities/entities';
+import { NgrxStateAtom } from '../../../ngrx.reducers';
+import { EntityStatus } from '../../../entities/entities';
 
-import { GetRevisions } from 'app/entities/revisions/revision.action';
+import { GetRevisions } from '../../../entities/revisions/revision.action';
 import {
   allRevisions,
   getAllStatus as getAllRevisionsForOrgStatus
-} from 'app/entities/revisions/revision.selectors';
-import { Revision } from 'app/entities/revisions/revision.model';
+} from '../../../entities/revisions/revision.selectors';
+import { Revision } from '../../../entities/revisions/revision.model';
+import { TelemetryService } from '../../../services/telemetry/telemetry.service';
 
 @Component({
   selector: 'app-revision-id',
@@ -40,7 +41,8 @@ export class RevisionIdComponent implements OnDestroy {
   @HostBinding('class.active') isSlideOpen = false;
 
   constructor(
-    private store: Store<NgrxStateAtom>
+    private store: Store<NgrxStateAtom>,
+    private telemetryService: TelemetryService
   ) { }
 
   ngOnDestroy(): void {
@@ -60,6 +62,7 @@ export class RevisionIdComponent implements OnDestroy {
     this.policyfileName = policyfile;
     this.isSlideOpen = true;
     this.loadRevisions(this.policyfileName);
+    this.telemetryService.track('InfraServer_PolicyFiles_Revisions');
   }
 
   private loadRevisions(policyfileName): void {

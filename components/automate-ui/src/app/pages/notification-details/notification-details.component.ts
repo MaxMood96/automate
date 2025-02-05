@@ -5,26 +5,27 @@ import { identity, isNil } from 'lodash/fp';
 import { combineLatest, Subject } from 'rxjs';
 import { filter, pluck, takeUntil } from 'rxjs/operators';
 
-import { LayoutFacadeService, Sidebar } from 'app/entities/layout/layout.facade';
-import { NgrxStateAtom } from 'app/ngrx.reducers';
-import { routeParams } from 'app/route.selectors';
-import { Regex } from 'app/helpers/auth/regex';
-import { pending, EntityStatus } from 'app/entities/entities';
+import { LayoutFacadeService, Sidebar } from '../../entities/layout/layout.facade';
+import { NgrxStateAtom } from '../../ngrx.reducers';
+import { routeParams } from '../../route.selectors';
+import { Regex } from '../../helpers/auth/regex';
+import { pending, EntityStatus } from '../../entities/entities';
 import {
   GetNotification,
   UpdateNotification,
   TestNotification
-} from 'app/entities/notification_rules/notification_rule.action';
+} from '../../entities/notification_rules/notification_rule.action';
 import {
   notificationFromRoute,
   getStatus,
   updateStatus
-} from 'app/entities/notification_rules/notification_rule.selectors';
+} from '../../entities/notification_rules/notification_rule.selectors';
 import {
   NotificationRule,
   ServiceActionType,
   RuleType
-} from 'app/entities/notification_rules/notification_rule.model';
+} from '../../entities/notification_rules/notification_rule.model';
+import { TelemetryService } from '../../services/telemetry/telemetry.service';
 
 type NotificationTabName = 'details';
 
@@ -60,7 +61,8 @@ export class NotificationDetailsComponent implements OnInit, OnDestroy {
   constructor(
     private fb: FormBuilder,
     private store: Store<NgrxStateAtom>,
-    private layoutFacade: LayoutFacadeService
+    private layoutFacade: LayoutFacadeService,
+    private telemetryService: TelemetryService
   ) {
 
     this.updateForm = this.fb.group({
@@ -82,7 +84,7 @@ export class NotificationDetailsComponent implements OnInit, OnDestroy {
 
     combineLatest([
       this.store.select(getStatus),
-      this.store.select(notificationFromRoute)
+      this.store.select(notificationFromRoute as any)
     ]).pipe(
       filter(([status, notification]) =>
       status === EntityStatus.loadingSuccess && !isNil(notification)),
@@ -119,15 +121,22 @@ export class NotificationDetailsComponent implements OnInit, OnDestroy {
   }
 
   public saveNotification(): void {
+    let notification: NotificationRule;
     this.saveSuccessful = false;
     this.saveInProgress = true;
     this.notification.name = this.updateForm.controls['name'].value.trim();
     this.notification.targetUrl = this.updateForm.controls['targetUrl'].value.trim();
+
+      notification = (this.notification instanceof NotificationRule) ? this.notification :
+      NotificationRule.assignNotificationRuleType(this.notification);
+
     this.store.dispatch(new UpdateNotification({
-      notification: this.notification
+      notification: notification
     }));
+
     this.targetTypeValue = this.notification.targetType;
     this.ruleTypeValue = this.notification.ruleType;
+    this.telemetryService.track('Settings_Notifications_Details_Save');
   }
 
   public sendTestForTargetUrl(): void {
@@ -137,9 +146,10 @@ export class NotificationDetailsComponent implements OnInit, OnDestroy {
     const targetSecretID: string = this.notification.targetSecretId;
     this.store.dispatch(new TestNotification({ name, targetUrl, targetSecretID}));
     this.testInProgress = false;
+    this.telemetryService.track('Settings_Notifications_Details_TestDataFeed');
   }
 
-  public changeSelectionForWebhookType(event: { target: { value: ServiceActionType } }) {
+  public changeSelectionForWebhookType(event: { target: { value: ServiceActionType } } | any) {
     if ( this.notification.targetType !==  event.target.value ) {
       this.updateForm.controls.targetType.markAsDirty();
       this.notification.targetType = event.target.value;
@@ -156,7 +166,7 @@ export class NotificationDetailsComponent implements OnInit, OnDestroy {
       this.notification.ruleType === 'ComplianceFailure';
   }
 
-  public setFailureType(event: { target: { value: RuleType } }) {
+  public setFailureType(event: { target: { value: RuleType } } | any) {
     if ( this.notification.ruleType !==  event.target.value ) {
       this.updateForm.controls.ruleType.markAsDirty();
     }

@@ -18,7 +18,7 @@ test_commandline() {
         echo "    # When on the Chef VPN"
         echo "    CHEF_USERNAME=yourusername scripts/get_secrets.sh"
         echo "    export VAULT_ADDR=https://vault.chef.co:8200"
-        jq -r 'to_entries | map("    export " + .key + "=$(vault kv get -field=" + .value.field + " " + .value.path + ")")[]' <<<"$VAULT_UTIL_SECRETS"
+       # jq -r 'to_entries | map("    export " + .key + "=$(vault kv get -field=" + .value.field + " " + .value.path + ")")[]' <<<"$VAULT_UTIL_SECRETS"
     fi
 
     # Reproduce a select set of environment variables that influence
@@ -167,7 +167,7 @@ if [[ "${test_proxy}" = "true" ]]; then
         --network "${test_proxy_internal_network_name}" \
         --volume "$PWD/logs:/var/log/squid" \
         --volume "$PWD/integration/squid.conf:/etc/squid/squid.conf" \
-        datadog/squid
+        $(docker build -q $PWD/integration/docker-squid)
 
     # Connect the proxy container to the default bridge network
     # which has access to the internet

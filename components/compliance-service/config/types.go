@@ -13,8 +13,14 @@ type Service struct {
 	LogLevel   string
 	ServerBind string
 	certs.TLSConfig
-	ConfigFilePath    string
-	MessageBufferSize int
+	ConfigFilePath          string
+	MessageBufferSize       int
+	EnableLargeReporting    bool
+	LcrOpenSearchRequests   int
+	EnableEnhancedReporting bool
+	ControlsPopulatorsCount int
+	FirejailProfilePath     string
+	FireJailExecProfilePath string
 }
 
 // Compliance service specific config options
@@ -34,6 +40,7 @@ type Compliance struct {
 	EventConfig
 	Notifications
 	CerealConfig
+	ReportConfig
 }
 
 type Notifications struct {
@@ -130,5 +137,10 @@ type EventConfig struct {
 }
 
 type CerealConfig struct {
+	Endpoint string
+	Workers  int
+}
+
+type ReportConfig struct {
 	Endpoint string
 }

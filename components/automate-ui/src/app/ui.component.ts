@@ -1,15 +1,16 @@
-import { Component, OnInit, ChangeDetectorRef, AfterViewChecked } from '@angular/core';
+import { Component, OnInit, AfterViewChecked, ChangeDetectorRef } from '@angular/core';
 import { ActivationStart, ActivationEnd, Router, NavigationEnd } from '@angular/router';
 import { Store } from '@ngrx/store';
 import { filter } from 'rxjs/operators';
-import { NgrxStateAtom } from 'app/ngrx.reducers';
-import { Feature } from 'app/services/feature-flags/types';
-import { LayoutFacadeService } from 'app/entities/layout/layout.facade';
+import { NgrxStateAtom } from './ngrx.reducers';
+import { Feature } from './services/feature-flags/types';
+import { LayoutFacadeService } from './entities/layout/layout.facade';
 import { GetAllUserPerms } from './entities/userperms/userperms.actions';
 import { AppConfigService } from './services/app-config/app-config.service';
 import { GetUserPreferences } from './services/user-preferences/user-preferences.actions';
 import { ChefSessionService } from './services/chef-session/chef-session.service';
 import { UserPreferencesService } from './services/user-preferences/user-preferences.service';
+import { isNull } from 'lodash';
 
 @Component({
   selector: 'app-ui',
@@ -18,6 +19,7 @@ import { UserPreferencesService } from './services/user-preferences/user-prefere
 })
 export class UIComponent implements OnInit, AfterViewChecked {
   showBanner = false;
+  upgradeBanner = false;
   // Feature Flags
   // TODO:eng-ex This static data seems out of place. Should it go in InitialState?
   experimentalFeatures: Array<Feature> = [
@@ -43,10 +45,10 @@ export class UIComponent implements OnInit, AfterViewChecked {
   ) {
     // ActivationEnd specifically needs to be here in the constructor to catch early events.
     this.router.events.pipe(
-      filter(event => event instanceof ActivationEnd)
+      filter((event: any) => event instanceof ActivationEnd)
     ).subscribe((event: ActivationEnd) => {
-      this.hideFullPage = typeof event.snapshot.data.hideNavBar !== 'undefined'
-        ? !event.snapshot.data.hideNavBar
+      this.hideFullPage = typeof event.snapshot.data['hideNavBar'] !== 'undefined'
+        ? !event.snapshot.data['hideNavBar']
         : this.hideFullPage;
 
       if (this.hideFullPage) {
@@ -65,8 +67,8 @@ export class UIComponent implements OnInit, AfterViewChecked {
     this.showBanner = this.appConfigService.showBanner;
 
     this.router.events.pipe(
-        filter(event => event instanceof ActivationStart)
-    ).subscribe((event: ActivationStart) => this.hideFullPage = !event.snapshot.data.hideNavBar);
+        filter((event: any) => event instanceof ActivationStart)
+    ).subscribe((event: ActivationStart) => this.hideFullPage = !event.snapshot.data["hideNavBar"]);
 
     this.router.events.pipe(
         filter(event => event instanceof NavigationEnd)
@@ -77,5 +79,28 @@ export class UIComponent implements OnInit, AfterViewChecked {
     if (this.chefSessionService.connector && this.userPrefsService.uiSettings.isTimeformatExist) {
       this.store.dispatch(new GetUserPreferences());
     }
+
+    // manual upgrade banner
+    const bannerStorage = localStorage.getItem('manual-upgrade-banner') || "";
+    if (isNull(bannerStorage)) {
+      localStorage.setItem('manual-upgrade-banner', this.booleanToString(true));
+      this.upgradeBanner = true;
+    } else {
+      this.upgradeBanner = this.stringToBoolean(bannerStorage);
+    }
+    this.upgradeBanner = this.stringToBoolean('false'); // uncomment this line to hide static Banner
+  }
+
+  closeBanner() {
+    localStorage.setItem('manual-upgrade-banner', this.booleanToString(false));
+    this.upgradeBanner = false;
+  }
+
+  private booleanToString(bool: boolean): string {
+    return bool ? 'true' : 'false';
+  }
+
+  private stringToBoolean(boolString: string): boolean {
+    return boolString === 'true';
   }
 }

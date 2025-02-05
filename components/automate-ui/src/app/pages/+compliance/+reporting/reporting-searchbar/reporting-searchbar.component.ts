@@ -14,13 +14,13 @@ import {
   debounceTime, switchMap, distinctUntilChanged
 } from 'rxjs/operators';
 import { FilterC } from '../types';
-import * as moment from 'moment/moment';
-import { Chicklet } from 'app/types/types';
+import moment from 'moment';
+import { Chicklet } from '../../../../types/types';
 import {
   ReportQueryService,
   SuggestionsService
-} from 'app/pages/+compliance/shared/reporting';
-import { DateTime } from 'app/helpers/datetime/datetime';
+} from '../../../../pages/+compliance/shared/reporting';
+import { DateTime } from '../../../../helpers/datetime/datetime';
 
 @Component({
   selector: 'app-reporting-searchbar',
@@ -62,6 +62,7 @@ export class ReportingSearchbarComponent implements OnInit {
   highlightedIndex = -1;
   inputText = '';
   delayForNoSuggestions = false;
+  suggestionValueClicked: boolean = false;
 
   constructor(
     public reportQuery: ReportQueryService,
@@ -171,6 +172,7 @@ export class ReportingSearchbarComponent implements OnInit {
         this.suggestionsVisible = true;
         break;
       case 'enter':
+        this.suggestionValueClicked = true;
         this.pressEnter(currentText);
         break;
       case 'backspace':
@@ -346,6 +348,7 @@ export class ReportingSearchbarComponent implements OnInit {
   }
 
   valueClick(value: any, event: Event) {
+    this.suggestionValueClicked = true;
     const type = this.selectedType;
     event.stopPropagation();
     this.suggestionsVisible = false;
@@ -400,21 +403,24 @@ export class ReportingSearchbarComponent implements OnInit {
     this.clearSuggestions();
     this.requestForSuggestions({
       text: text,
-      type: type,
+      type: type, 
       type_key: this.sugg.selectedControlTagKey
     });
     this.suggestionsVisibleStream.next(true);
+    this.suggestionValueClicked = false;
   }
 
   onValChange(e) {
-    const type = this.selectedType;
-    const text: string = e.target.value;
-    const suggestionValue = this.filterValues.filter(v => v.title === text)[0];
-    if (this.containsWildcardChar(text)) {
-      const wildcardValue = { text, title: text };
-      this.addNewFilter(type, wildcardValue);
-    } else if (suggestionValue && suggestionValue === undefined) {
-      this.addNewFilter(type, suggestionValue);
+    if (this.suggestionValueClicked) {
+      const type = this.selectedType;
+      const text: string = e.target.value;
+      const suggestionValue = this.filterValues.filter(v => v.title === text)[0];
+      if (this.containsWildcardChar(text)) {
+        const wildcardValue = { text, title: text };
+        this.addNewFilter(type, wildcardValue);
+      } else if (suggestionValue && suggestionValue === undefined) {
+        this.addNewFilter(type, suggestionValue);
+      }
     }
   }
 
@@ -443,12 +449,13 @@ export class ReportingSearchbarComponent implements OnInit {
 
   // month - month with January 0 and December 11
   // year - 4 digit year (2019)
-  onMonthSelect([month, year]) {
+  onMonthSelect(e: any) {
+    const [month, year] = e;
     this.visibleDate.month(month);
     this.visibleDate.year(year);
   }
 
-  onDaySelect(date: string) {
+  onDaySelect(date: string | any) {
     const m = moment.utc(date);
     this.visibleDate.date(m.date());
     this.visibleDate.month(m.month());

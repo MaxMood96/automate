@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
-import { environment as env } from 'environments/environment';
+import { environment as env } from '../../../environments/environment';
 import { ApiToken } from './api-token.model';
 import { CreateTokenPayload } from './api-token.actions';
 
@@ -39,9 +39,10 @@ export class ApiTokenRequests {
 
   // Note: toggleActive takes the EXISTING value in `active`, and will take care
   // of flipping it.
-  public toggleActive(id: string, name: string, active: boolean): Observable<TokenPayloadResponse> {
+  public toggleActive(id: string, name: string, active: boolean, projects: string[]):
+    Observable<TokenPayloadResponse> {
     return this.http.put<TokenPayloadResponse>(`${env.iam_url}/tokens/${id}`,
-      { name, active: !active });
+      { name, active: !active, projects: projects });
   }
 
   public delete(id: string): Observable<Object> {

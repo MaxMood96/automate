@@ -10,6 +10,8 @@ log() {
     echo "[$(date -u)] $*"
 }
 
+export GOPROXY="https://proxy.golang.org,direct " 
+
 # license_scout uses licensee internally. licensee reads OCTOKIT_ACCESS_TOKEN
 # from the environment to make authenticated requests to github. This increases
 # the API rate limits that github enforces. Our license checks now read so many
@@ -40,6 +42,11 @@ log_section_start "Installing License Scout"
 gem install license_scout -v 2.5.1
 log "Finished Installing License Scout"
 
+log_section_start "Installing Go 1.22.5"
+hab pkg install --force --binlink core/go1_22/1.22.5 --channel LTS-2024 && rm -rf /hab/cache && mkdir -p "$GOPATH/src" "$GOPATH/bin"
+go version
+log "Finished Installing Go 1.22.5"
+
 log_section_start "Installing Chef UI Library dependencies"
 pushd components/chef-ui-library
   log "BEGIN npm install"
@@ -57,18 +64,26 @@ pushd components/automate-ui
 popd
 log "Finished installing Automate UI dependencies"
 
+#This Block will install 'core/elixir/1.11.4/20220301014229' and print the version of erl/iex
+log_section_start "Validating erlang/Elixir dependencies"
+hab pkg install core/elixir/1.11.4/20220301014229 -bf
+erlang_version=$(erl -eval 'erlang:display(erlang:system_info(otp_release)), halt().'  -noshell)
+echo "Erlang version: $erlang_version"
+elixir_version=$(elixir -v)
+echo "Elixir version: $elixir_version"
+log "Finished Validating erlang/Elixir dependencies"
+
 log_section_start "Installing Elixir dependencies"
 pushd components/notifications-service/server
+  git config --global url."https://github.com/".insteadOf git://github.com/
+  log "git config updated"
+  log "Print mix.lock file:"
+  cat mix.lock
+  log "End of mix.lock file"
   mix local.hex --force
   mix deps.get
 popd
 log "Finished installing Elixir dependencies"
-
-log_section_start "Installing Ruby dependencies"
-pushd components/automate-workflow-ctl/
-  bundle install
-popd
-log "Finished installing Ruby dependencies"
 
 log_section_start "Installing Go dependencies"
 go mod download

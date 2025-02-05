@@ -1,19 +1,20 @@
 import { Component, EventEmitter, Input, OnInit, OnChanges, OnDestroy } from '@angular/core';
-import { IdMapper } from 'app/helpers/auth/id-mapper';
+import { IdMapper } from '../../../helpers/auth/id-mapper';
 import { FormGroup, FormBuilder, Validators } from '@angular/forms';
 import { Subject } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
-import { Environment, CookbookVersionDisplay } from 'app/entities/environments/environment.model';
+import { Environment, CookbookVersionDisplay } from '../../../entities/environments/environment.model';
 import { Store } from '@ngrx/store';
-import { NgrxStateAtom } from 'app/ngrx.reducers';
+import { NgrxStateAtom } from '../../../ngrx.reducers';
 import {
   updateStatus
-} from 'app/entities/environments/environment-details.selectors';
-import { EntityStatus, pending } from 'app/entities/entities';
-import { UpdateEnvironment } from 'app/entities/environments/environment.action';
-import { Cookbook } from 'app/entities/cookbooks/cookbook.model';
-import { Regex } from 'app/helpers/auth/regex';
-import { Utilities } from 'app/helpers/utilities/utilities';
+} from '../../../entities/environments/environment-details.selectors';
+import { EntityStatus, pending } from '../../../entities/entities';
+import { UpdateEnvironment } from '../../../entities/environments/environment.action';
+import { Cookbook } from '../../../entities/cookbooks/cookbook.model';
+import { Regex } from '../../../helpers/auth/regex';
+import { Utilities } from '../../../helpers/utilities/utilities';
+import { TelemetryService } from '../../../services/telemetry/telemetry.service';
 
 export class CookbookConstraintGrid {
   id: number;
@@ -72,8 +73,8 @@ export class EditEnvironmentAttributeModalComponent implements OnChanges, OnInit
 
   constructor(
     private fb: FormBuilder,
-    private store: Store<NgrxStateAtom>
-
+    private store: Store<NgrxStateAtom>,
+    private telemetryService: TelemetryService
   ) {
     this.defaultAttributeForm = this.fb.group({
       default: ['', [Validators.required]]
@@ -167,7 +168,7 @@ export class EditEnvironmentAttributeModalComponent implements OnChanges, OnInit
     }
   }
 
-  onChangeDefaultJson(event: { target: { value: string } } ) {
+  onChangeDefaultJson(event: { target: { value: string } } | any) {
     const newValue = event.target.value;
     try {
       JSON.parse(newValue);
@@ -177,7 +178,7 @@ export class EditEnvironmentAttributeModalComponent implements OnChanges, OnInit
     }
   }
 
-  onChangeOverrideJson(event: { target: { value: string } } ) {
+  onChangeOverrideJson(event: { target: { value: string } } | any) {
     const newValue = event.target.value;
     try {
       JSON.parse(newValue);
@@ -212,6 +213,7 @@ export class EditEnvironmentAttributeModalComponent implements OnChanges, OnInit
           default_attributes: JSON.parse(this.environment.default_attributes),
           override_attributes: JSON.parse(this.environment.override_attributes)
         };
+        this.telemetryService.track('InfraServer_Environments_EditConstraints');
         break;
 
       case 'Default':
@@ -221,6 +223,7 @@ export class EditEnvironmentAttributeModalComponent implements OnChanges, OnInit
               this.defaultAttributeForm.controls['default'].value.replace(/\r?\n|\r/g, '')),
           override_attributes: JSON.parse(this.environment.override_attributes)
         };
+        this.telemetryService.track('InfraServer_Environments_EditDefault');
         break;
 
       case 'Override':
@@ -230,6 +233,7 @@ export class EditEnvironmentAttributeModalComponent implements OnChanges, OnInit
           override_attributes: JSON.parse(
             this.overrideAttributeForm.controls['override'].value.replace(/\r?\n|\r/g, ''))
         };
+        this.telemetryService.track('InfraServer_Environments_EditOverride');
         break;
     }
     this.updatingData(environment);

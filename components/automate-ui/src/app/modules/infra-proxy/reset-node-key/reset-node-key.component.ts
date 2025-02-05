@@ -1,17 +1,18 @@
 import { Component, EventEmitter, Input, OnDestroy, OnInit } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { takeUntil } from 'rxjs/operators';
-import { NgrxStateAtom } from 'app/ngrx.reducers';
+import { NgrxStateAtom } from '../../../ngrx.reducers';
 import { combineLatest, Subject } from 'rxjs';
-import { ResetKeyClient } from 'app/entities/clients/client.action';
+import { ResetKeyClient } from '../../../entities/clients/client.action';
 import { getStatus,
   resetKeyClient,
-  saveError } from 'app/entities/clients/client-details.selectors';
-import { EntityStatus } from 'app/entities/entities';
-import { Utilities } from 'app/helpers/utilities/utilities';
+  saveError } from '../../../entities/clients/client-details.selectors';
+import { EntityStatus } from '../../../entities/entities';
+import { Utilities } from '../../../helpers/utilities/utilities';
 import { isNil } from 'lodash/fp';
 import { saveAs } from 'file-saver';
-import { ResetKey } from 'app/entities/clients/client.model';
+import { ResetKey } from '../../../entities/clients/client.model';
+import { TelemetryService } from '../../../services/telemetry/telemetry.service';
 
 @Component({
   selector: 'app-reset-node-key',
@@ -37,7 +38,8 @@ export class ResetNodeKeyComponent implements OnInit, OnDestroy {
   private isDestroyed = new Subject<boolean>();
 
   constructor(
-    private store: Store<NgrxStateAtom>
+    private store: Store<NgrxStateAtom>,
+    private telemetryService: TelemetryService
   ) { }
 
   ngOnInit() {
@@ -102,6 +104,7 @@ export class ResetNodeKeyComponent implements OnInit, OnDestroy {
       'name': this.name
     };
     this.store.dispatch(new ResetKeyClient(payload));
+    this.telemetryService.track('InfraServer_Nodes_ResetKey');
   }
 
   downloadKey(): void {
@@ -113,6 +116,7 @@ export class ResetNodeKeyComponent implements OnInit, OnDestroy {
 
     const blob = new Blob([template], { type: 'text/plain;charset=utf-8' });
     saveAs(blob, this.name + '.pem');
+    this.telemetryService.track('InfraServer_Nodes_Download_ResetKey');
   }
 
   copyKey(newKey) {

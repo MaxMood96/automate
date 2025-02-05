@@ -6,14 +6,15 @@ import { combineLatest, Subject } from 'rxjs';
 import { filter, pluck, takeUntil } from 'rxjs/operators';
 import { identity, isNil } from 'lodash/fp';
 
-import { LayoutFacadeService, Sidebar } from 'app/entities/layout/layout.facade';
-import { routeParams, routeURL } from 'app/route.selectors';
-import { NgrxStateAtom } from 'app/ngrx.reducers';
-import { GetNodeCredential, UpdateNodeCredential } from 'app/entities/node-credentials/node-credential.actions';
-import { credentialFromRoute, getStatus } from 'app/entities/node-credentials/node-credential-details.selectors';
-import { updateStatus } from 'app/entities/node-credentials/node-credential.selectors';
-import { NodeCredential, SaveNodeCredential, NodeObject } from 'app/entities/node-credentials/node-credential.model';
-import { pending, EntityStatus, allLoaded } from 'app/entities/entities';
+import { LayoutFacadeService, Sidebar } from '../../../../entities/layout/layout.facade';
+import { routeParams, routeURL } from '../../../../route.selectors';
+import { NgrxStateAtom } from '../../../../ngrx.reducers';
+import { GetNodeCredential, UpdateNodeCredential } from '../../../../entities/node-credentials/node-credential.actions';
+import { credentialFromRoute, getStatus } from '../../../../entities/node-credentials/node-credential-details.selectors';
+import { updateStatus } from '../../../../entities/node-credentials/node-credential.selectors';
+import { NodeCredential, SaveNodeCredential, NodeObject } from '../../../../entities/node-credentials/node-credential.model';
+import { pending, EntityStatus, allLoaded } from '../../../../entities/entities';
+import { TelemetryService } from '../../../../services/telemetry/telemetry.service';
 
 export type NodeCredentialTabName = 'details' | 'reset';
 
@@ -48,7 +49,8 @@ export class NodeCredentialDetailsScreenComponent implements OnInit, OnDestroy {
     public saveCred: SaveNodeCredential,
     private fb: FormBuilder,
     private router: Router,
-    private layoutFacade: LayoutFacadeService
+    private layoutFacade: LayoutFacadeService,
+    private telemetryService: TelemetryService
   ) {
     this.sshForms = this.fb.group({
       username: ['', Validators.required],
@@ -95,7 +97,7 @@ export class NodeCredentialDetailsScreenComponent implements OnInit, OnDestroy {
 
     combineLatest([
       this.store.select(getStatus),
-      this.store.select(credentialFromRoute)
+      this.store.select(credentialFromRoute as any)
     ]).pipe(
         filter(([status, nodeCredential]) =>
           status === EntityStatus.loadingSuccess && !isNil(nodeCredential)),
@@ -151,7 +153,7 @@ export class NodeCredentialDetailsScreenComponent implements OnInit, OnDestroy {
   }
 
 
-  onSelectedTab(event: { target: { value: NodeCredentialTabName } }) {
+  onSelectedTab(event: { target: { value: NodeCredentialTabName } } | any) {
     this.tabValue = event.target.value;
     this.router.navigate([this.url.split('#')[0]], { fragment: event.target.value });
   }
@@ -165,10 +167,12 @@ export class NodeCredentialDetailsScreenComponent implements OnInit, OnDestroy {
       this.saveSuccessful = false;
       this.saveInProgress = true;
       this.nodeCredential.name = data.name;
+      this.telemetryService.track('Settings_NodeCredentials_Details_Save');
     } else {
       this.resetSuccessful = false;
       this.resetInProgress = true;
       this.nodeCredential = this.saveCred.getNodeCredentialCreate(data);
+      this.telemetryService.track('Settings_NodeCredentials_ResetCredentials_Save');
     }
     if (!this.checkError(
         'password',

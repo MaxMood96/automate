@@ -7,16 +7,17 @@ import { Store } from '@ngrx/store';
 import { Subject, combineLatest } from 'rxjs';
 import { takeUntil, filter } from 'rxjs/operators';
 
-import { NgrxStateAtom } from 'app/ngrx.reducers';
-import { IdMapper } from 'app/helpers/auth/id-mapper';
-import { EntityStatus } from 'app/entities/entities';
-import { Utilities } from 'app/helpers/utilities/utilities';
+import { NgrxStateAtom } from '../../../../ngrx.reducers';
+import { IdMapper } from '../../../../helpers/auth/id-mapper';
+import { EntityStatus } from '../../../../entities/entities';
+import { Utilities } from '../../../../helpers/utilities/utilities';
 import {
   saveError,
   saveStatus
-} from 'app/entities/node-credentials/node-credential.selectors';
-import { SaveNodeCredential } from 'app/entities/node-credentials/node-credential.model';
-import { CreateNodeCredential, NodeCredentialsSearch } from 'app/entities/node-credentials/node-credential.actions';
+} from '../../../../entities/node-credentials/node-credential.selectors';
+import { SaveNodeCredential } from '../../../../entities/node-credentials/node-credential.model';
+import { CreateNodeCredential, NodeCredentialsSearch } from '../../../../entities/node-credentials/node-credential.actions';
+import { TelemetryService } from '../../../../services/telemetry/telemetry.service';
 
 @Component({
   selector: 'app-create-node-credential-modal',
@@ -44,7 +45,8 @@ export class CreateNodeCredentialModalComponent implements OnInit, OnDestroy {
   constructor(
     private store: Store<NgrxStateAtom>,
     private saveNodeCred: SaveNodeCredential,
-    private fb: FormBuilder
+    private fb: FormBuilder,
+    private telemetryService: TelemetryService
   ) {
     this.sshForms = this.fb.group({
       username: ['', Validators.required],
@@ -118,6 +120,7 @@ export class CreateNodeCredentialModalComponent implements OnInit, OnDestroy {
     const userCreateReq = this.saveNodeCred.getNodeCredentialCreate(formValues);
 
     this.store.dispatch(new CreateNodeCredential(userCreateReq));
+    this.telemetryService.track('Settings_NodeCredentials_Create');
   }
 
   selectChangeHandlers(id: string): void {

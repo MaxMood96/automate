@@ -378,7 +378,8 @@ func DefaultSpecs(serviceNames []string) []Spec {
 		// up yet. Some of them may in the future once we have
 		// runtime configuration. Although maybe that will all
 		// be handled via postgresql which would be nice.
-		{Name: "automate-elasticsearch", WriteMetadata: false},
+		// If you add any item here please update this list stateFullServicesMap as well
+		{Name: "automate-opensearch", WriteMetadata: false},
 		{Name: "automate-es-gateway", WriteMetadata: false},
 		{Name: "automate-gateway", WriteMetadata: false},
 		{Name: "event-gateway", WriteMetadata: false},
@@ -412,6 +413,16 @@ func DefaultSpecs(serviceNames []string) []Spec {
 				{
 					Name: "automate-cs-oc-bifrost",
 					User: "automate-cs-oc-bifrost",
+				},
+			},
+		},
+		{
+			Name:          "automate-cs-ocid",
+			WriteMetadata: true,
+			SyncDbsV2: []DatabaseDumpOperationV2{
+				{
+					Name: "automate-cs-ocid",
+					User: "automate-cs-ocid",
 				},
 			},
 		},

@@ -7,6 +7,7 @@ pkg_version="0.1.0"
 pkg_maintainer="Chef Software Inc. <support@chef.io>"
 pkg_license=('Chef-MLSA')
 pkg_upstream_url="https://www.chef.io/automate"
+
 pkg_exports=(
   [port]=service.port
   [host]=service.host
@@ -27,7 +28,7 @@ pkg_deps=(
   core/curl # health_check hook
 )
 
-pkg_build_deps=(core/go core/git core/gcc)
+pkg_build_deps=(core/go1_22/1.22.5 core/git core/gcc)
 
 pkg_scaffolding="${local_scaffolding_origin:-chef}/automate-scaffolding"
 
@@ -39,7 +40,7 @@ do_before() {
 do_unpack() {
   git clone "https://github.com/chef/dex-1" "$GOPATH/src/github.com/chef/dex-1"
   ( cd "$GOPATH/src/github.com/chef/dex-1" || exit
-    git checkout add_request_validators
+    git checkout add_invalid_attempts
   )
 }
 
@@ -51,7 +52,7 @@ do_build() {
 do_install() {
   build_line "copying chef theme content"
   # Copy static assets from core/dex
-    mkdir -p "${pkg_prefix}/web"
+  mkdir -p "${pkg_prefix}/web"
   cp -r "$GOPATH/src/github.com/chef/dex-1/web/static" "$pkg_prefix/web/"
   cp -r "$GOPATH/src/github.com/chef/dex-1/web/templates" "$pkg_prefix/web/"
   # Copy our custom theme into place
@@ -60,3 +61,5 @@ do_install() {
   cp -r "$PLAN_CONTEXT/../web/templates/"* "${pkg_prefix}/web/templates"
   cp -r "$PLAN_CONTEXT/../web/static"/* "${pkg_prefix}/web/static"
 }
+
+

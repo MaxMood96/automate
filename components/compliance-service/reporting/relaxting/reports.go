@@ -6,18 +6,20 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/golang/protobuf/ptypes"
+	elastic "github.com/olivere/elastic/v7"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	elastic "gopkg.in/olivere/elastic.v6"
 
 	"github.com/chef/automate/api/external/lib/errorutils"
 	reportingapi "github.com/chef/automate/api/interservice/compliance/reporting"
 	authzConstants "github.com/chef/automate/components/authz-service/constants"
-	"github.com/chef/automate/components/compliance-service/ingest/ingestic/mappings"
 	"github.com/chef/automate/components/compliance-service/inspec"
 	"github.com/chef/automate/components/compliance-service/reporting"
 	"github.com/chef/automate/components/compliance-service/reporting/util"
@@ -26,6 +28,10 @@ import (
 )
 
 const MaxScrollRecordSize = 10000
+const layout = "2006-01-02T15:04:05Z"
+const impact = "profiles.controls.impact"
+const lower = "profiles.controls.title.lower"
+const profile = "profiles.title.lower"
 
 func (backend ES2Backend) getDocIdHits(esIndex string,
 	searchSource *elastic.SearchSource) ([]*elastic.SearchHit, time.Duration, error) {
@@ -72,7 +78,7 @@ func (backend ES2Backend) getNodeReportIdsFromTimeseries(esIndex string,
 	myName := "getNodeReportIdsFromTimeseries"
 	var repIds reportingapi.ReportIds
 
-	nodeReport := make(map[string]reportingapi.ReportData, 0)
+	//nodeReport := make(map[string]reportingapi.ReportData, 0)
 	boolQuery := backend.getFiltersQuery(filters, latestOnly)
 
 	fsc := elastic.NewFetchSourceContext(true).Include("end_time")
@@ -115,7 +121,7 @@ func (backend ES2Backend) getNodeReportIdsFromTimeseries(esIndex string,
 		return &repIds, errors.Wrap(err, "getNodeReportIdsFromTimeseries unable to complete search")
 	}
 
-	if searchResult.TotalHits() == 0 || searchResult.Hits.TotalHits == 0 {
+	if searchResult.TotalHits() == 0 {
 		logrus.Debugf("getNodeReportIdsFromTimeseries: No report ids for the given filters: %+v\n", filters)
 		// no matching report IDs is not an error, just return an empty array
 		return &repIds, nil
@@ -126,11 +132,11 @@ func (backend ES2Backend) getNodeReportIdsFromTimeseries(esIndex string,
 	if outermostAgg != nil {
 		for _, nodeBucket := range outermostAgg.Buckets {
 			topHits, _ := nodeBucket.Aggregations.TopHits("distinct")
-			nodeID := fmt.Sprintf("%s", nodeBucket.Key)
+			//nodeID := fmt.Sprintf("%s", nodeBucket.Key)
 			for _, hit := range topHits.Hits.Hits {
 				var et EndTimeSource
 				if hit.Source != nil {
-					err = json.Unmarshal(*hit.Source, &et)
+					err = json.Unmarshal(hit.Source, &et)
 					if err != nil {
 						logrus.Errorf("could not get the end_time for runid: %s %v", hit.Id, err)
 						continue
@@ -145,11 +151,13 @@ func (backend ES2Backend) getNodeReportIdsFromTimeseries(esIndex string,
 				repData.Id = hit.Id
 				repData.EndTime = endTimeTimestamp
 
-				nodeReport[nodeID] = repData
+				repIds.Ids = append(repIds.Ids, repData.Id)
+				repIds.ReportData = append(repIds.ReportData, &repData)
+				//nodeReport[nodeID] = repData
 			}
 		}
 	}
-	reportIds := make([]string, len(nodeReport))
+	/*reportIds := make([]string, len(nodeReport))
 	reportData := make([]*reportingapi.ReportData, len(nodeReport))
 	i := 0
 	for _, v := range nodeReport {
@@ -159,10 +167,10 @@ func (backend ES2Backend) getNodeReportIdsFromTimeseries(esIndex string,
 		i++
 	}
 	repIds.Ids = reportIds
-	repIds.ReportData = reportData
+	repIds.ReportData = reportData*/
 
 	logrus.Debugf("getNodeReportIdsFromTimeseries returning %d report ids in %d milliseconds\n",
-		len(reportIds), searchResult.TookInMillis)
+		len(repIds.Ids), searchResult.TookInMillis)
 
 	return &repIds, nil
 }
@@ -177,7 +185,7 @@ func (backend ES2Backend) GetReportIds(esIndex string, filters map[string][]stri
 }
 
 func (backend ES2Backend) filterIdsByControl(esIndex string, ids, controls []string) ([]string, error) {
-	idsQuery := elastic.NewIdsQuery(mappings.DocType)
+	idsQuery := elastic.NewIdsQuery()
 	idsQuery.Ids(ids...)
 	termsQuery := elastic.NewTermsQuery("profiles.controls.id", stringArrayToInterfaceArray(controls)...)
 	reportIdsAndControlIdQuery := elastic.NewBoolQuery()
@@ -282,11 +290,11 @@ func (backend *ES2Backend) GetReports(from int32, size int32, filters map[string
 	logrus.Debugf("GetReports got %d reports in %d milliseconds\n", searchResult.TotalHits(),
 		searchResult.TookInMillis)
 	reports := make([]*reportingapi.ReportSummaryLevelOne, 0)
-	if searchResult.TotalHits() > 0 && searchResult.Hits.TotalHits > 0 {
+	if searchResult.TotalHits() > 0 {
 		for _, hit := range searchResult.Hits.Hits {
 			item := ESInSpecReport{}
 			if hit.Source != nil {
-				err := json.Unmarshal(*hit.Source, &item)
+				err := json.Unmarshal(hit.Source, &item)
 				if err == nil {
 					t := item.EndTime.Round(1 * time.Second)
 					timestamp, _ := ptypes.TimestampProto(t)
@@ -333,63 +341,17 @@ func (backend *ES2Backend) GetReports(from int32, size int32, filters map[string
 // GetReport returns the information about a single report
 func (backend *ES2Backend) GetReport(reportId string, filters map[string][]string) (*reportingapi.Report, error) {
 	var report *reportingapi.Report
-
-	depth, err := backend.NewDepth(filters, false)
+	var method = "GetReport"
+	searchResult, queryInfo, err := backend.getSearchResult(reportId, filters, method)
 	if err != nil {
-		return report, errors.Wrap(err, "GetReport unable to get depth level for report")
+		return report, err
 	}
-
-	queryInfo := depth.getQueryInfo()
-
-	//normally, we compute the boolQuery when we create a new Depth obj.. here we, instead call a variation of the full
-	// query builder. we need to do this because this variation of filter query provides this func with deeper
-	// information about the report being retrieved.
-	queryInfo.filtQuery = backend.getFiltersQueryForDeepReport(reportId, filters)
-
-	logrus.Debugf("GetReport will retrieve report %s based on filters %+v", reportId, filters)
-
-	fsc := elastic.NewFetchSourceContext(true)
-
-	if queryInfo.level != ReportLevel {
-		fsc.Exclude("profiles")
-	}
-	logrus.Debugf("GetReport for reportid=%s, filters=%+v", reportId, filters)
-
-	searchSource := elastic.NewSearchSource().
-		FetchSourceContext(fsc).
-		Query(queryInfo.filtQuery).
-		Size(1)
-
-	source, err := searchSource.Source()
-	if err != nil {
-		return report, errors.Wrap(err, "GetReport unable to get Source")
-	}
-	LogQueryPartMin(queryInfo.esIndex, source, "GetReport query searchSource")
-
-	searchResult, err := queryInfo.client.Search().
-		SearchSource(searchSource).
-		Index(queryInfo.esIndex).
-		FilterPath(
-			"took",
-			"hits.total",
-			"hits.hits._id",
-			"hits.hits._source",
-			"hits.hits.inner_hits").
-		Do(context.Background())
-
-	if err != nil {
-		return report, errors.Wrap(err, "GetReport unable to complete search")
-	}
-
-	logrus.Debugf("GetReport got %d reports in %d milliseconds\n", searchResult.TotalHits(),
-		searchResult.TookInMillis)
-
 	// we should only receive one value
-	if searchResult.TotalHits() > 0 && searchResult.Hits.TotalHits > 0 {
+	if searchResult.TotalHits() > 0 {
 		for _, hit := range searchResult.Hits.Hits {
 			esInSpecReport := ESInSpecReport{}
 			if hit.Source != nil {
-				err := json.Unmarshal(*hit.Source, &esInSpecReport)
+				err := json.Unmarshal(hit.Source, &esInSpecReport)
 				if err == nil {
 					//TODO: FIX Unmarshal error(json: cannot unmarshal array into Go struct field
 					// ESInSpecReportControl.results) and move the read all profiles section here
@@ -557,6 +519,158 @@ func (backend *ES2Backend) GetReport(reportId string, filters map[string][]strin
 	return report, errorutils.ProcessNotFound(nil, reportId)
 }
 
+// GetNodeInfoFromReportID returns report header information of a single report
+func (backend *ES2Backend) GetNodeInfoFromReportID(reportId string, filters map[string][]string) (*reportingapi.NodeHeaderInfo, error) {
+	var report *reportingapi.NodeHeaderInfo
+	depth, err := backend.NewDepth(filters, false)
+	if err != nil {
+		return report, errors.Wrap(err, "GetNodeInfoFromReportID unable to get depth level for report")
+	}
+	queryInfo := depth.getQueryInfo()
+
+	//normally, we compute the boolQuery when we create a new Depth obj.. here we, instead call a variation of the full
+	// query builder. we need to do this because this variation of filter query provides this func with deeper
+	// information about the report being retrieved.
+	queryInfo.filtQuery = getFiltersQueryForDeepReport(reportId, filters)
+
+	logrus.Debugf("GetNodeInfoFromReportID will retrieve report %s based on filters %+v", reportId, filters)
+
+	fsc := elastic.NewFetchSourceContext(true).Include(
+		"node_uuid",
+		"node_name",
+		"environment",
+		"roles",
+		"platform",
+		"profiles",
+		"end_time",
+		"status",
+		"status_message",
+		"version")
+
+	if queryInfo.level != ReportLevel {
+		fsc.Exclude("profiles")
+	}
+	logrus.Debugf("GetNodeInfoFromReportID for reportid=%s, filters=%+v", reportId, filters)
+
+	searchSource := elastic.NewSearchSource().
+		FetchSourceContext(fsc).
+		Query(queryInfo.filtQuery).
+		Size(1)
+
+	source, err := searchSource.Source()
+	if err != nil {
+		return report, errors.Wrap(err, "GetNodeInfoFromReportID unable to get Source")
+	}
+	LogQueryPartMin(queryInfo.esIndex, source, "GetNodeInfoFromReportID query searchSource")
+
+	searchResult, err := queryInfo.client.Search().
+		SearchSource(searchSource).
+		Index(queryInfo.esIndex).
+		FilterPath(
+			"took",
+			"hits.total",
+			"hits.hits._source",
+			"hits.hits.inner_hits").
+		Do(context.Background())
+
+	if err != nil {
+		return report, errors.Wrap(err, "GetNodeInfoFromReportID unable to complete search")
+	}
+
+	logrus.Debugf("GetNodeInfoFromReportID got %d reports in %d milliseconds\n", searchResult.TotalHits(),
+		searchResult.TookInMillis)
+
+	// we should only receive one value
+	report, err = populateNodeReport(searchResult, backend, queryInfo)
+	if err != nil {
+		return report, errorutils.ProcessNotFound(nil, reportId)
+	}
+	return report, nil
+}
+
+// populateNodeReport generates the report from the search result of report id
+func populateNodeReport(searchResult *elastic.SearchResult, backend *ES2Backend, queryInfo *QueryInfo) (*reportingapi.NodeHeaderInfo, error) {
+	var report *reportingapi.NodeHeaderInfo
+	if searchResult.TotalHits() > 0 && searchResult.Hits.TotalHits.Value > 0 {
+		for _, hit := range searchResult.Hits.Hits {
+			esInSpecReport := ESInSpecReport{}
+			if hit.Source == nil {
+				logrus.Debugf("no source found for search hit %s", hit.Id)
+				continue
+			}
+			err := json.Unmarshal(hit.Source, &esInSpecReport)
+			if err != nil {
+				logrus.Errorf("GetNodeInfoFromReportID unmarshal error: %s", err.Error())
+				return report, errors.New("cannot unmarshal the search hits")
+			}
+			var esInspecProfiles []ESInSpecReportProfile //`json:"profiles"`
+			var status string
+
+			switch queryInfo.level {
+			case ReportLevel:
+				esInspecProfiles = esInSpecReport.Profiles
+				status = esInSpecReport.Status
+			case ProfileLevel, ControlLevel:
+				esInspecProfiles, status, err = getDeepInspecProfiles(hit, queryInfo)
+				if err != nil {
+					logrus.Errorf("GetNodeInfoFromReportID time error: %s", err.Error())
+				}
+			}
+			esInSpecReport.Status = status
+			profiles := make([]*reportingapi.NodeHeaderProfileInfo, 0)
+			for _, esInSpecReportProfileMin := range esInspecProfiles {
+				logrus.Debugf("Determine profile: %s", esInSpecReportProfileMin.Name)
+				esInSpecProfile, err := backend.GetProfile(esInSpecReportProfileMin.SHA256)
+				if err != nil {
+					logrus.Errorf("GetNodeInfoFromReportID - Could not get profile '%s' error: %s", esInSpecReportProfileMin.SHA256, err.Error())
+					logrus.Debug("GetNodeInfoFromReportID - Making the most from the profile information in esInSpecReportProfileMin")
+					esInSpecProfile.Name = esInSpecReportProfileMin.Name
+				}
+
+				reportProfile := inspec.Profile{}
+				reportProfile.Name = esInSpecProfile.Name
+				reportProfile.Status = esInSpecReportProfileMin.Status
+
+				if esInSpecReportProfileMin.StatusMessage != "" {
+					reportProfile.StatusMessage = esInSpecReportProfileMin.StatusMessage
+				} else {
+					// Legacy message only available for the skipped status
+					reportProfile.StatusMessage = esInSpecReportProfileMin.SkipMessage
+				}
+
+				convertedProfile := reportingapi.NodeHeaderProfileInfo{
+					Name:          reportProfile.Name,
+					Status:        reportProfile.Status,
+					StatusMessage: reportProfile.StatusMessage,
+				}
+				profiles = append(profiles, &convertedProfile)
+			}
+			timestamp, _ := ptypes.TimestampProto(esInSpecReport.EndTime)
+
+			report = &reportingapi.NodeHeaderInfo{
+				NodeId:        esInSpecReport.NodeID,
+				NodeName:      esInSpecReport.NodeName,
+				Environment:   esInSpecReport.Environment,
+				Status:        esInSpecReport.Status,
+				StatusMessage: esInSpecReport.StatusMessage,
+				EndTime:       timestamp,
+				Version:       esInSpecReport.InSpecVersion,
+				Profiles:      profiles,
+				Roles:         esInSpecReport.Roles,
+			}
+
+			report.Platform = &reportingapi.Platform{
+				Name:    esInSpecReport.Platform.Name,
+				Release: esInSpecReport.Platform.Release,
+				Full:    esInSpecReport.Platform.Full,
+			}
+			report.EndTime = timestamp
+		}
+		return report, nil
+	}
+	return report, errors.New("No process found")
+}
+
 func convertControl(profileControlsMap map[string]*reportingapi.Control, reportControlMin ESInSpecReportControl, filters map[string][]string) *reportingapi.Control {
 	profileControl := profileControlsMap[reportControlMin.ID]
 
@@ -686,7 +800,7 @@ func contains(a []string, x string) bool {
 }
 
 func (backend *ES2Backend) GetControlListItems(ctx context.Context, filters map[string][]string,
-	size int32) (*reportingapi.ControlItems, error) {
+	size int32, pageNumber int32) (*reportingapi.ControlItems, error) {
 	myName := "GetControlListItems"
 
 	contListItems := make([]*reportingapi.ControlItem, 0)
@@ -713,7 +827,9 @@ func (backend *ES2Backend) GetControlListItems(ctx context.Context, filters map[
 
 	//here, we set latestOnly to true.  We may need to set it to false if we want to search non lastest reports
 	//for now, we don't search non-latest reports so don't do it.. it's slower for obvious reasons.
-	filtQuery := backend.getFiltersQuery(filters, true)
+	latestOnly := FetchLatestDataOrNot(filters)
+
+	filtQuery := backend.getFiltersQuery(filters, latestOnly)
 
 	searchSource := elastic.NewSearchSource().
 		Query(filtQuery).
@@ -721,11 +837,11 @@ func (backend *ES2Backend) GetControlListItems(ctx context.Context, filters map[
 		Size(1)
 
 	controlTermsAgg := elastic.NewTermsAggregation().Field("profiles.controls.id").
-		Size(int(size)).
+		Size(int(size*pageNumber)).
 		Order("_key", true)
 
 	controlTermsAgg.SubAggregation("impact",
-		elastic.NewTermsAggregation().Field("profiles.controls.impact").Size(1))
+		elastic.NewTermsAggregation().Field(impact).Size(1))
 
 	controlTermsAgg.SubAggregation("title",
 		elastic.NewTermsAggregation().Field("profiles.controls.title").Size(1))
@@ -814,7 +930,7 @@ func (backend *ES2Backend) GetControlListItems(ctx context.Context, filters map[
 		logrus.Infof("controls status query %v", controlStatusQuery)
 	}
 	if len(filters["control_name"]) > 0 {
-		controlTitlesQuery := newTermQueryFromFilter("profiles.controls.title.lower", filters["control_name"])
+		controlTitlesQuery := newTermQueryFromFilter(lower, filters["control_name"])
 		controlsQuery = controlsQuery.Should(controlTitlesQuery)
 		logrus.Infof("controls name query %v", controlTitlesQuery)
 	}
@@ -835,7 +951,7 @@ func (backend *ES2Backend) GetControlListItems(ctx context.Context, filters map[
 
 	profilesQuery := &elastic.BoolQuery{}
 	if len(filters["profile_name"]) > 0 {
-		profileTitlesQuery := newTermQueryFromFilter("profiles.title.lower", filters["profile_name"])
+		profileTitlesQuery := newTermQueryFromFilter(profile, filters["profile_name"])
 		profilesQuery = profilesQuery.Should(profileTitlesQuery)
 		logrus.Infof("profiles name query %v", profileTitlesQuery)
 	}
@@ -854,7 +970,7 @@ func (backend *ES2Backend) GetControlListItems(ctx context.Context, filters map[
 
 	source, err := searchSource.Source()
 	if err != nil {
-		return nil, errors.Wrapf(err, "%s unable to get Source", myName)
+		return nil, errors.Wrapf(err, "%s unable to get Source ", myName)
 	}
 	LogQueryPartMin(esIndex, source, fmt.Sprintf("%s query", myName))
 
@@ -890,7 +1006,8 @@ func (backend *ES2Backend) GetControlListItems(ctx context.Context, filters map[
 						controlSummaryTotals.Waived.Total = int32(totalWaivedControls.DocCount)
 					}
 					if controlBuckets, found := filteredControls.Aggregations.Terms("control"); found && len(controlBuckets.Buckets) > 0 {
-						for _, controlBucket := range controlBuckets.Buckets {
+						start, end := paginate(int(pageNumber), int(size), len(controlBuckets.Buckets))
+						for _, controlBucket := range controlBuckets.Buckets[start:end] {
 							contListItem, err := backend.getControlItem(controlBucket)
 							if err != nil {
 								return nil, err
@@ -907,6 +1024,106 @@ func (backend *ES2Backend) GetControlListItems(ctx context.Context, filters map[
 	return contListItemList, nil
 }
 
+// setControlSummaryForControlItems applying control summary to control list from the control summary map
+func setControlSummaryForControlItems(contListItems []*reportingapi.ControlItem, controlSummaryMap map[string]*reportingapi.ControlSummary) {
+	for _, controlItem := range contListItems {
+		controlItem.ControlSummary = controlSummaryMap[controlItem.Id]
+	}
+}
+
+// GetNodeControlListItems returns the paginated control list response.
+func (backend *ES2Backend) GetNodeControlListItems(ctx context.Context, filters map[string][]string, reportID string) (*reportingapi.ControlElements, error) {
+	controlNodeList := &reportingapi.ControlElements{}
+
+	depth, err := backend.NewDepth(filters, false)
+	if err != nil {
+		return controlNodeList, errors.Wrap(err, "GetNodeControlListItems unable to get depth level for report")
+	}
+
+	queryInfo := depth.getQueryInfo()
+
+	// create query for fetching paginated response with the passed filters
+	queryInfo.filtQuery, err = backend.getFilterQueryWithPagination(reportID, filters)
+	if err != nil {
+		return controlNodeList, nil
+	}
+
+	logrus.Debugf("GetNodeControlListItems will retrieve control items %s based on filters %+v", reportID, filters)
+
+	fsc := elastic.NewFetchSourceContext(true)
+
+	logrus.Debugf("GetNodeControlListItems for reportid=%s, filters=%+v", reportID, filters)
+	searchSource := elastic.NewSearchSource().
+		FetchSourceContext(fsc).
+		Query(queryInfo.filtQuery).
+		Size(1)
+
+	searchResult, err := queryInfo.client.Search().
+		SearchSource(searchSource).
+		Index(queryInfo.esIndex).
+		FilterPath(
+			"took",
+			"hits.total",
+			"hits.hits._source",
+			"hits.hits.inner_hits").
+		Do(ctx)
+	if err != nil {
+		return controlNodeList, err
+	}
+
+	if searchResult.TotalHits() > 0 && searchResult.Hits.TotalHits.Value > 0 {
+		numProfiles := make(map[int]struct {
+			Name   string
+			Sha256 string
+		}, 0)
+		// Extract the profile name for adding the root profile name to the return response.
+		for _, hit := range searchResult.Hits.Hits {
+			esInSpecReport := ESInSpecReport{}
+			err = json.Unmarshal(hit.Source, &esInSpecReport)
+			if err != nil {
+				logrus.Errorf("error unmarshalling the search response: %+v", err)
+				return nil, err
+			}
+			for index, profile := range esInSpecReport.Profiles {
+				numProfiles[index] = struct {
+					Name   string
+					Sha256 string
+				}{
+					Name:   profile.Name,
+					Sha256: profile.SHA256,
+				}
+			}
+		}
+
+		var listControls = make([]*reportingapi.ControlElement, 0)
+		for _, hit := range searchResult.Hits.Hits {
+			// this code is executed if filter contains profile or controls.
+			if profileHit, ok := hit.InnerHits["profiles"]; ok {
+				for _, innerhit := range profileHit.Hits.Hits {
+					listControl, err := populateControlElements(innerhit, numProfiles)
+					if err != nil {
+						logrus.Errorf("error unmarshalling the search control response: %+v", err)
+						return nil, err
+					}
+					listControls = append(listControls, listControl...)
+				}
+			}
+			// this code is executed if there are no profile/control filters.
+			if _, ok := hit.InnerHits["profiles.controls"]; ok {
+				listControls, err = populateControlElements(hit, numProfiles)
+				if err != nil {
+					logrus.Errorf("error unmarshalling the search control response: %+v", err)
+					return nil, err
+				}
+			}
+		}
+		contNodeList := &reportingapi.ControlElements{ControlElements: listControls}
+		return contNodeList, nil
+	}
+	return nil, errorutils.ProcessNotFound(nil, reportID)
+}
+
+// getControlItem returns one control from the control list results
 func (backend *ES2Backend) getControlItem(controlBucket *elastic.AggregationBucketKeyItem) (reportingapi.ControlItem, error) {
 	contListItem := reportingapi.ControlItem{}
 	id, ok := controlBucket.Key.(string)
@@ -963,12 +1180,12 @@ func (backend *ES2Backend) getControlItem(controlBucket *elastic.AggregationBuck
 
 			endTimeAsTime, err := time.Parse(time.RFC3339, *name)
 			if err != nil {
-				return reportingapi.ControlItem{}, errors.Wrapf(err, "%s time error: ", *name)
+				return reportingapi.ControlItem{}, errors.Wrapf(err, "%s time error : ", *name)
 			}
 
 			timestamp, err := ptypes.TimestampProto(endTimeAsTime)
 			if err != nil {
-				return reportingapi.ControlItem{}, errors.Wrapf(err, "%s time error: ", *name)
+				return reportingapi.ControlItem{}, errors.Wrapf(err, "%s time error : ", *name)
 			} else {
 				contListItem.EndTime = timestamp
 			}
@@ -1006,6 +1223,64 @@ func (backend *ES2Backend) getControlItem(controlBucket *elastic.AggregationBuck
 
 	contListItem.ControlSummary = controlSummary
 	return contListItem, nil
+
+}
+
+// getProfileMinForControlItem is parsing the  control title form the result of control list from comp-7-r-*
+func getTitleForControlItem(controlBucket *elastic.AggregationBucketKeyItem) string {
+	var title string
+	var ok bool
+	if aggResult, found := controlBucket.Aggregations.Terms("title"); found {
+		//there can only be one
+		bucket := aggResult.Buckets[0]
+		title, ok = bucket.Key.(string)
+		if !ok {
+			logrus.Errorf("could not convert the value of title: %v, to a string!", bucket)
+		}
+	}
+
+	return title
+
+}
+
+// getEndTimeForControlItem is parsing the end time form the result of control list from comp-7-r-*
+func getEndTimeForControlItem(controlBucket *elastic.AggregationBucketKeyItem) (*timestamppb.Timestamp, error) {
+	var timestamp *timestamppb.Timestamp
+
+	if endTimeResult, found := controlBucket.Aggregations.ReverseNested("end_time"); found {
+		if result, found := endTimeResult.Terms("most_recent_report"); found && len(result.Buckets) > 0 {
+			endTime := result.Buckets[0]
+			name := endTime.KeyAsString
+			endTimeAsTime, err := time.Parse(time.RFC3339, *name)
+			if err != nil {
+				return nil, errors.Wrapf(err, "%s time error: ", *name)
+			}
+			timestamp, err = ptypes.TimestampProto(endTimeAsTime)
+			if err != nil {
+				return nil, errors.Wrapf(err, "%s time error: ", *name)
+			}
+		}
+	}
+	return timestamp, nil
+}
+
+// getProfileMinForControlItem is parsing the profile id,title and version form the result of control list from comp-7-r-*
+func getProfileMinForControlItem(controlBucket *elastic.AggregationBucketKeyItem, profileMin *reportingapi.ProfileMin) {
+	if profileResult, found := controlBucket.Aggregations.ReverseNested("profile"); found {
+		if result, found := profileResult.Terms("sha"); found && len(result.Buckets) > 0 {
+			sha := result.Buckets[0]
+			profileMin.Id = sha.Key.(string)
+		}
+		if result, found := profileResult.Terms("title"); found && len(result.Buckets) > 0 {
+			title := result.Buckets[0]
+			profileMin.Title = title.Key.(string)
+		}
+		if result, found := profileResult.Terms("version"); found && len(result.Buckets) > 0 {
+			version := result.Buckets[0]
+			profileMin.Version = version.Key.(string)
+		}
+	}
+
 }
 
 func (backend *ES2Backend) getWaiverData(waiverDataBuckets *elastic.AggregationBucketKeyItems) ([]*reportingapi.WaiverData, error) {
@@ -1062,18 +1337,15 @@ func (backend *ES2Backend) getWaiverData(waiverDataBuckets *elastic.AggregationB
 	return waiverDataCollection, nil
 }
 
-//getFiltersQuery - builds up an elasticsearch query filter based on the filters map that is passed in
-//  arguments: filters - is a map of filters that serve as the source for generated es query filters
-//             latestOnly - specifies whether or not we are only interested in retrieving only the latest report
-//  return *elastic.BoolQuery
+// getFiltersQuery - builds up an elasticsearch query filter based on the filters map that is passed in
+//
+//	arguments: filters - is a map of filters that serve as the source for generated es query filters
+//	           latestOnly - specifies whether or not we are only interested in retrieving only the latest report
+//	return *elastic.BoolQuery
 func (backend ES2Backend) getFiltersQuery(filters map[string][]string, latestOnly bool) *elastic.BoolQuery {
 	utils.DeDupFilters(filters)
 	logrus.Debugf("????? Called getFiltersQuery with filters=%+v, latestOnly=%t", filters, latestOnly)
-
-	typeQuery := elastic.NewTypeQuery(mappings.DocType)
-
 	boolQuery := elastic.NewBoolQuery()
-	boolQuery = boolQuery.Must(typeQuery)
 
 	// These are filter types where we use ElasticSearch Term Queries
 	filterTypes := []string{"environment", "organization", "chef_server", "chef_tags",
@@ -1089,13 +1361,13 @@ func (backend ES2Backend) getFiltersQuery(filters map[string][]string, latestOnl
 	}
 
 	if len(filters["control_name"]) > 0 {
-		termQuery := newNestedTermQueryFromFilter("profiles.controls.title.lower", "profiles.controls",
+		termQuery := newNestedTermQueryFromFilter(lower, "profiles.controls",
 			filters["control_name"])
 		boolQuery = boolQuery.Must(termQuery)
 	}
 
 	if len(filters["profile_name"]) > 0 {
-		termQuery := newNestedTermQueryFromFilter("profiles.title.lower", "profiles", filters["profile_name"])
+		termQuery := newNestedTermQueryFromFilter(profile, "profiles", filters["profile_name"])
 		boolQuery = boolQuery.Must(termQuery)
 	}
 
@@ -1115,7 +1387,7 @@ func (backend ES2Backend) getFiltersQuery(filters map[string][]string, latestOnl
 		profileBaseFscIncludes := []string{"profiles.name", "profiles.sha256", "profiles.version"}
 		profileLevelFscIncludes := []string{"profiles.controls_sums", "profiles.status"}
 		controlLevelFscIncludes := []string{"profiles.controls.id", "profiles.controls.status",
-			"profiles.controls.impact", "profiles.controls.waived_str"}
+			impact, "profiles.controls.waived_str"}
 
 		profileAndControlQuery := getProfileAndControlQuery(filters, profileBaseFscIncludes,
 			profileLevelFscIncludes, controlLevelFscIncludes)
@@ -1125,7 +1397,6 @@ func (backend ES2Backend) getFiltersQuery(filters map[string][]string, latestOnl
 	if len(filters["start_time"]) > 0 || len(filters["end_time"]) > 0 {
 		endTime := firstOrEmpty(filters["end_time"])
 		startTime := firstOrEmpty(filters["start_time"])
-
 		timeRangeQuery := elastic.NewRangeQuery("end_time")
 		if len(startTime) > 0 {
 			timeRangeQuery.Gte(startTime)
@@ -1165,15 +1436,16 @@ func (backend ES2Backend) getFiltersQuery(filters map[string][]string, latestOnl
 
 	if latestOnly {
 		// only if there is no job_id filter set, do we want the daily latest
-		if len(filters["end_time"]) > 0 {
-			// If we have an end_time filter, we use the daily_latest filter dedicated to the UTC timeseries indices
-			termQuery := elastic.NewTermsQuery("daily_latest", true)
-			boolQuery = boolQuery.Must(termQuery)
-		} else {
-			// If we don't have an end_time filter, we use the day_latest filter
-			termQuery := elastic.NewTermsQuery("day_latest", true)
+		setFlags, err := filterQueryChange(firstOrEmpty(filters["end_time"]), firstOrEmpty(filters["start_time"]))
+		if err != nil {
+			errors.Errorf("cannot parse the time %v", err)
+			return nil
+		}
+		for _, flag := range setFlags {
+			termQuery := elastic.NewTermsQuery(flag, true)
 			boolQuery = boolQuery.Must(termQuery)
 		}
+
 	}
 
 	if len(filters["end_time"]) == 0 {
@@ -1333,24 +1605,22 @@ func containsWildcardChar(value string) bool {
 	return false
 }
 
-//  getFiltersQueryForDeepReport - builds up an elasticsearch query filter based on the reportId filters map passed in.
-//   This func ignores all but the profile_id and control filter.  If a single profile_id or a single profile_id and a
-//   child control from the single profile_id is passed in, then we are in deep filtering mode and the
-//   fetchSourceContexts will be adjusted accordingly
-//    arguments:
-//			reportId - the id of the report we are querying for.
-//			filters - is a map of filters that serve as the source for generated es query filters
-//    return *elastic.BoolQuery
-func (backend ES2Backend) getFiltersQueryForDeepReport(reportId string,
+//	 getFiltersQueryForDeepReport - builds up an elasticsearch query filter based on the reportId filters map passed in.
+//	  This func ignores all but the profile_id and control filter.  If a single profile_id or a single profile_id and a
+//	  child control from the single profile_id is passed in, then we are in deep filtering mode and the
+//	  fetchSourceContexts will be adjusted accordingly
+//	   arguments:
+//				reportId - the id of the report we are querying for.
+//				filters - is a map of filters that serve as the source for generated es query filters
+//	   return *elastic.BoolQuery
+func getFiltersQueryForDeepReport(reportId string,
 	filters map[string][]string) *elastic.BoolQuery {
 
 	utils.DeDupFilters(filters)
-	typeQuery := elastic.NewTypeQuery(mappings.DocType)
 
 	boolQuery := elastic.NewBoolQuery()
-	boolQuery = boolQuery.Must(typeQuery)
 
-	idsQuery := elastic.NewIdsQuery(mappings.DocType)
+	idsQuery := elastic.NewIdsQuery()
 	idsQuery.Ids(reportId)
 	boolQuery = boolQuery.Must(idsQuery)
 
@@ -1401,6 +1671,24 @@ func (backend ES2Backend) getFiltersQueryForDeepReport(reportId string,
 	return boolQuery
 }
 
+// getFilterQueryWithPagination creates a boolquery with filters and pagination support.
+func (backend ES2Backend) getFilterQueryWithPagination(reportId string,
+	filters map[string][]string) (*elastic.BoolQuery, error) {
+	utils.DeDupFilters(filters)
+	boolQuery := elastic.NewBoolQuery()
+
+	idsQuery := elastic.NewIdsQuery()
+	idsQuery.Ids(reportId)
+	boolQuery = boolQuery.Must(idsQuery)
+
+	profileAndControlQuery, err := getProfileAndControlQueryWithPagination(filters)
+	if err != nil {
+		return nil, err
+	}
+	boolQuery = boolQuery.Must(profileAndControlQuery)
+	return boolQuery, nil
+}
+
 func getProfileAndControlQuery(filters map[string][]string, profileBaseFscIncludes, profileLevelFscIncludes,
 	controlLevelFscIncludes []string) *elastic.NestedQuery {
 	var profileIds string
@@ -1427,10 +1715,10 @@ func getProfileAndControlQuery(filters map[string][]string, profileBaseFscInclud
 
 	//add in the control query if it exists
 	if numberOfControls > 0 {
-		controlIds := strings.Join(filters["control"], "|")
 		var nestedControlQuery *elastic.NestedQuery
 
-		controlQuery := elastic.NewQueryStringQuery(fmt.Sprintf("profiles.controls.id:/(%s)/", controlIds))
+		controlQuery := elastic.NewQueryStringQuery(fmt.Sprintf("(%s)", getMultiControlString(filters["control"])))
+		controlQuery = controlQuery.Field("profiles.controls.id")
 		nestedControlQuery = elastic.NewNestedQuery("profiles.controls", controlQuery)
 
 		if numberOfProfiles == 1 && numberOfControls == 1 {
@@ -1454,4 +1742,840 @@ func getProfileAndControlQuery(filters map[string][]string, profileBaseFscInclud
 		nestedQuery.InnerHit(elastic.NewInnerHit().FetchSourceContext(profileLevelFsc))
 	}
 	return nestedQuery
+}
+
+func paginate(pageNum int, size int, length int) (int, int) {
+	start := (pageNum - 1) * size
+
+	if start > length {
+		start = length
+	}
+
+	end := start + size
+	if end > length {
+		end = length
+	}
+
+	return start, end
+}
+
+// getProfileAndControlQueryWithPagination creates a profile and control filter query with pagination
+func getProfileAndControlQueryWithPagination(filters map[string][]string) (*elastic.NestedQuery, error) {
+	var profileIds, controlIds string
+	numberOfProfiles := len(filters["profile_id"])
+	numberOfControls := len(filters["control"])
+
+	var status string
+	if temp, ok := filters["status"]; ok {
+		status = strings.Join(temp, "|")
+	}
+
+	if numberOfProfiles == 0 {
+		profileIds = ".*"
+	} else {
+		profileIds = strings.Join(filters["profile_id"], "|")
+	}
+
+	if numberOfControls > 0 {
+		controlIds = strings.Join(filters["control"], "|")
+	}
+
+	profileControlQuery := elastic.NewBoolQuery()
+
+	if numberOfProfiles > 0 && numberOfControls > 0 {
+		profileQuery := elastic.NewQueryStringQuery(fmt.Sprintf("profiles.sha256:/(%s)/", profileIds))
+		controlQuery := controlQuery(controlIds, status)
+		nestedControlQuery, err := createPaginatedControl(controlQuery, filters)
+		if err != nil {
+			return nil, err
+		}
+		profileControlQuery = profileControlQuery.Must(profileQuery)
+		profileControlQuery = profileControlQuery.Must(nestedControlQuery)
+	} else if numberOfControls > 0 {
+		controlQuery := controlQuery(controlIds, status)
+		nestedControlQuery, err := createPaginatedControl(controlQuery, filters)
+		if err != nil {
+			return nil, err
+		}
+		profileControlQuery = profileControlQuery.Must(nestedControlQuery)
+	} else if numberOfProfiles > 0 {
+		profileQuery := elastic.NewQueryStringQuery(fmt.Sprintf("profiles.sha256:/(%s)/", profileIds))
+		var controlQuery elastic.Query
+		if status != "" {
+			controlQuery = elastic.NewQueryStringQuery(fmt.Sprintf("profiles.controls.status:/(%s)/", status))
+		} else {
+			controlQuery = elastic.NewMatchAllQuery()
+		}
+		nestedControlQuery, err := createPaginatedControl(controlQuery, filters)
+		if err != nil {
+			return nil, err
+		}
+		profileControlQuery = profileControlQuery.Must(profileQuery)
+		profileControlQuery = profileControlQuery.Must(nestedControlQuery)
+	} else {
+		var controlQuery elastic.Query
+		if status != "" {
+			controlQuery = elastic.NewQueryStringQuery(fmt.Sprintf("profiles.controls.status:/(%s)/", status))
+		} else {
+			controlQuery = elastic.NewMatchAllQuery()
+		}
+		nestedControlQuery, err := createPaginatedControl(controlQuery, filters)
+		if err != nil {
+			return nil, err
+		}
+		return nestedControlQuery, nil
+	}
+	nestedQuery := elastic.NewNestedQuery("profiles", profileControlQuery)
+	nestedQuery = nestedQuery.InnerHit(elastic.NewInnerHit())
+
+	return nestedQuery, nil
+}
+
+// controlQuery creates a query based on controlIds and status
+func controlQuery(controlIds, status string) elastic.Query {
+	var controlQuery elastic.Query
+	if status != "" {
+		idQuery := elastic.NewQueryStringQuery(fmt.Sprintf("profiles.controls.id:/(%s)/", controlIds))
+		statusQuery := elastic.NewQueryStringQuery(fmt.Sprintf("profiles.controls.status:/(%s)/", status))
+		boolQuery := elastic.NewBoolQuery()
+		controlQuery = boolQuery.Must(idQuery, statusQuery)
+	} else {
+		controlQuery = elastic.NewQueryStringQuery(fmt.Sprintf("profiles.controls.id:/(%s)/", controlIds))
+	}
+	return controlQuery
+}
+
+// populateControlElements creates the control lists for each search hit.
+func populateControlElements(searchHits *elastic.SearchHit, profiles map[int]struct {
+	Name   string
+	Sha256 string
+}) ([]*reportingapi.ControlElement, error) {
+	var listControls = make([]*reportingapi.ControlElement, 0)
+	var tempControl struct {
+		ID        string
+		Impact    float32
+		Results   []*reportingapi.Result
+		Title     string
+		ProfileID string
+		Status    string
+	}
+	for _, innerhit := range searchHits.InnerHits["profiles.controls"].Hits.Hits {
+		control := &reportingapi.ControlElement{}
+		err = json.Unmarshal(innerhit.Source, &tempControl)
+		if err != nil {
+			logrus.Errorf("error unmarshalling the search control response: %+v", err)
+			return listControls, err
+		}
+
+		// store the control result to temporary control element
+		profileOffset := innerhit.Nested.Offset
+		profile, ok := profiles[profileOffset]
+		if !ok {
+			err := fmt.Errorf("error in fetching profile information for given control")
+			logrus.Error(err)
+			return listControls, err
+		}
+
+		control.Id = tempControl.ID
+		control.Impact = tempControl.Impact
+		control.Results = int32(len(tempControl.Results))
+		control.Title = tempControl.Title
+		control.Profile = profile.Name
+		control.ProfileId = profile.Sha256
+		control.Status = tempControl.Status
+		listControls = append(listControls, control)
+	}
+	return listControls, nil
+}
+
+// createPaginatedControl creates a nested query with pagination and control filter
+func createPaginatedControl(query elastic.Query, filters map[string][]string) (*elastic.NestedQuery, error) {
+	from, size, err := paginatedParams(filters)
+	if err != nil {
+		return nil, err
+	}
+	nestedQuery := elastic.NewNestedQuery("profiles.controls", query)
+	nestedQuery = nestedQuery.InnerHit(elastic.NewInnerHit().From(from).Size(size))
+	return nestedQuery, nil
+}
+
+func paginatedParams(filters map[string][]string) (int, int, error) {
+	var from, size = 0, 10
+	var err error
+	if len(filters["from"]) > 0 {
+		from, err = strconv.Atoi(filters["from"][0])
+	}
+	if len(filters["size"]) > 0 {
+		size, err = strconv.Atoi(filters["size"][0])
+	}
+	return from, size, err
+}
+
+// GetReportManagerRequest takes report id and filters to populate the report manager request
+func (backend *ES2Backend) GetReportManagerRequest(reportId string, filters map[string][]string) (*reportingapi.ReportResponse, error) {
+	mgrRequest := &reportingapi.ReportResponse{}
+	var method = "GetReportManagerRequest"
+	searchResult, queryInfo, err := backend.getSearchResult(reportId, filters, method)
+	if err != nil {
+		return mgrRequest, err
+	}
+	// we should only receive one searchResult value
+	if searchResult.TotalHits() > 0 && searchResult.Hits.TotalHits.Value > 0 {
+		for _, hit := range searchResult.Hits.Hits {
+			esInSpecReport := ESInSpecReport{}
+			if hit.Source != nil {
+				err := json.Unmarshal(hit.Source, &esInSpecReport)
+				if err != nil {
+					logrus.Errorf("error unmarshalling the search response: %+v", err)
+					return mgrRequest, err
+				}
+
+				var esInspecProfiles []ESInSpecReportProfile //`json:"profiles"`
+
+				if queryInfo.level == ReportLevel {
+					esInspecProfiles = esInSpecReport.Profiles
+				} else if queryInfo.level == ProfileLevel || queryInfo.level == ControlLevel {
+					esInspecProfiles, _, err = getDeepInspecProfiles(hit, queryInfo)
+					if err != nil {
+						//todo - handle this
+						logrus.Errorf("GetReportManagerRequest time error: %s", err.Error())
+					}
+				}
+				// read all profiles
+				profiles := make([]*reportingapi.Profile, 0)
+				for _, esInSpecReportProfileMin := range esInspecProfiles {
+					logrus.Debugf("Determine profile: %s", esInSpecReportProfileMin.Name)
+					esInSpecProfile, err := backend.GetProfile(esInSpecReportProfileMin.SHA256)
+					if err != nil {
+						logrus.Errorf("GetReportManagerRequest - Could not get profile '%s' error: %s", esInSpecReportProfileMin.SHA256, err.Error())
+						logrus.Debug("GetReportManagerRequest - Making the most from the profile information in esInSpecReportProfileMin")
+						esInSpecProfile.Sha256 = esInSpecReportProfileMin.SHA256
+					}
+
+					reportProfile := inspec.Profile{}
+					reportProfile.Sha256 = esInSpecProfile.Sha256
+
+					reportProfile.Controls = make([]inspec.Control, len(esInSpecReportProfileMin.Controls))
+
+					// Creating a map of report control ids to avoid a n^2 complexity later on when we look for the
+					// matching profile control id
+					profileControlsMap := make(map[string]*reportingapi.Control, len(esInSpecProfile.Controls))
+					for _, control := range esInSpecProfile.Controls {
+						profileControlsMap[control.Id] = control
+					}
+
+					convertedControls := make([]*reportingapi.Control, 0)
+					// Enrich min report controls with profile metadata
+					for _, reportControlMin := range esInSpecReportProfileMin.Controls {
+						if controlFromMap, ok := profileControlsMap[reportControlMin.ID]; ok {
+							reportControlMin.Tags = controlFromMap.Tags
+							// store controls to returned request
+							convertedControl := convertControl(profileControlsMap, reportControlMin, filters)
+							if convertedControl != nil {
+								convertedControls = append(convertedControls, convertedControl)
+							}
+
+						} else {
+							logrus.Warnf("GetReportManagerRequest: %s was not found in the profile control map",
+								reportControlMin.ID)
+						}
+					}
+					if len(convertedControls) > 0 {
+						convertedProfile := reportingapi.Profile{
+							Sha256:   reportProfile.Sha256,
+							Controls: convertedControls,
+						}
+						profiles = append(profiles, &convertedProfile)
+					}
+				}
+				mgrRequest.ReportId = hit.Id
+				for _, profile := range profiles {
+					tempProfile := &reportingapi.ProfileResponse{}
+					tempProfile.ProfileId = profile.Sha256
+					for _, control := range profile.Controls {
+						tempProfile.Controls = append(tempProfile.Controls, control.Id)
+						sort.Strings(tempProfile.Controls)
+					}
+					mgrRequest.Profiles = append(mgrRequest.Profiles, tempProfile)
+				}
+			}
+		}
+		return mgrRequest, nil
+	}
+	return mgrRequest, errorutils.ProcessNotFound(nil, mgrRequest.ReportId)
+}
+
+func (backend *ES2Backend) getSearchResult(reportId string, filters map[string][]string, method string) (*elastic.SearchResult, *QueryInfo, error) {
+	depth, err := backend.NewDepth(filters, false)
+	if err != nil {
+		return nil, nil, errors.Errorf("%s unable to get depth level for report, %s", method, err.Error())
+	}
+	queryInfo := depth.getQueryInfo()
+
+	//normally, we compute the boolQuery when we create a new Depth obj.. here we, instead call a variation of the full
+	// query builder. we need to do this because this variation of filter query provides this func with deeper
+	// information about the report being retrieved.
+	queryInfo.filtQuery = getFiltersQueryForDeepReport(reportId, filters)
+	logrus.Debugf("%s will retrieve report %s based on filters %+v", method, reportId, filters)
+
+	fsc := elastic.NewFetchSourceContext(true)
+
+	if queryInfo.level != ReportLevel {
+		fsc.Exclude("profiles")
+	}
+	logrus.Debugf("%s for reportid=%s, filters=%+v", method, reportId, filters)
+
+	searchSource := elastic.NewSearchSource().
+		FetchSourceContext(fsc).
+		Query(queryInfo.filtQuery).
+		Size(1)
+
+	source, err := searchSource.Source()
+	if err != nil {
+		return nil, nil, errors.Errorf("%s unable to get Source, %s", method, err.Error())
+	}
+	LogQueryPartMin(queryInfo.esIndex, source, fmt.Sprintf("%s query searchSource", method))
+
+	searchResult, err := queryInfo.client.Search().
+		SearchSource(searchSource).
+		Index(queryInfo.esIndex).
+		FilterPath(
+			"took",
+			"hits.total",
+			"hits.hits._id",
+			"hits.hits._source",
+			"hits.hits.inner_hits").
+		Do(context.Background())
+
+	if err != nil {
+		return nil, nil, errors.Errorf("%s unable to complete search, %s", method, err.Error())
+	}
+
+	logrus.Debugf("%s got %d reports in %d milliseconds\n", method, searchResult.TotalHits(),
+		searchResult.TookInMillis)
+
+	return searchResult, queryInfo, nil
+}
+
+// getControlSummaryFromControlIndex is constructing query for getting control summary for various filters and returning the result in a map
+func (backend *ES2Backend) getControlSummaryFromControlIndex(ctx context.Context, controlId []string, filters map[string][]string, esIndex string, size int32) (map[string]*reportingapi.ControlSummary, error) {
+	nodeStatus := "nodes.status"
+	controlSummaryMap := make(map[string]*reportingapi.ControlSummary)
+	client, err := backend.ES2Client()
+	if err != nil {
+		return nil, err
+	}
+	boolQuery := getControlSummaryFilters(controlId, filters)
+
+	filterQuery := elastic.NewBoolQuery()
+
+	searchSource := elastic.NewSearchSource().
+		Query(boolQuery).
+		FetchSource(false).Size(1)
+
+	passedFilter := elastic.NewFilterAggregation().Filter(elastic.NewBoolQuery().
+		Must(elastic.NewTermQuery(nodeStatus, "passed")))
+
+	failedFilter := elastic.NewFilterAggregation().Filter(elastic.NewBoolQuery().
+		Must(elastic.NewTermQuery(nodeStatus, "failed")))
+
+	skippedFilter := elastic.NewFilterAggregation().Filter(elastic.NewBoolQuery().
+		Must(elastic.NewTermQuery(nodeStatus, "skipped")))
+
+	setFlags, err := filterQueryChange(firstOrEmpty(filters["end_time"]), firstOrEmpty(filters["start_time"]))
+	if err != nil {
+		logrus.Errorf("Unable to fetch details for flags %v", err)
+	}
+	for _, flag := range setFlags {
+		termQuery := elastic.NewTermsQuery("nodes."+flag, true)
+		filterQuery = filterQuery.Must(termQuery)
+	}
+
+	filterAggregationForLatestRecord := elastic.NewFilterAggregation().Filter(filterQuery).
+		SubAggregation("failed", failedFilter).
+		SubAggregation("passed", passedFilter).
+		SubAggregation("skipped", skippedFilter)
+
+	subAggregationNodes := elastic.NewNestedAggregation().Path("nodes").SubAggregation("status", filterAggregationForLatestRecord)
+
+	//waivedFilter := elastic.NewFilterAggregation().Filter(waivedQuery)
+
+	controlTermsAggregation := elastic.NewTermsAggregation().Field("control_id").SubAggregation("nodes", subAggregationNodes).Size(int(size))
+
+	searchSource.Aggregation("controls", controlTermsAggregation)
+
+	source, err := searchSource.Source()
+	if err != nil {
+		return nil, errors.Wrapf(err, "%s unable to get Source", "ControlSummary")
+	}
+	LogQueryPartMin(esIndex, source, fmt.Sprintf("%s query", "ControlSummary"))
+
+	searchResult, err := client.Search().
+		SearchSource(searchSource).
+		Index(esIndex).
+		Do(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if controlBuckets, found := searchResult.Aggregations.Terms("controls"); found && len(controlBuckets.Buckets) > 0 {
+		for _, bucket := range controlBuckets.Buckets {
+			controlSummary := &reportingapi.ControlSummary{
+				Passed:  &reportingapi.Total{},
+				Skipped: &reportingapi.Total{},
+				Failed:  &reportingapi.Failed{},
+				Waived:  &reportingapi.Total{},
+			}
+			if nodesBuckets, found := bucket.Aggregations.Nested("nodes"); found {
+				controlSummary = getControlSummaryResult(nodesBuckets)
+			}
+
+			id, ok := bucket.Key.(string)
+			if !ok {
+				logrus.Errorf("Unable to find id for the control in new index structure %v", err)
+				continue
+			}
+			controlSummaryMap[id] = controlSummary
+		}
+	}
+	return controlSummaryMap, nil
+
+}
+
+// getControlSummaryResult gets the result from the summary query from index comp-1-control-*
+func getControlSummaryResult(nodesBucket *elastic.AggregationSingleBucket) (controlSummary *reportingapi.ControlSummary) {
+	controlSummary = &reportingapi.ControlSummary{
+		Passed:  &reportingapi.Total{},
+		Skipped: &reportingapi.Total{},
+		Failed:  &reportingapi.Failed{},
+		Waived:  &reportingapi.Total{},
+	}
+
+	if status, found := nodesBucket.Aggregations.Filter("status"); found {
+		if failed, found := status.Aggregations.Filter("failed"); found {
+			controlSummary.Failed.Total = int32(failed.DocCount)
+		}
+
+		if passed, found := status.Aggregations.Filter("passed"); found {
+			controlSummary.Passed.Total = int32(passed.DocCount)
+		}
+
+		if skipped, found := status.Aggregations.Filter("skipped"); found {
+			controlSummary.Skipped.Total = int32(skipped.DocCount)
+		}
+	}
+
+	return controlSummary
+
+}
+
+// getControlSummaryFilters is applying filters to the query for index comp-1-control-*
+func getControlSummaryFilters(controlId []string, filters map[string][]string) *elastic.BoolQuery {
+
+	boolQuery := elastic.NewBoolQuery()
+
+	controlTermsQuery := elastic.NewTermsQueryFromStrings("control_id", controlId...)
+
+	if len(filters["start_time"]) > 0 || len(filters["end_time"]) > 0 {
+		endTime := firstOrEmpty(filters["end_time"])
+		startTime := firstOrEmpty(filters["start_time"])
+		timeRangeQuery := elastic.NewRangeQuery("end_time")
+		if len(startTime) > 0 {
+			timeRangeQuery.Gte(startTime)
+		}
+		if len(endTime) > 0 {
+			timeRangeQuery.Lte(endTime)
+		}
+
+		boolQuery = boolQuery.Must(timeRangeQuery)
+	}
+
+	controlQuery := boolQuery.Must(controlTermsQuery)
+
+	return controlQuery
+
+}
+
+// getMultiControlString takes the list of strings and returns the query string used in search.
+func getMultiControlString(list []string) string {
+	controlList := []string{}
+	for _, control := range list {
+		controlList = append(controlList, handleSpecialChar(control))
+	}
+	return strings.Join(controlList, " ")
+}
+
+// handleSpecialChar takes the string, and add additional char in front of the reserved chars.
+func handleSpecialChar(term string) string {
+	//maintain `\` always first in the list to stop encoding the characters we are appending.
+	reservedChar := []string{`\`, `/`, `+`, `-`, `=`, `&&`, `||`, `>`, `<`, `!`, `(`, `)`, `{`, `}`, `[`, `]`, `^`, `"`, `~`, `*`, `?`, `:`}
+	for _, rChar := range reservedChar {
+		term = strings.ReplaceAll(term, rChar, fmt.Sprintf("\\%s", rChar))
+	}
+	return fmt.Sprintf("(%s)", term)
+}
+
+//filterQueryChange Will return day latest only for last 24 hours
+func filterQueryChange(endTime string, startTime string) ([]string, error) {
+	if len(endTime) == 0 && len(startTime) == 0 {
+		return []string{"day_latest", "daily_latest"}, nil
+	}
+	if len(startTime) == 0 {
+		return []string{"daily_latest"}, nil
+	}
+	return []string{"daily_latest"}, nil
+
+}
+
+func validateFiltersTimeRange(endTime string, startTime string) error {
+	if len(endTime) == 0 || len(startTime) == 0 {
+		return nil
+	}
+	eTime, err := time.Parse(layout, endTime)
+	sTime, err := time.Parse(layout, startTime)
+	diff := int(eTime.Sub(sTime).Hours() / 24)
+	if err != nil {
+		return errors.Errorf("cannot parse the time")
+	}
+	if diff > 90 {
+		return errors.Errorf("Range of start time and end time should not be greater than 90 days")
+	} else if diff < 0 {
+		return errors.Errorf("Start time should not be greater than end time")
+	}
+	return nil
+}
+
+func isDateRange(endTime string, startTime string) (bool, error) {
+	if len(endTime) == 0 || len(startTime) == 0 {
+		return false, nil
+	}
+	eTime, err := time.Parse(layout, endTime)
+	if err != nil {
+		return false, errors.Errorf("cannot parse the end time")
+	}
+	sTime, err := time.Parse(layout, startTime)
+	if err != nil {
+		return false, errors.Errorf("cannot parse the start time")
+	}
+	diff := int(eTime.Sub(sTime).Hours() / 24)
+
+	if diff > 1 {
+		return true, nil
+	} else if diff < 0 {
+		return false, errors.Errorf("Start time should not be greater than end time")
+	}
+	return false, nil
+}
+
+func getStartDateFromEndDate(endTime string, startTime string, isEnhancedReportingEnabled bool) ([]string, error) {
+	if len(endTime) == 0 {
+		return nil, nil
+	}
+
+	parsedEndTime, err := time.Parse(time.RFC3339, endTime)
+	if err != nil {
+		return []string{}, err
+	}
+
+	if checkTodayIsEndTime(parsedEndTime) && isEnhancedReportingEnabled {
+		if startTime == "" {
+			return []string{}, nil
+		}
+		return []string{startTime}, nil
+	}
+	newStartTime := time.Date(parsedEndTime.Year(), parsedEndTime.Month(), parsedEndTime.Day(),
+		0, 0, 0, 0, parsedEndTime.Location())
+
+	return []string{newStartTime.Format(time.RFC3339)}, nil
+
+}
+
+func checkTodayIsEndTime(endTime time.Time) bool {
+	currentDay := time.Now()
+
+	if currentDay.Year() == endTime.Year() && currentDay.Month() == endTime.Month() && currentDay.Day() == endTime.Day() {
+		return true
+	}
+	return false
+}
+
+func (backend *ES2Backend) GetControlListItemsRange(ctx context.Context, filters map[string][]string,
+	size int32, pageNumber int32) (*reportingapi.ControlItems, error) {
+	myName := "GetControlListItemsRange"
+
+	contListItems := make([]*reportingapi.ControlItem, 0)
+
+	controlListIds := make([]string, 0)
+
+	controlSummaryTotals := &reportingapi.ControlSummary{
+		Passed:  &reportingapi.Total{},
+		Skipped: &reportingapi.Total{},
+		Failed:  &reportingapi.Failed{},
+		Waived:  &reportingapi.Total{},
+	}
+
+	client, err := backend.ES2Client()
+	if err != nil {
+		logrus.Errorf("Cannot connect to ElasticSearch: %s", err)
+		return nil, err
+	}
+
+	filters["start_time"], err = getStartDateFromEndDate(firstOrEmpty(filters["end_time"]), firstOrEmpty(filters["start_time"]),
+		backend.IsEnhancedReportingEnabled)
+	esIndex, err := GetEsIndex(filters, false)
+	if err != nil {
+		return nil, errors.Wrap(err, myName)
+	}
+
+	controlIndex, err := getControlIndex(filters)
+	if err != nil {
+		return nil, errors.Wrap(err, myName)
+	}
+	//here, we set latestOnly to true.  We may need to set it to false if we want to search non lastest reports
+	//for now, we don't search non-latest reports so don't do it.. it's slower for obvious reasons.
+	latestOnly := FetchLatestDataOrNot(filters)
+
+	filtQuery := backend.getFiltersQuery(filters, latestOnly)
+
+	searchSource := elastic.NewSearchSource().
+		Query(filtQuery).
+		FetchSource(false).
+		Size(1)
+
+	controlTermsAgg := elastic.NewTermsAggregation().Field("profiles.controls.id").
+		Size(int(size*pageNumber)).
+		Order("_key", true)
+
+	controlTermsAgg.SubAggregation("impact",
+		elastic.NewTermsAggregation().Field(impact).Size(1))
+
+	controlTermsAgg.SubAggregation("title",
+		elastic.NewTermsAggregation().Field("profiles.controls.title").Size(1))
+
+	waivedQuery := elastic.NewTermsQuery("profiles.controls.waived_str", "yes", "yes_run")
+	passedFilter := elastic.NewFilterAggregation().Filter(elastic.NewBoolQuery().
+		Must(elastic.NewTermQuery("profiles.controls.status", "passed")).
+		MustNot(waivedQuery))
+
+	failedFilter := elastic.NewFilterAggregation().Filter(elastic.NewBoolQuery().
+		Must(elastic.NewTermQuery("profiles.controls.status", "failed")).
+		MustNot(waivedQuery))
+
+	skippedFilter := elastic.NewFilterAggregation().Filter(elastic.NewBoolQuery().
+		Must(elastic.NewTermQuery("profiles.controls.status", "skipped")).
+		MustNot(waivedQuery))
+
+	waivedFilter := elastic.NewFilterAggregation().Filter(waivedQuery)
+
+	controlTermsAgg.SubAggregation("skipped", skippedFilter)
+	controlTermsAgg.SubAggregation("failed", failedFilter)
+	controlTermsAgg.SubAggregation("passed", passedFilter)
+	controlTermsAgg.SubAggregation("waived", waivedFilter)
+
+	waivedStrAgg := elastic.NewTermsAggregation().Field("profiles.controls.waived_str").Size(4) //there are 4 different waived_str states
+	waivedButNotRunQuery := elastic.NewTermsQuery("profiles.controls.waived_str", "yes")
+	waivedAndRunQuery := elastic.NewTermsQuery("profiles.controls.waived_str", "yes_run")
+	waiverDataPassedFilter := elastic.NewFilterAggregation().Filter(elastic.NewBoolQuery().
+		Must(elastic.NewTermQuery("profiles.controls.status", "passed")).
+		Must(waivedAndRunQuery))
+
+	waiverDataFailedFilter := elastic.NewFilterAggregation().Filter(elastic.NewBoolQuery().
+		Must(elastic.NewTermQuery("profiles.controls.status", "failed")).
+		Must(waivedAndRunQuery))
+
+	waiverDataSkippedFilter := elastic.NewFilterAggregation().Filter(elastic.NewBoolQuery().
+		Should(elastic.NewTermQuery("profiles.controls.status", "skipped")).
+		Should(waivedButNotRunQuery))
+
+	waiverDataWaivedFilter := elastic.NewFilterAggregation().Filter(waivedQuery)
+
+	waiverDataJustificationAgg := elastic.NewTermsAggregation().Field("profiles.controls.waiver_data.justification").Size(reporting.ESize)
+	waiverDataJustificationAgg.SubAggregation("skipped", waiverDataSkippedFilter)
+	waiverDataJustificationAgg.SubAggregation("failed", waiverDataFailedFilter)
+	waiverDataJustificationAgg.SubAggregation("passed", waiverDataPassedFilter)
+	waiverDataJustificationAgg.SubAggregation("waived", waiverDataWaivedFilter)
+
+	waiverDataExpirationDateAgg := elastic.NewTermsAggregation().Field("profiles.controls.waiver_data.expiration_date").Size(reporting.ESize)
+	waiverDataExpirationDateAgg.SubAggregation("justification", waiverDataJustificationAgg)
+	waivedStrAgg.SubAggregation("expiration_date", waiverDataExpirationDateAgg)
+
+	waivedStrFilter := elastic.NewFilterAggregation().Filter(waivedQuery)
+	waivedStrFilter.SubAggregation("waived_str", waivedStrAgg)
+
+	controlTermsAgg.SubAggregation("filtered_waived_str", waivedStrFilter)
+
+	controlTermsAgg.SubAggregation("end_time", elastic.NewReverseNestedAggregation().SubAggregation("most_recent_report",
+		elastic.NewTermsAggregation().Field("end_time").Size(1)))
+
+	profileInfoAgg := elastic.NewReverseNestedAggregation().Path("profiles").SubAggregation("version",
+		elastic.NewTermsAggregation().Field("profiles.name"))
+
+	profileInfoAgg.SubAggregation("sha",
+		elastic.NewTermsAggregation().Field("profiles.sha256"))
+
+	profileInfoAgg.SubAggregation("title",
+		elastic.NewTermsAggregation().Field("profiles.title"))
+
+	profileInfoAgg.SubAggregation("version",
+		elastic.NewTermsAggregation().Field("profiles.version"))
+
+	controlTermsAgg.SubAggregation("profile", profileInfoAgg)
+
+	controlsQuery := &elastic.BoolQuery{}
+	// Going through all filters to find the ones prefixed with 'control_tag', e.g. 'control_tag:nist'
+	for filterType := range filters {
+		if strings.HasPrefix(filterType, "control_tag:") {
+			_, tagKey := leftSplit(filterType, ":")
+			termQuery := newNestedTermQueryFromControlTagsFilter(tagKey, filters[filterType])
+			controlsQuery = controlsQuery.Must(termQuery)
+		}
+	}
+	if len(filters["control_status"]) > 0 {
+		controlStatusQuery := newTermQueryFromFilter("profiles.controls.status", filters["control_status"])
+		controlsQuery = controlsQuery.Must(controlStatusQuery)
+		logrus.Infof("controls status query %v", controlStatusQuery)
+	}
+	if len(filters["control_name"]) > 0 {
+		controlTitlesQuery := newTermQueryFromFilter(lower, filters["control_name"])
+		controlsQuery = controlsQuery.Should(controlTitlesQuery)
+		logrus.Infof("controls name query %v", controlTitlesQuery)
+	}
+	if len(filters["control"]) > 0 {
+		controlIdsQuery := newTermQueryFromFilter("profiles.controls.id", filters["control"])
+		controlsQuery = controlsQuery.Should(controlIdsQuery)
+		logrus.Infof("controls ids query %v", controlIdsQuery)
+	}
+
+	filteredControls := elastic.NewFilterAggregation().Filter(controlsQuery)
+	filteredControls.SubAggregation("control", controlTermsAgg)
+	filteredControls.SubAggregation("skipped_total", skippedFilter)
+	filteredControls.SubAggregation("failed_total", failedFilter)
+	filteredControls.SubAggregation("passed_total", passedFilter)
+	filteredControls.SubAggregation("waived_total", waivedFilter)
+	controlsAgg := elastic.NewNestedAggregation().Path("profiles.controls")
+	controlsAgg.SubAggregation("filtered_controls", filteredControls)
+
+	profilesQuery := &elastic.BoolQuery{}
+	if len(filters["profile_name"]) > 0 {
+		profileTitlesQuery := newTermQueryFromFilter(profile, filters["profile_name"])
+		profilesQuery = profilesQuery.Should(profileTitlesQuery)
+		logrus.Infof("profiles name query %v", profileTitlesQuery)
+	}
+
+	if len(filters["profile_id"]) > 0 {
+		profilesShaQuery := newTermQueryFromFilter("profiles.sha256", filters["profile_id"])
+		profilesQuery = profilesQuery.Should(profilesShaQuery)
+	}
+
+	filteredProfiles := elastic.NewFilterAggregation().Filter(profilesQuery)
+	filteredProfiles.SubAggregation("controls", controlsAgg)
+	outterMostProfilesAgg := elastic.NewNestedAggregation().Path("profiles")
+	outterMostProfilesAgg.SubAggregation("filtered_profiles", filteredProfiles)
+
+	searchSource.Aggregation("profiles", outterMostProfilesAgg)
+
+	source, err := searchSource.Source()
+	if err != nil {
+		return nil, errors.Wrapf(err, "%s Unable to get control items", myName)
+	}
+	LogQueryPartMin(esIndex, source, fmt.Sprintf("%s query ", myName))
+
+	searchResult, err := client.Search().
+		SearchSource(searchSource).
+		Index(esIndex).
+		Do(ctx)
+
+	if err != nil {
+		logrus.Errorf("%s search failed", myName)
+		return nil, err
+	}
+
+	LogQueryPartMin(esIndex, searchResult.Aggregations, fmt.Sprintf("%s Search Result aggs", myName))
+
+	logrus.Debugf("Search query took %d milliseconds\n", searchResult.TookInMillis)
+
+	if outerProfilesAggResult, found := searchResult.Aggregations.Nested("profiles"); found {
+		if outerFilteredProfiles, found := outerProfilesAggResult.Aggregations.Filter("filtered_profiles"); found {
+			if outerControlsAggResult, found := outerFilteredProfiles.Aggregations.Nested("controls"); found {
+				if filteredControls, found := outerControlsAggResult.Aggregations.Filter("filtered_controls"); found {
+					controlSummaryTotals.Total = int32(filteredControls.DocCount)
+					if totalPassedControls, found := filteredControls.Aggregations.Filter("passed_total"); found {
+						controlSummaryTotals.Passed.Total = int32(totalPassedControls.DocCount)
+					}
+					if totalFailedControls, found := filteredControls.Aggregations.Filter("failed_total"); found {
+						controlSummaryTotals.Failed.Total = int32(totalFailedControls.DocCount)
+					}
+					if totalSkippedControls, found := filteredControls.Aggregations.Filter("skipped_total"); found {
+						controlSummaryTotals.Skipped.Total = int32(totalSkippedControls.DocCount)
+					}
+					if totalWaivedControls, found := filteredControls.Aggregations.Filter("waived_total"); found {
+						controlSummaryTotals.Waived.Total = int32(totalWaivedControls.DocCount)
+					}
+
+					if controlBuckets, found := filteredControls.Aggregations.Terms("control"); found && len(controlBuckets.Buckets) > 0 {
+						start, end := paginate(int(pageNumber), int(size), len(controlBuckets.Buckets))
+						for _, controlBucket := range controlBuckets.Buckets[start:end] {
+							id, ok := controlBucket.Key.(string)
+							if !ok {
+								logrus.Errorf("could not convert the value of controlBucket: %v, to a string!", controlBucket)
+							}
+							contListItem, err := backend.getControlItemRange(controlBucket, id)
+							if err != nil {
+								return nil, err
+							}
+							controlListIds = append(controlListIds, id)
+							contListItems = append(contListItems, &contListItem)
+						}
+					}
+				}
+			}
+		}
+	}
+	controlSummaryMap, err := backend.getControlSummaryFromControlIndex(ctx, controlListIds, filters, controlIndex, size)
+	if err != nil {
+		logrus.Errorf("Unable to fetch the nodes status for controls with error %v", err)
+	}
+	setControlSummaryForControlItems(contListItems, controlSummaryMap)
+	contListItemList := &reportingapi.ControlItems{ControlItems: contListItems, ControlSummaryTotals: controlSummaryTotals}
+	return contListItemList, nil
+
+}
+
+func (backend *ES2Backend) getControlItemRange(controlBucket *elastic.AggregationBucketKeyItem, id string) (reportingapi.ControlItem, error) {
+	contListItem := reportingapi.ControlItem{}
+
+	contListItem.Id = id
+
+	contListItem.Title = getTitleForControlItem(controlBucket)
+	if impactAggResult, found := controlBucket.Aggregations.Terms("impact"); found {
+		//there can only be one
+		impactBucket := impactAggResult.Buckets[0]
+		impactAsNumber, ok := impactBucket.Key.(float64)
+		if !ok {
+			logrus.Errorf("could not convert the value of impact: %v, to a float!", impactBucket)
+		}
+		contListItem.Impact = float32(impactAsNumber)
+	}
+	profileMin := &reportingapi.ProfileMin{}
+	getProfileMinForControlItem(controlBucket, profileMin)
+	contListItem.Profile = profileMin
+
+	endTime, err := getEndTimeForControlItem(controlBucket)
+	if err != nil {
+		return reportingapi.ControlItem{}, errors.Wrapf(err, " time error:")
+	}
+	contListItem.EndTime = endTime
+
+	if filteredWaivedStr, found := controlBucket.Aggregations.Filter("filtered_waived_str"); found {
+		if waivedStrBuckets, found := filteredWaivedStr.Aggregations.Terms("waived_str"); found && len(waivedStrBuckets.Buckets) > 0 {
+			contListItem.Waivers, err = backend.getWaiverData(waivedStrBuckets)
+			if err != nil {
+				return contListItem, err
+			}
+		}
+	}
+
+	return contListItem, nil
+
 }

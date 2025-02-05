@@ -11,6 +11,7 @@ import (
 
 	dc "github.com/chef/automate/api/config/deployment"
 	api "github.com/chef/automate/api/interservice/deployment"
+	"github.com/chef/automate/components/automate-cli/pkg/docs"
 	"github.com/chef/automate/components/automate-cli/pkg/status"
 	"github.com/chef/automate/components/automate-deployment/pkg/airgap"
 	"github.com/chef/automate/components/automate-deployment/pkg/client"
@@ -58,9 +59,12 @@ var deployCmdFlags = struct {
 	acceptMLSA                      bool
 	enableChefServer                bool
 	enableDeploymentOrderStressMode bool
-	enableWorkflow                  bool
-	products                        []string
-	bootstrapBundlePath             string
+	// enableWorkflow                  bool
+	products            []string
+	bootstrapBundlePath string
+	userAuth            bool
+	saas                bool
+	skipVerify          bool
 }{}
 
 // deployCmd represents the new command
@@ -88,6 +92,7 @@ func newDeployCmd() *cobra.Command {
 		"skip-preflight",
 		false,
 		"Deploy regardless of pre-flight conditions")
+	cmd.PersistentFlags().SetAnnotation("skip-preflight", docs.Compatibility, []string{docs.CompatiblewithStandalone})
 	cmd.PersistentFlags().StringVar(
 		&deployCmdFlags.overrideOrigin,
 		"override-origin",
@@ -108,21 +113,25 @@ func newDeployCmd() *cobra.Command {
 		"channel",
 		"",
 		"Release channel to deploy all services from")
+	cmd.PersistentFlags().SetAnnotation("channel", docs.Compatibility, []string{docs.CompatiblewithStandalone})
 	cmd.PersistentFlags().StringVar(
 		&deployCmdFlags.upgradeStrategy,
 		"upgrade-strategy",
 		"at-once",
 		"Upgrade strategy to use for this deployment.")
+	cmd.PersistentFlags().SetAnnotation("upgrade-strategy", docs.Compatibility, []string{docs.CompatiblewithStandalone})
 	cmd.PersistentFlags().StringVar(
 		&deployCmdFlags.certPath,
 		"certificate",
 		"",
 		"The path to a certificate that should be used for external TLS connections (web and API).")
+	cmd.PersistentFlags().SetAnnotation("certificate", docs.Compatibility, []string{docs.CompatiblewithStandalone})
 	cmd.PersistentFlags().StringVar(
 		&deployCmdFlags.keyPath,
 		"private-key",
 		"",
 		"The path to a private key corresponding to the TLS certificate.")
+	cmd.PersistentFlags().SetAnnotation("private-key", docs.Compatibility, []string{docs.CompatiblewithStandalone})
 	cmd.PersistentFlags().StringVar(
 		&deployCmdFlags.adminPassword,
 		"admin-password",
@@ -138,6 +147,7 @@ func newDeployCmd() *cobra.Command {
 		"fqdn",
 		"",
 		"The fully-qualified domain name that Chef Automate can be accessed at. (default: hostname of this machine)")
+	cmd.PersistentFlags().SetAnnotation("fqdn", docs.Compatibility, []string{docs.CompatiblewithStandalone})
 	cmd.PersistentFlags().StringVar(
 		&deployCmdFlags.airgap,
 		"airgap-bundle",
@@ -153,21 +163,29 @@ func newDeployCmd() *cobra.Command {
 		"enable-deploy-order-stress-mode",
 		false,
 		"Deploy services in the order that stresses hab the most")
-	cmd.PersistentFlags().BoolVar(
-		&deployCmdFlags.enableWorkflow,
-		"enable-workflow",
-		false,
-		"Deploy Workflow services along with Chef Automate")
 	cmd.PersistentFlags().StringSliceVar(
 		&deployCmdFlags.products,
 		"product",
 		nil,
 		"Product to deploy")
+	cmd.PersistentFlags().SetAnnotation("product", docs.Compatibility, []string{docs.CompatiblewithStandalone})
 	cmd.PersistentFlags().StringVar(
 		&deployCmdFlags.bootstrapBundlePath,
 		"bootstrap-bundle",
 		"",
 		"Path to bootstrap bundle")
+	cmd.PersistentFlags().BoolVarP(
+		&deployCmdFlags.userAuth,
+		"yes",
+		"y",
+		false,
+		"Do not prompt for confirmation; accept defaults and continue")
+	cmd.PersistentFlags().BoolVarP(
+		&deployCmdFlags.skipVerify,
+		"skip-verify",
+		"",
+		false,
+		"Flag for skipping config verification check")
 
 	if !isDevMode() {
 		for _, flagName := range []string{
@@ -180,7 +198,6 @@ func newDeployCmd() *cobra.Command {
 			"admin-password",
 			"enable-chef-server",
 			"enable-deploy-order-stress-mode",
-			"enable-workflow",
 			"bootstrap-bundle",
 		} {
 			err := cmd.PersistentFlags().MarkHidden(flagName)
@@ -211,12 +228,14 @@ func runDeployCmd(cmd *cobra.Command, args []string) error {
 				"Merging command flag overrides into Chef Automate config failed",
 			)
 		}
+		if deployCmdFlags.userAuth {
+			deployCmdFlags.acceptMLSA = deployCmdFlags.userAuth
+		}
 		if len(deployCmdFlags.channel) > 0 && (deployCmdFlags.channel == "dev" || deployCmdFlags.channel == "current") {
 			writer.Printf("deploying with channel : %s \n", deployCmdFlags.channel)
 			args = append(args, "--"+deployCmdFlags.channel)
 			return deployer.doDeployWork(args)
 		} else if len(deployCmdFlags.channel) == 0 {
-			writer.Printf("deploying with default channel \n")
 			return deployer.doDeployWork(args)
 		} else {
 			return status.Wrap(derr, status.ConfigError, invalidChannelName)
@@ -361,9 +380,9 @@ func mergeFlagOverrides(conf *dc.AutomateConfig) error {
 		overrideOpts = append(overrideOpts, dc.WithDeploymentOrderStressMode(true))
 	}
 
-	if deployCmdFlags.enableWorkflow {
-		overrideOpts = append(overrideOpts, dc.WithWorkflowEnabled(true))
-	}
+	//if deployCmdFlags.enableWorkflow {
+	//	overrideOpts = append(overrideOpts, dc.WithWorkflowEnabled(true))
+	//}
 
 	if len(deployCmdFlags.products) > 0 {
 		overrideOpts = append(overrideOpts, dc.WithProducts(deployCmdFlags.products))

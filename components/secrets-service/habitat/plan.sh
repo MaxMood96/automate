@@ -2,6 +2,7 @@
 #shellcheck disable=SC2154
 #stable channel
 
+
 pkg_name=secrets-service
 pkg_description="Secrets API Service"
 pkg_origin=chef
@@ -37,4 +38,10 @@ do_install() {
   build_line "Copying migration files"
   mkdir "${pkg_prefix}/migrations"
   cp -r dao/migration/sql/* "${pkg_prefix}/migrations"
+}
+
+
+do_before() {
+  do_default_before
+  git config --global --add safe.directory /src
 }

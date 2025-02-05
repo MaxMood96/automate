@@ -2,6 +2,7 @@
 #shellcheck disable=SC2154
 #stable channel
 
+
 pkg_name=session-service
 pkg_description="A2 session service"
 pkg_origin=chef
@@ -46,4 +47,10 @@ do_install() {
 
   build_line "Copying migration files"
   cp -r migration/sql "${pkg_prefix}/migrations"
+}
+
+
+do_before() {
+  do_default_before
+  git config --global --add safe.directory /src
 }

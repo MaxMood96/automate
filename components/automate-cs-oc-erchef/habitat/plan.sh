@@ -6,18 +6,24 @@
 pkg_name="automate-cs-oc-erchef"
 pkg_description="Wrapper package for chef/oc_erchef"
 pkg_origin="chef"
+
+pkg_svc_user=root
+pkg_svc_group=root
+
 # WARNING: Version managed by .expeditor/update_chef_server.sh
-pkg_version="14.11.36"
+pkg_version="15.10.27"
 vendor_origin="chef"
 pkg_maintainer="Chef Software Inc. <support@chef.io>"
 pkg_license=("Chef-MLSA")
 pkg_upstream_url="https://www.chef.io/automate"
 pkg_deps=(
-  core/runit/2.1.2/20200403133549
-  chef/mlsa/1.0.1/20200421170200
-  "${local_platform_tools_origin:-chef}/automate-platform-tools"
+  #core/runit/2.1.2/20200403133549
+  core/runit/2.1.2/20240106064032
+  chef/mlsa/1.0.1/20240125084021
+  #"${local_platform_tools_origin:-chef}/automate-platform-tools"
+  chef/automate-platform-tools/0.1.0/20241212061203
   # WARNING: Version pin managed by .expeditor/update_chef_server.sh
-  "${vendor_origin}/oc_erchef/14.11.36/20211227114250"
+  "${vendor_origin}/oc_erchef/15.10.27/20250102025130"
 )
 
 pkg_build_deps=(
@@ -56,3 +62,9 @@ scaffolding_go_binary_list=(
 )
 
 chef_automate_hab_binding_mode="relaxed"
+
+
+do_before() {
+  do_default_before
+  git config --global --add safe.directory /src
+}

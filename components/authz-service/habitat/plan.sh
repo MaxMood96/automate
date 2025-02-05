@@ -14,6 +14,7 @@ pkg_deps=(
   "${local_platform_tools_origin:-chef}/automate-platform-tools"
   chef/mlsa
 )
+
 pkg_exports=(
   [port]=service.port # default service is grpc
 )
@@ -46,3 +47,9 @@ do_install() {
   cp -r storage/postgres/migration/sql "${pkg_prefix}/migrations"
   cp -r storage/postgres/datamigration/sql "${pkg_prefix}/data-migrations"
 }
+
+do_before() {
+  do_default_before
+  git config --global --add safe.directory /src
+}
+

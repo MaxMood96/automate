@@ -25,10 +25,13 @@ paths = [
   "api/external/annotations/*",
   "api/external/iam/*",
   "api/interservice/pg_sidecar/*",
+  "components/automate-grpc/*",
   "components/pg-sidecar-service/*",
   "lib/grpc/*",
   "lib/io/*",
   "lib/platform/config/*",
+  "lib/platform/sys/*",
+  "lib/proc/*",
   "lib/proxy/*",
   "lib/secrets/*",
   "lib/stringutils/*",
@@ -48,12 +51,6 @@ paths = [
 plan_path = "components/automate-openjdk"
 paths = [
   "components/automate-openjdk/*"
-]
-
-[automate-elasticsearch]
-plan_path = "components/automate-elasticsearch"
-paths = [
-  "components/automate-elasticsearch/*"
 ]
 
 [automate-postgresql]
@@ -82,6 +79,7 @@ paths = [
   "api/interservice/cereal/*",
   "api/interservice/id_token/*",
   "api/interservice/teams/*",
+  "components/automate-grpc/*",
   "lib/authz/*",
   "lib/cereal/*",
   "lib/db/*",
@@ -91,6 +89,8 @@ paths = [
   "lib/logger/*",
   "lib/oidc/*",
   "lib/platform/config/*",
+  "lib/platform/sys/*",
+  "lib/proc/*",
   "lib/proxy/*",
   "lib/secrets/*",
   "lib/stringutils/*",
@@ -113,6 +113,7 @@ paths = [
   "api/interservice/authz/*",
   "api/interservice/cereal/*",
   "api/interservice/event/*",
+  "components/automate-grpc/*",
   "lib/authz/*",
   "lib/cereal/*",
   "lib/db/*",
@@ -120,6 +121,8 @@ paths = [
   "lib/io/*",
   "lib/logger/*",
   "lib/platform/config/*",
+  "lib/platform/sys/*",
+  "lib/proc/*",
   "lib/projectassignment/*",
   "lib/proxy/*",
   "lib/secrets/*",
@@ -191,10 +194,13 @@ paths = [
   "api/config/minio/*",
   "api/config/nodemanager/*",
   "api/config/notifications/*",
+  "api/config/ocid/*",
+  "api/config/opensearch/*",
   "api/config/pg_gateway/*",
   "api/config/pg_sidecar/*",
   "api/config/postgresql/*",
   "api/config/prometheus/*",
+  "api/config/report_manager/*",
   "api/config/sample_data/*",
   "api/config/secrets/*",
   "api/config/session/*",
@@ -202,8 +208,6 @@ paths = [
   "api/config/teams/*",
   "api/config/ui/*",
   "api/config/user_settings/*",
-  "api/config/workflow_nginx/*",
-  "api/config/workflow_server/*",
   "api/external/annotations/*",
   "api/external/applications/*",
   "api/external/cds/*",
@@ -218,6 +222,7 @@ paths = [
   "api/external/ingest/*",
   "api/external/lib/*",
   "api/external/nodes/*",
+  "api/external/report_manager/*",
   "api/external/secrets/*",
   "api/external/user_settings/*",
   "api/interservice/authn/*",
@@ -235,6 +240,7 @@ paths = [
   "api/interservice/license_control/*",
   "api/interservice/local_user/*",
   "api/interservice/nodemanager/*",
+  "api/interservice/report_manager/*",
   "api/interservice/teams/*",
   "api/interservice/user_settings/*",
   "components/authz-service/*",
@@ -243,14 +249,17 @@ paths = [
   "components/compliance-service/*",
   "components/config-mgmt-service/*",
   "components/ingest-service/*",
+  "components/local-user-service/*",
   "components/notifications-client/*",
   "components/trial-license-service/*",
   "lib/authz/*",
   "lib/cereal/*",
   "lib/config/*",
   "lib/grpc/*",
+  "lib/httputils/*",
   "lib/io/*",
   "lib/license/*",
+  "lib/logger/*",
   "lib/platform/command/*",
   "lib/platform/sys/*",
   "lib/proc/*",
@@ -297,7 +306,9 @@ paths = [
   "api/interservice/es_sidecar/*",
   "api/interservice/event/*",
   "api/interservice/nodemanager/*",
+  "api/interservice/report_manager/*",
   "components/authz-service/*",
+  "components/automate-grpc/*",
   "components/event-service/*",
   "components/nodemanager-service/*",
   "components/notifications-client/*",
@@ -312,6 +323,8 @@ paths = [
   "lib/pcmp/*",
   "lib/pgutils/*",
   "lib/platform/config/*",
+  "lib/platform/sys/*",
+  "lib/proc/*",
   "lib/proxy/*",
   "lib/secrets/*",
   "lib/stringutils/*",
@@ -335,6 +348,7 @@ paths = [
   "api/interservice/cereal/*",
   "api/interservice/cfgmgmt/*",
   "components/authz-service/*",
+  "components/automate-grpc/*",
   "components/ingest-service/*",
   "lib/authz/*",
   "lib/cereal/*",
@@ -393,11 +407,14 @@ paths = [
   "api/config/minio/*",
   "api/config/nodemanager/*",
   "api/config/notifications/*",
+  "api/config/ocid/*",
+  "api/config/opensearch/*",
   "api/config/pg_gateway/*",
   "api/config/pg_sidecar/*",
   "api/config/platform/*",
   "api/config/postgresql/*",
   "api/config/prometheus/*",
+  "api/config/report_manager/*",
   "api/config/sample_data/*",
   "api/config/secrets/*",
   "api/config/session/*",
@@ -405,8 +422,6 @@ paths = [
   "api/config/teams/*",
   "api/config/ui/*",
   "api/config/user_settings/*",
-  "api/config/workflow_nginx/*",
-  "api/config/workflow_server/*",
   "api/external/annotations/*",
   "api/external/applications/*",
   "api/external/common/*",
@@ -423,24 +438,36 @@ paths = [
   "components/automate-grpc/*",
   "components/es-sidecar-service/*",
   "components/local-user-service/*",
+  "lib/arrayutils/*",
   "lib/cereal/*",
+  "lib/certgenerateutils/*",
   "lib/config/*",
   "lib/db/*",
+  "lib/executil/*",
   "lib/grpc/*",
+  "lib/hardwarecal/*",
   "lib/httputils/*",
   "lib/io/*",
+  "lib/logger/*",
+  "lib/majorupgrade_utils/*",
   "lib/platform/command/*",
   "lib/platform/config/*",
   "lib/platform/pg/*",
   "lib/platform/sys/*",
+  "lib/pmt/*",
   "lib/proc/*",
   "lib/product/*",
   "lib/proxy/*",
+  "lib/reporting/*",
   "lib/secrets/*",
+  "lib/sshutils/*",
   "lib/stringutils/*",
+  "lib/systemresource/*",
   "lib/tls/*",
+  "lib/toml/*",
   "lib/tracing/*",
   "lib/user/*",
+  "lib/userutils/*",
   "lib/uuid4/*",
   "lib/version/*"
 ]
@@ -482,11 +509,14 @@ paths = [
   "api/config/minio/*",
   "api/config/nodemanager/*",
   "api/config/notifications/*",
+  "api/config/ocid/*",
+  "api/config/opensearch/*",
   "api/config/pg_gateway/*",
   "api/config/pg_sidecar/*",
   "api/config/platform/*",
   "api/config/postgresql/*",
   "api/config/prometheus/*",
+  "api/config/report_manager/*",
   "api/config/sample_data/*",
   "api/config/secrets/*",
   "api/config/session/*",
@@ -494,8 +524,6 @@ paths = [
   "api/config/teams/*",
   "api/config/ui/*",
   "api/config/user_settings/*",
-  "api/config/workflow_nginx/*",
-  "api/config/workflow_server/*",
   "api/external/annotations/*",
   "api/external/cfgmgmt/*",
   "api/external/common/*",
@@ -519,6 +547,7 @@ paths = [
   "components/config-mgmt-service/*",
   "components/es-sidecar-service/*",
   "components/ingest-service/*",
+  "components/local-user-service/*",
   "components/teams-service/*",
   "lib/authz/*",
   "lib/cereal/*",
@@ -528,6 +557,8 @@ paths = [
   "lib/httputils/*",
   "lib/io/*",
   "lib/license/*",
+  "lib/logger/*",
+  "lib/majorupgrade_utils/*",
   "lib/platform/command/*",
   "lib/platform/config/*",
   "lib/platform/pg/*",
@@ -574,6 +605,7 @@ paths = [
   "api/external/annotations/*",
   "api/external/iam/*",
   "api/interservice/pg_sidecar/*",
+  "components/automate-grpc/*",
   "lib/db/*",
   "lib/grpc/*",
   "lib/io/*",
@@ -631,6 +663,7 @@ paths = [
   "api/external/iam/*",
   "api/external/lib/*",
   "api/interservice/cereal/*",
+  "components/automate-grpc/*",
   "lib/cereal/*",
   "lib/db/*",
   "lib/grpc/*",
@@ -638,6 +671,8 @@ paths = [
   "lib/logger/*",
   "lib/pgutils/*",
   "lib/platform/config/*",
+  "lib/platform/sys/*",
+  "lib/proc/*",
   "lib/proxy/*",
   "lib/secrets/*",
   "lib/simpledatemath/*",
@@ -676,6 +711,7 @@ paths = [
   "api/interservice/event/*",
   "api/interservice/nodemanager/*",
   "components/authz-service/*",
+  "components/automate-grpc/*",
   "components/compliance-service/*",
   "components/event-service/*",
   "lib/authz/*",
@@ -686,6 +722,8 @@ paths = [
   "lib/logger/*",
   "lib/pgutils/*",
   "lib/platform/config/*",
+  "lib/platform/sys/*",
+  "lib/proc/*",
   "lib/proxy/*",
   "lib/secrets/*",
   "lib/stringutils/*",
@@ -718,6 +756,7 @@ paths = [
   "api/interservice/event_feed/*",
   "api/interservice/ingest/*",
   "api/interservice/nodemanager/*",
+  "components/automate-grpc/*",
   "components/config-mgmt-service/*",
   "components/event-service/*",
   "lib/authz/*",
@@ -728,6 +767,8 @@ paths = [
   "lib/grpc/*",
   "lib/io/*",
   "lib/platform/config/*",
+  "lib/platform/sys/*",
+  "lib/proc/*",
   "lib/proxy/*",
   "lib/secrets/*",
   "lib/simpledatemath/*",
@@ -746,13 +787,18 @@ paths = [
   "api/config/shared/*",
   "api/external/annotations/*",
   "api/external/iam/*",
+  "api/interservice/cereal/*",
   "api/interservice/license_control/*",
+  "components/automate-grpc/*",
+  "lib/cereal/*",
   "lib/db/*",
   "lib/grpc/*",
   "lib/io/*",
   "lib/license/*",
   "lib/logger/*",
   "lib/platform/config/*",
+  "lib/platform/sys/*",
+  "lib/proc/*",
   "lib/proxy/*",
   "lib/secrets/*",
   "lib/stringutils/*",
@@ -793,12 +839,15 @@ paths = [
   "api/external/iam/*",
   "api/external/lib/*",
   "api/external/secrets/*",
+  "components/automate-grpc/*",
   "lib/db/*",
   "lib/grpc/*",
   "lib/io/*",
   "lib/logger/*",
   "lib/pgutils/*",
   "lib/platform/config/*",
+  "lib/platform/sys/*",
+  "lib/proc/*",
   "lib/proxy/*",
   "lib/secrets/*",
   "lib/stringutils/*",
@@ -817,6 +866,7 @@ paths = [
   "api/external/annotations/*",
   "api/external/iam/*",
   "api/interservice/id_token/*",
+  "components/automate-grpc/*",
   "lib/db/*",
   "lib/grpc/*",
   "lib/httputils/*",
@@ -824,6 +874,8 @@ paths = [
   "lib/logger/*",
   "lib/oidc/*",
   "lib/platform/config/*",
+  "lib/platform/sys/*",
+  "lib/proc/*",
   "lib/proxy/*",
   "lib/secrets/*",
   "lib/stringutils/*",
@@ -845,6 +897,7 @@ paths = [
   "api/interservice/authz/*",
   "api/interservice/cereal/*",
   "api/interservice/teams/*",
+  "components/automate-grpc/*",
   "lib/authz/*",
   "lib/cereal/*",
   "lib/db/*",
@@ -852,6 +905,8 @@ paths = [
   "lib/io/*",
   "lib/logger/*",
   "lib/platform/config/*",
+  "lib/platform/sys/*",
+  "lib/proc/*",
   "lib/proxy/*",
   "lib/secrets/*",
   "lib/stringutils/*",
@@ -887,30 +942,27 @@ paths = [
   "components/automate-cs-oc-erchef/*"
 ]
 
+[automate-cs-ocid]
+plan_path = "components/automate-cs-ocid"
+paths = [
+  "components/automate-cs-ocid/*"
+]
+
 [automate-cs-nginx]
 plan_path = "components/automate-cs-nginx"
 paths = [
   "components/automate-cs-nginx/*",
   "api/config/platform/*",
   "api/config/shared/*",
+  "components/automate-grpc/*",
   "lib/io/*",
   "lib/platform/config/*",
+  "lib/platform/sys/*",
+  "lib/proc/*",
   "lib/proxy/*",
   "lib/secrets/*",
   "lib/stringutils/*",
   "lib/user/*"
-]
-
-[automate-workflow-nginx]
-plan_path = "components/automate-workflow-nginx"
-paths = [
-  "components/automate-workflow-nginx/*"
-]
-
-[automate-workflow-web]
-plan_path = "components/automate-workflow-web"
-paths = [
-  "components/automate-workflow-web/*"
 ]
 
 [data-feed-service]
@@ -930,6 +982,7 @@ paths = [
   "api/interservice/cereal/*",
   "api/interservice/cfgmgmt/*",
   "api/interservice/compliance/*",
+  "components/automate-grpc/*",
   "components/config-mgmt-service/*",
   "components/ingest-service/*",
   "lib/authz/*",
@@ -939,6 +992,8 @@ paths = [
   "lib/io/*",
   "lib/logger/*",
   "lib/platform/config/*",
+  "lib/platform/sys/*",
+  "lib/proc/*",
   "lib/proxy/*",
   "lib/secrets/*",
   "lib/stringutils/*",
@@ -985,11 +1040,14 @@ paths = [
   "api/external/annotations/*",
   "api/external/iam/*",
   "api/interservice/cereal/*",
+  "components/automate-grpc/*",
   "lib/cereal/*",
   "lib/db/*",
   "lib/grpc/*",
   "lib/io/*",
   "lib/platform/config/*",
+  "lib/platform/sys/*",
+  "lib/proc/*",
   "lib/proxy/*",
   "lib/secrets/*",
   "lib/stringutils/*",
@@ -1012,11 +1070,14 @@ paths = [
   "api/external/secrets/*",
   "api/interservice/authz/*",
   "api/interservice/infra_proxy/*",
+  "components/automate-grpc/*",
   "lib/db/*",
   "lib/grpc/*",
   "lib/io/*",
   "lib/logger/*",
   "lib/platform/config/*",
+  "lib/platform/sys/*",
+  "lib/proc/*",
   "lib/proxy/*",
   "lib/secrets/*",
   "lib/stringutils/*",
@@ -1101,6 +1162,7 @@ paths = [
   "api/interservice/nodemanager/*",
   "api/interservice/user_settings/*",
   "components/authz-service/*",
+  "components/automate-grpc/*",
   "components/compliance-service/*",
   "components/nodemanager-service/*",
   "lib/authz/*",
@@ -1112,6 +1174,8 @@ paths = [
   "lib/logger/*",
   "lib/pgutils/*",
   "lib/platform/config/*",
+  "lib/platform/sys/*",
+  "lib/proc/*",
   "lib/proxy/*",
   "lib/secrets/*",
   "lib/stringutils/*",
@@ -1121,22 +1185,10 @@ paths = [
   "lib/version/*"
 ]
 
-[automate-ha-elasticsearch]
-plan_path = "components/automate-backend-elasticsearch"
+[automate-ha-opensearch]
+plan_path = "components/automate-backend-opensearch"
 paths = [
-  "components/automate-backend-elasticsearch/*"
-]
-
-[automate-ha-metricbeat]
-plan_path = "components/automate-backend-metricbeat"
-paths = [
-  "components/automate-backend-metricbeat/*"
-]
-
-[automate-ha-journalbeat]
-plan_path = "components/automate-backend-journalbeat"
-paths = [
-  "components/automate-backend-journalbeat/*"
+  "components/automate-backend-opensearch/*"
 ]
 
 [automate-ha-haproxy]
@@ -1145,22 +1197,10 @@ paths = [
   "components/automate-backend-haproxy/*"
 ]
 
-[automate-ha-kibana]
-plan_path = "components/automate-backend-kibana"
-paths = [
-  "components/automate-backend-kibana/*"
-]
-
 [automate-ha-elasticsidecar]
 plan_path = "components/automate-backend-elasticsidecar"
 paths = [
   "components/automate-backend-elasticsidecar/*"
-]
-
-[automate-ha-curator]
-plan_path = "components/automate-backend-curator"
-paths = [
-  "components/automate-backend-curator/*"
 ]
 
 [automate-ha-postgresql]
@@ -1198,21 +1238,50 @@ plan_path = "components/automate-netcat"
 paths = [
   "components/automate-netcat/*"
 ]
+
+[automate-opensearch]
+plan_path = "components/automate-opensearch"
+paths = [
+  "components/automate-opensearch/*"
+]
+
+[report-manager-service]
+plan_path = "components/report-manager-service"
+paths = [
+  "components/report-manager-service/*",
+  "api/config/platform/*",
+  "api/config/shared/*",
+  "api/external/annotations/*",
+  "api/external/iam/*",
+  "api/interservice/cereal/*",
+  "api/interservice/compliance/*",
+  "api/interservice/report_manager/*",
+  "components/automate-grpc/*",
+  "lib/cereal/*",
+  "lib/db/*",
+  "lib/grpc/*",
+  "lib/io/*",
+  "lib/logger/*",
+  "lib/pcmp/*",
+  "lib/platform/config/*",
+  "lib/platform/sys/*",
+  "lib/proc/*",
+  "lib/proxy/*",
+  "lib/secrets/*",
+  "lib/stringutils/*",
+  "lib/tls/*",
+  "lib/tracing/*",
+  "lib/user/*",
+  "lib/version/*"
+]
+
+[automate-knife-ec-backup]
+plan_path = "components/automate-knife-ec-backup"
+paths = [
+  "components/automate-knife-ec-backup/*"
+]
 # GENERATED_HAB_PACKAGE_CONFIG_END
 
-[automate-workflow-ctl]
-plan_path = "components/automate-workflow-ctl"
-paths = [
-  "components/automate-workflow-server/*",
-  "components/automate-workflow-ctl/*"
-]
-
-[automate-workflow-server]
-plan_path = "components/automate-workflow-server"
-paths = [
-  "components/automate-workflow-ctl/*",
-  "components/automate-workflow-server/*"
-]
 
 [automate-ui]
 plan_path = "components/automate-ui"
@@ -1227,3 +1296,4 @@ paths = [
   "components/automate-platform-tools/*",
   "components/notifications-service/*"
 ]
+

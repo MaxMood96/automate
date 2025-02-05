@@ -2,6 +2,7 @@
 #shellcheck disable=SC2154
 #stable channel
 
+
 pkg_name=nodemanager-service
 pkg_description="Nodemanager Service"
 pkg_origin=chef
@@ -50,4 +51,10 @@ do_strip() {
   if [[ "${CHEF_DEV_ENVIRONMENT}" != "true" ]]; then
     do_default_strip
   fi
+}
+
+
+do_before() {
+  do_default_before
+  git config --global --add safe.directory /src
 }

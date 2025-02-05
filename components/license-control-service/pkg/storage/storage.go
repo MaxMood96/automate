@@ -20,6 +20,8 @@ import (
 	"github.com/chef/automate/lib/logger"
 )
 
+const HATEMPPATH = "/hab/var/automate-ha"
+
 // NoLicenseError is the error returned by a backend when it does not
 // have a configured License.
 type NoLicenseError struct{ backend string }
@@ -128,6 +130,21 @@ func (p *PGBackend) Init(ctx context.Context, l *keys.LicenseParser) error {
 	err = migrator.Migrate(p.pgURL, p.migrationPath, logger.NewLogrusStandardLogger(), false)
 	if err != nil {
 		return errors.Wrap(err, "failed to apply database schema")
+	}
+
+	// Ensure 'licenses' table exists
+	row := p.db.QueryRow("SELECT to_regclass('public.licenses')")
+	var tableName string
+	if err := row.Scan(&tableName); err != nil || tableName == "" {
+		logrus.Warn("Creating 'licenses' table as it does not exist.")
+		_, err = p.db.Exec(`CREATE TABLE licenses (
+            id SERIAL PRIMARY KEY,
+            license_data TEXT NOT NULL,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );`)
+		if err != nil {
+			return errors.Wrap(err, "failed to create licenses table")
+		}
 	}
 
 	_, _, err = p.GetLicense(ctx)
@@ -288,8 +305,21 @@ func (m *MemBackend) StoreDeployment(context.Context, string) error {
 	return nil
 }
 
-//StoreDeployment stores the deployment info in the DB
+func isHA() bool {
+	_, err := os.Stat(HATEMPPATH)
+	if err != nil {
+		return false
+	}
+	return true
+}
+
+// StoreDeployment stores the deployment info in the DB
 func (p *PGBackend) StoreDeployment(ctx context.Context, id string) error {
+	deploymentType := 0
+	if isHA() {
+		deploymentType = 1
+	}
+
 	err := Transact(p, func(tx *DBTrans) error {
 		var count int
 		rows := tx.QueryRow("select count(*) from deployment")
@@ -308,9 +338,9 @@ func (p *PGBackend) StoreDeployment(ctx context.Context, id string) error {
 			}
 		} else {
 			_, err := tx.Exec(
-				`INSERT INTO deployment (id, created_at, updated_at)
-				VALUES ($1, $2, $2)`,
-				id, nowTime)
+				`INSERT INTO deployment (id, created_at, updated_at, type_id)
+				VALUES ($1, $2, $2, $3)`,
+				id, nowTime, deploymentType)
 			if err != nil {
 				return errors.Wrapf(err, "Failed to insert deployment")
 			}
@@ -324,21 +354,25 @@ func (p *PGBackend) StoreDeployment(ctx context.Context, id string) error {
 }
 
 func (m *MemBackend) GetDeployment(context.Context) (Deployment, error) {
-	return Deployment{}, nil
+	return Deployment{
+		ID:   "deployment-id",
+		Type: "automate-test",
+	}, nil
 }
 
 type Deployment struct {
 	ID        string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	Type      string
 }
 
-//GetDeployment: fetches the deployment data
+// GetDeployment: fetches the deployment data
 func (p *PGBackend) GetDeployment(ctx context.Context) (Deployment, error) {
 	var d Deployment
 	err := p.db.QueryRowContext(ctx,
-		`SELECT * FROM deployment`).
-		Scan(&d.ID, &d.CreatedAt, &d.UpdatedAt)
+		`SELECT a.ID, CREATED_AT, UPDATED_AT, TYPE FROM DEPLOYMENT a INNER JOIN DEPLOYMENT_TYPE b ON a.TYPE_ID = b.ID`).
+		Scan(&d.ID, &d.CreatedAt, &d.UpdatedAt, &d.Type)
 	if err != nil {
 		return Deployment{}, errors.Wrapf(err, "Failed to get deployment")
 	}

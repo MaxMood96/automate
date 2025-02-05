@@ -3,6 +3,7 @@
 #shellcheck disable=SC2039
 #stable channel
 
+
 pkg_name=applications-load-gen
 pkg_description="Applications Load Generator"
 pkg_origin=chef
@@ -29,3 +30,7 @@ scaffolding_go_binary_list=(
   "${scaffolding_go_import_path}/cmd/${pkg_name}"
 )
 
+do_before() {
+  do_default_before
+  git config --global --add safe.directory /src
+}

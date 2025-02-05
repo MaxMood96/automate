@@ -6,7 +6,14 @@
         "ReportingService",
         "StatsService",
         "JobsService",
-        "ProfilesService"
+        "ProfilesService",
+        "Comp_Assets"
+      ]
+    },
+    {
+      "name": "Report Manager",
+      "tags": [
+        "ReportManagerService"
       ]
     },
     {
@@ -65,12 +72,20 @@
       "x-displayName": "Reporting"
     },
     {
+      "name": "ReportManagerService",
+      "x-displayName": "Report Manager"
+    },
+    {
       "name": "ProfilesService",
       "x-displayName": "Profiles"
     },
     {
       "name": "StatsService",
       "x-displayName": "Stats"
+    },
+    {
+      "name": "Comp_Assets",
+      "x-displayName": "Assets Management"
     },
     {
       "name": "ConfigMgmt",

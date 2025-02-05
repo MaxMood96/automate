@@ -2,6 +2,7 @@
 # shellcheck disable=SC2039
 # stable channel
 
+
 pkg_name=automate-prometheus
 pkg_description="metrics collection for Automate 2.0"
 pkg_origin=chef
@@ -36,3 +37,5 @@ do_build() {
 do_install() {
   return 0
 }
+
+

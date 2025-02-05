@@ -12,25 +12,25 @@ require 'chefstyle'
 module AutomateCluster
   class ElasticSidecar
     def initialize
-      logger.level = config['log_debug'] == true ? Logger::DEBUG : Logger::WARN
+      logger.level = Logger::WARN
       logger.warn 'AutomateCluster::ElasticSidecar initialized!'
     end
 
     def logger
       @logger ||= Logger.new(STDERR)
     end
-
+    
     def config
       @config ||= load_config
     end
-
+#
     def valid_json?(json)
       JSON.parse(json)
       true
     rescue JSON::ParserError
       false
     end
-
+#
     def test_authentication(user, pass)
       http = HTTP.accept(:json)
                  .basic_auth(user: user, pass: pass)
@@ -39,7 +39,7 @@ module AutomateCluster
       logger.error e.message
       'error'
     end
-
+#
     def run_command(cmd)
       environment = { HAB_LICENSE: 'accept-no-persist',
                       JAVA_HOME: config['java_home'] }
@@ -57,7 +57,7 @@ module AutomateCluster
       end
       raise message
     end
-
+#
     def load_config
       config_file = '/hab/svc/automate-ha-elasticsidecar/config/elastic_sidecar.toml'
       logger.warn "Attempting to load config from #{config_file}"
@@ -67,7 +67,7 @@ module AutomateCluster
                          else
                            1
                          end
-
+#
       conf['ctx_basic'] = OpenSSL::SSL::SSLContext.new
       conf['ctx_basic'].set_params(
         verify_mode: conf['ssl_mode'],
@@ -75,45 +75,97 @@ module AutomateCluster
       )
       conf
     end
-
+#
     def hash_password(password)
       password_hash = BCrypt::Password.create(password)
       password_hash.to_s
     end
-
+#
     def write_internal_users
+      puts config.inspect
       internal_users = {
+        "_meta" => {
+          "type" => "internalusers",
+          "config_version" => "2",
+        },
         config['admin_username'] => {
           'hash' => hash_password(config['admin_password']),
-          'roles' => [config['admin_username']]
+          'reserved' => true,
+          'backend_roles' => [config['admin_username']],
         },
-        config['dashboard_username'] => {
-          'hash' => hash_password(config['dashboard_password']),
-          'roles' => [config['dashboard_username']]
+        'kibanaserver' => {
+          'hash' => hash_password(config['admin_password']),
+          'reserved' => true,
+        },
+        'kibanaro' => {
+          'hash' => hash_password(config['admin_password']),
+          'reserved' => false,
+          'backend_roles' => ['kibanauser', 'readall'],
+        },
+        'logstash' => {
+          'hash' => hash_password(config['admin_password']),
+          'reserved' => false,
+          'backend_roles' => ['logstash'],
+        },
+        'readall' => {
+          'hash' => hash_password(config['admin_password']),
+          'reserved' => false,
+          'backend_roles' => ['readall'],
+        },
+        'snapshotrestore' => {
+          'hash' => hash_password(config['admin_password']),
+          'reserved' => false,
+          'backend_roles' => ['snapshotrestore'],
         }
       }
       f = File.new("#{config['securityconfig_path']}/internal_users.yml", 'w+')
       f.write(internal_users.to_yaml)
       f.close
     end
-
+#
     def write_roles_mapping
       roles_mapping = {
-        'all_access' => {
-          'backendroles' => [config['admin_username']]
+        "_meta" => {
+          "type" => "rolesmapping",
+          "config_version" => "2",
         },
-        'dashboard_user' => {
-          'backendroles' => [config['dashboard_username']]
+        'all_access' => {
+          'reserved' => false,
+          'backend_roles' => [config['admin_username']],
+        },
+        'own_index' => {
+          'reserved' => false,
+          'backend_roles' => ['*'],
+        },
+        'logstash' => {
+          'reserved' => false,
+          'backend_roles' => ['logstash'],
+        },
+        'kibana_user' => {
+          'reserved' => false,
+          'backend_roles' => ['kibanauser'],
+        },
+        'readall' => {
+          'reserved' => false,
+          'backend_roles' => ['readall'],
+        },
+        'manage_snapshots' => {
+          'reserved' => false,
+          'backend_roles' => ['snapshotrestore'],
+        },
+        'kibana_server' => {
+          'reserved' => true,
+          'backend_roles' => ['kibanaserver'],
         }
       }
       f = File.new("#{config['securityconfig_path']}/roles_mapping.yml", 'w+')
       f.write(roles_mapping.to_yaml)
       f.close
     end
-
+#
     def insert_credentials
-      insert_command = "#{config['tool_path']}/securityadmin.sh -h #{config['elasticsearch_ip']} \
-        -p #{config['elasticsearch_port']} -cacert #{config['elasticsearch_ca']} \
+      insert_command = "#{config['tool_path']}/securityadmin.sh -h #{config['opensearch_ip']} \
+        -p #{config['opensearch_port']} -cacert #{config['opensearch_ca']} \
         -cert #{config['admin_cert']} -key #{config['admin_key']} -nhnv -icl \
         -cd #{config['securityconfig_path']}"
       result = run_command(insert_command)
@@ -125,7 +177,7 @@ module AutomateCluster
         logger.error result
       end
     end
-
+#
     def rotate_credentials
       logger.warn 'Preparing to rotate credentials'
       setup_templates
@@ -133,7 +185,7 @@ module AutomateCluster
       write_roles_mapping
       insert_credentials
     end
-
+#
     def setup_templates
       unless Dir.exist?(config['securityconfig_path'])
         FileUtils.mkdir_p(config['securityconfig_path'])
@@ -142,53 +194,17 @@ module AutomateCluster
         /hab/svc/automate-ha-elasticsidecar/config/securityconfig/action_groups.yml
         /hab/svc/automate-ha-elasticsidecar/config/securityconfig/config.yml
         /hab/svc/automate-ha-elasticsidecar/config/securityconfig/roles.yml
+        /hab/svc/automate-ha-elasticsidecar/config/securityconfig/tenants.yml
+        /hab/svc/automate-ha-elasticsidecar/config/securityconfig/nodes_dn.yml
+        /hab/svc/automate-ha-elasticsidecar/config/securityconfig/whitelist.yml
       ], config['securityconfig_path']
     end
-
+#
     def wait
-      logger.debug "Sleeping #{config['wait_period']}s"
-      sleep config['wait_period']
+      logger.debug "Sleeping 60s"
+      sleep 60
     end
-
-    def insert_dashboards
-      if File.directory?(config['dashboard_directory'])
-        Dir.glob("#{config['dashboard_directory']}*.json") do |dashboard|
-          dashboard_uuid = File.basename(dashboard, ".json")
-          http = HTTP.accept(:json)
-                     .basic_auth(user: config['admin_username'], pass: config['admin_password'])
-          response = http.get("https://localhost:9200/.kibana/doc/dashboard:#{dashboard_uuid}", ssl_context: config['ctx_basic'])
-          unless JSON.parse(response.body)['found']
-            logger.warn "inserting dashboard: #{dashboard_uuid}"
-            http = HTTP.accept(:json)
-                       .headers("kbn-xsrf" => "true")
-                       .basic_auth(user: config['admin_username'], pass: config['admin_password'])
-            response = http.post("https://localhost:5601/api/kibana/dashboards/import", ssl_context: config['ctx_basic'], json: (File.read(dashboard)))
-          end
-          # Set a default index pattern, so the users don't need to dig around in settings to get a working dashboard
-          http = HTTP.accept(:json)
-                     .headers("kbn-xsrf" => "true")
-                     .basic_auth(user: config['admin_username'], pass: config['admin_password'])
-          kibana_config = http.get("https://localhost:5601/api/saved_objects/config/6.5.4", ssl_context: config['ctx_basic'])
-          # If we get a 404 then the fields we need to check later won't exist
-          if kibana_config.code == 404
-            override_default = true
-          end
-          if kibana_config.code == 200
-            if JSON.parse(kibana_config.body)['attributes']['defaultIndex'].nil?
-              override_default = true
-            end
-          end
-          if  override_default == true
-            logger.warn "Default index pattern is not configured, setting to metricbeat"
-            response = http.post("https://localhost:5601/api/saved_objects/config/6.5.4?overwrite=true", ssl_context: config['ctx_basic'], json: '{"attributes":{"defaultIndex":"b40cfb40-db5a-11e9-9a8d-7f87f55fd222"}}')
-          end
-        end
-      end
-    rescue HTTP::Error => e
-      logger.error e.message
-      'error'
-    end
-
+#
     def run
       loop do
         response = test_authentication(config['admin_username'], config['admin_password'])
@@ -196,29 +212,61 @@ module AutomateCluster
           wait
           next
         elsif response.code == 200
-          logger.debug "auth successful for #{config['admin_username']} now testing #{config['dashboard_username']}"
-          response = test_authentication(config['dashboard_username'], config['dashboard_password'])
+          logger.debug "auth successful for #{config['admin_username']}"
+          logger.debug "Got response #{response}"
+        end
+#
+        case response.code
+        when 200
+          logger.debug 'Authentication successful, doing nothing'
+        when 401, 403
+          logger.warn 'Authentication failed, inserting credentials'
+          rotate_credentials
+        when 503
+          if response.body.to_s.eql? 'OpenSearch security not initialized'
+            logger.warn 'OpenSearch security appears to not be setup, inserting credentials'
+            rotate_credentials
+          elsif response.body.to_s.valid_json?
+            logger.warn 'Auth successful, but OpenSearch appears to be broken, doing nothing.'
+          else
+            logger.warn 'OpenSearch returned 503 error with unexpected message'
+            logger.warn response.body
+          end
+        else
+          logger.error "OpenSearch returned #{response.code} code with unexpected message"
+          logger.error response.body
+        end
+        wait
+      end
+    end
+    def run
+      loop do
+        response = test_authentication(config['admin_username'], config['admin_password'])
+        if response.eql? 'error'
+          wait
+          next
+        elsif response.code == 200
+          logger.debug "Got successful response #{response}"
         end
 
         case response.code
         when 200
           logger.debug 'Authentication successful, doing nothing'
-          insert_dashboards
         when 401, 403
           logger.warn 'Authentication failed, inserting credentials'
           rotate_credentials
         when 503
-          if response.body.to_s.eql? 'Open Distro not initialized'
-            logger.warn 'Open Distro appears to not be setup, inserting credentials'
+          if response.body.to_s.eql? 'Opensearch security not initialized'
+            logger.warn 'Opensearch appears to not be setup, inserting credentials'
             rotate_credentials
           elsif response.body.to_s.valid_json?
-            logger.warn 'Auth successful, but elasticsearch appears to be broken, doing nothing.'
+            logger.warn 'Auth successful, but OpenSearch appears to be broken, doing nothing.'
           else
-            logger.warn 'Elasticsearch returned 503 error with unexpected message'
+            logger.warn 'OpenSearch returned 503 error with unexpected message'
             logger.warn response.body
           end
         else
-          logger.error "Elasticsearch returned #{response.code} code with unexpected message"
+          logger.error "OpenSearch returned #{response.code} code with unexpected message"
           logger.error response.body
         end
         wait

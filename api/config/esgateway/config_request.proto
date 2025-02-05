@@ -45,6 +45,7 @@ message ConfigRequest {
 					google.protobuf.Int32Value max_fails = 2;
 					reserved 3;
 					Resolvers resolvers = 4;
+					google.protobuf.Int32Value fail_timeout = 5;
 
 					message Resolvers {
 						google.protobuf.BoolValue enable_system_nameservers = 1;
@@ -79,6 +80,8 @@ message ConfigRequest {
 					google.protobuf.Int32Value proxy_read_timeout = 18;
 					google.protobuf.Int32Value proxy_send_timeout = 19;
 					google.protobuf.StringValue proxy_set_header_host = 20;
+					google.protobuf.StringValue proxy_ssl_verify = 21;
+					google.protobuf.BoolValue proxy_ssl_server_name = 22;
 
 				}
 

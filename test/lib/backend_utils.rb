@@ -106,12 +106,16 @@ module BackendUtils
       @ssh_user ||= / (\S+)@\S+/.match(frontend_ssh_connect_string)[1]
     end
 
+    def ssh_port
+      @ssh_port ||= / -p(\s\d+)/.match(frontend_ssh_connect_string)[1].delete(' ')
+    end
+
     def ssh_key_file
       @ssh_key_file ||= tf_output_value("ssh_key_file")
     end
 
     def train(host_ip, options = {})
-      opts = { host: host_ip, port: 22, user: ssh_user,
+      opts = { host: host_ip, port: ssh_port, user: ssh_user,
                key_files: ssh_key_file, connection_timeout: 3, connection_retries: 5,
                connection_retry_sleep: 5, logger: backend_logger, verify_host_key: :never }
       Train.create('ssh', opts.merge(options))
@@ -150,12 +154,12 @@ module BackendUtils
       tf_output_value("postgresql_private_ips")
     end
 
-    def elasticsearch_private_ips
-      tf_output_value("elasticsearch_private_ips")
+    def opensearch_private_ips
+      tf_output_value("opensearch_private_ips")
     end
 
-    def elasticsearch_public_ips
-      tf_output_value("elasticsearch_public_ips")
+    def opensearch_public_ips
+      tf_output_value("opensearch_public_ips")
     end
 
     def hab_config_path
@@ -283,7 +287,7 @@ module BackendUtils
     end
 
     def pg_bin_path
-      pg_bin_path = "\$(#{accept_license_no_persist} hab pkg path core/postgresql11)/bin"
+      pg_bin_path = "\$(#{accept_license_no_persist} hab pkg path core/postgresql13)/bin"
       pg_pw = "PGPASSWORD=$(echo ENV['SUDO_PASSWORD'] | #{sudo_cmd} -S cat /hab/svc/automate-ha-postgresql/config/pwfile)"
       @pg_bin_path ||= "#{pg_pw} #{pg_bin_path}"
     end

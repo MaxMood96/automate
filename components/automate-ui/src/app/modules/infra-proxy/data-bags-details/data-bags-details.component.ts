@@ -3,21 +3,24 @@ import { Store } from '@ngrx/store';
 import { Subject, combineLatest } from 'rxjs';
 import { filter, takeUntil, pluck } from 'rxjs/operators';
 import { identity, isNil } from 'lodash/fp';
-import { NgrxStateAtom } from 'app/ngrx.reducers';
-import { EntityStatus } from 'app/entities/entities';
-import { LayoutFacadeService, Sidebar } from 'app/entities/layout/layout.facade';
-import { routeParams } from 'app/route.selectors';
+import { NgrxStateAtom } from '../../../ngrx.reducers';
+import { EntityStatus } from '../../../entities/entities';
+import { LayoutFacadeService, Sidebar } from '../../../entities/layout/layout.facade';
+import { routeParams } from '../../../route.selectors';
 
 import {
   DeleteDataBagItem,
   GetDataBagItems
-} from 'app/entities/data-bags/data-bag-details.actions';
-import { DataBagItems, DataBagsItemDetails } from 'app/entities/data-bags/data-bags.model';
-import { getAllStatus, dataBagItemList, deleteStatus } from 'app/entities/data-bags/data-bag-details.selector';
-import { GetDataBagItemDetails } from 'app/entities/data-bags/data-bag-item-details.actions';
-import { dataBagItemDetailsFromRoute, getStatus  } from 'app/entities/data-bags/data-bag-item-details.selector';
-import { Regex } from 'app/helpers/auth/regex';
-
+} from '../../../entities/data-bags/data-bag-details.actions';
+import { DataBagItems, DataBagsItemDetails } from '../../../entities/data-bags/data-bags.model';
+import { getAllStatus, dataBagItemList, deleteStatus } from '../../../entities/data-bags/data-bag-details.selector';
+import { GetDataBagItemDetails } from '../../../entities/data-bags/data-bag-item-details.actions';
+import { dataBagItemDetailsFromRoute, getStatus  } from '../../../entities/data-bags/data-bag-item-details.selector';
+import { Regex } from '../../../helpers/auth/regex';
+import { TelemetryService } from '../../../services/telemetry/telemetry.service';
+import { Org } from '../../../entities/orgs/org.model';
+import { getStatus as gtStatus, orgFromRoute } from '../../../entities/orgs/org.selectors';
+import { GetOrg } from '../../../entities/orgs/org.actions';
 export type DataBagsDetailsTab = 'details';
 
 @Component({
@@ -26,6 +29,7 @@ export type DataBagsDetailsTab = 'details';
   styleUrls: ['./data-bags-details.component.scss']
 })
 export class DataBagsDetailsComponent implements OnInit, OnDestroy {
+  public org: Org;
   private isDestroyed = new Subject<boolean>();
   public dataBagItems: DataBagItems[];
   public dataBagSearch: DataBagItems[];
@@ -37,6 +41,7 @@ export class DataBagsDetailsComponent implements OnInit, OnDestroy {
   public itemDataJson: string;
   public tabValue: DataBagsDetailsTab = 'details';
   public dataBagsDetailsLoading = true;
+  public dataBagsTabLoading = true;
   public selectedItem: string;
   public dataBagsItemDetailsLoading = false;
   public selectedItemDetails: object;
@@ -50,13 +55,14 @@ export class DataBagsDetailsComponent implements OnInit, OnDestroy {
   public deleteModalVisible = false;
   public deleting = false;
   public editDisable = false;
-  public openDataBagModal = new EventEmitter<void>();
-  public openEditDataBagItemModal = new EventEmitter<void>();
+  public openDataBagModal = new EventEmitter<boolean>();
+  public openEditDataBagItemModal = new EventEmitter<boolean>();
   public openDataBagItemModal = new EventEmitter<void>();
 
   constructor(
     private store: Store<NgrxStateAtom>,
-    private layoutFacade: LayoutFacadeService
+    private layoutFacade: LayoutFacadeService,
+    private telemetryService: TelemetryService
   ) { }
 
   ngOnInit() {
@@ -76,6 +82,28 @@ export class DataBagsDetailsComponent implements OnInit, OnDestroy {
     });
 
     combineLatest([
+      this.store.select(routeParams).pipe(pluck('id'), filter(identity)),
+      this.store.select(routeParams).pipe(pluck('org-id'), filter(identity))
+    ]).pipe(
+      takeUntil(this.isDestroyed)
+    ).subscribe(([server_id, org_id]: string[]) => {
+      this.serverId = server_id;
+      this.orgId = org_id;
+      this.store.dispatch(new GetOrg({ server_id: server_id, id: org_id }));
+    });
+
+    combineLatest([
+      this.store.select(gtStatus),
+      this.store.select(orgFromRoute as any)
+    ]).pipe(
+      filter(([getOrgSt, orgState]) => getOrgSt ===
+        EntityStatus.loadingSuccess && !isNil(orgState)),
+      takeUntil(this.isDestroyed)
+    ).subscribe(([_getOrgSt, orgState]) => {
+      this.org = { ...orgState };
+    });
+
+    combineLatest([
       this.store.select(getAllStatus),
       this.store.select(dataBagItemList)
     ]).pipe(
@@ -91,6 +119,7 @@ export class DataBagsDetailsComponent implements OnInit, OnDestroy {
         this.dataBagsDetailsLoading = false;
         this.loading = false;
         this.deleting = false;
+        this.dataBagsTabLoading = false;
       });
 
     this.store.select(deleteStatus).pipe(
@@ -108,7 +137,7 @@ export class DataBagsDetailsComponent implements OnInit, OnDestroy {
 
     combineLatest([
       this.store.select(getStatus),
-      this.store.select(dataBagItemDetailsFromRoute)
+      this.store.select(dataBagItemDetailsFromRoute as any)
     ]).pipe(
       filter(([getDataBagItemDetailsSt, _dataBagItemDetailsState]) =>
         getDataBagItemDetailsSt === EntityStatus.loadingSuccess),
@@ -148,6 +177,7 @@ export class DataBagsDetailsComponent implements OnInit, OnDestroy {
 
     this.dataBagItems[index].active = !this.dataBagItems[index].active;
     this.activeClassName = 'autoHeight';
+    this.telemetryService.track('InfraServer_Databags_Details_GetItems');
   }
 
   refreshData(data: string) {
@@ -180,10 +210,11 @@ export class DataBagsDetailsComponent implements OnInit, OnDestroy {
       this.total = 0;
     } else {
       this.getDataBagItemsData();
+      this.telemetryService.track('InfraServer_Databags_Details_Search');
     }
   }
 
-  onPageChange(event: number): void {
+  onPageChange(event: number | any): void {
     this.loading = true;
     this.current_page = event;
     this.getDataBagItemsData();
@@ -214,6 +245,7 @@ export class DataBagsDetailsComponent implements OnInit, OnDestroy {
       databag_name: this.dataBagName,
       name: this.dataBagItemToDelete.name
     }));
+    this.telemetryService.track('InfraServer_Databags_Details_DeleteDatabagItem');
   }
 
   public closeDeleteModal(): void {

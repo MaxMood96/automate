@@ -27,7 +27,7 @@ func init() {
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
               "$ref": "#/definitions/grpc.gateway.runtime.Error"
             }
@@ -61,7 +61,7 @@ func init() {
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
               "$ref": "#/definitions/grpc.gateway.runtime.Error"
             }
@@ -85,7 +85,7 @@ func init() {
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
               "$ref": "#/definitions/grpc.gateway.runtime.Error"
             }
@@ -119,7 +119,7 @@ func init() {
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
               "$ref": "#/definitions/grpc.gateway.runtime.Error"
             }
@@ -143,7 +143,7 @@ func init() {
     "/api/v0/compliance/reporting/stats/summary": {
       "post": {
         "summary": "Read Summary",
-        "description": "Returns summary statistics for compliance reports. \nGeneral report summary information is the default. \nAdding a ` + "`" + `type` + "`" + ` value of ` + "`" + `nodes` + "`" + ` or ` + "`" + `controls` + "`" + ` will return summary statistics for that object.\nSupports filtering.\n\nExample:\n` + "`" + `` + "`" + `` + "`" + `\n{\n\"type\":\"nodes\",\n\"filters\":[\n{\"type\":\"environment\",\"values\":[\"dev*\"]},\n{\"type\":\"start_time\",\"values\":[\"2019-10-26T00:00:00Z\"]},\n{\"type\":\"end_time\",\"values\":[\"2019-11-05T23:59:59Z\"]}\n]\n}\n` + "`" + `` + "`" + `` + "`" + `\n\nAuthorization Action:\n` + "`" + `` + "`" + `` + "`" + `\ncompliance:reportSummary:get\n` + "`" + `` + "`" + `` + "`" + `",
+        "description": "Returns summary statistics for compliance reports. \nGeneral report summary information is the default. \nAdding a ` + "`" + `type` + "`" + ` value of ` + "`" + `nodes` + "`" + ` or ` + "`" + `controls` + "`" + ` will return summary statistics for that object.\nSupports filtering.\n\nThe API supports date range filters when ` + "`" + `end_time` + "`" + ` is the current time\nand ` + "`" + `start_time` + "`" + ` is any time in last 90 days. In case, the ` + "`" + `end_time` + "`" + ` is any\ndate other than the current date, the API would return data only for the ` + "`" + `end_time` + "`" + `.\n\nExample:\n` + "`" + `` + "`" + `` + "`" + `\n{\n\"type\":\"nodes\",\n\"filters\":[\n{\"type\":\"environment\",\"values\":[\"dev*\"]},\n{\"type\":\"start_time\",\"values\":[\"2019-10-26T00:00:00Z\"]},\n{\"type\":\"end_time\",\"values\":[\"2019-11-05T23:59:59Z\"]}\n]\n}\n` + "`" + `` + "`" + `` + "`" + `\n\nAuthorization Action:\n` + "`" + `` + "`" + `` + "`" + `\ncompliance:reportSummary:get\n` + "`" + `` + "`" + `` + "`" + `",
         "operationId": "StatsService_ReadSummary",
         "responses": {
           "200": {
@@ -153,7 +153,7 @@ func init() {
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
               "$ref": "#/definitions/grpc.gateway.runtime.Error"
             }
@@ -187,7 +187,7 @@ func init() {
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
               "$ref": "#/definitions/grpc.gateway.runtime.Error"
             }

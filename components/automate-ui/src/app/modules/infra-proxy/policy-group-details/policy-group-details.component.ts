@@ -1,21 +1,23 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { combineLatest, Subject } from 'rxjs';
-import { NgrxStateAtom } from 'app/ngrx.reducers';
-import { LayoutFacadeService, Sidebar } from 'app/entities/layout/layout.facade';
-import { routeParams, routeURL } from 'app/route.selectors';
+import { NgrxStateAtom } from '../../../ngrx.reducers';
+import { LayoutFacadeService, Sidebar } from '../../../entities/layout/layout.facade';
+import { routeParams, routeURL } from '../../../route.selectors';
 import { filter, pluck, takeUntil, take } from 'rxjs/operators';
 import { identity, isNil } from 'lodash/fp';
 import { Router } from '@angular/router';
-import { policyGoupFromRoute } from 'app/entities/policy-files/policy-group-details.selectors';
-import { PolicyGroup, IncludedPolicyLocks } from 'app/entities/policy-files/policy-file.model';
-import { GetPolicyGroup } from 'app/entities/policy-files/policy-file.action';
-import { GetPolicyGroupNodes } from 'app/entities/infra-nodes/infra-nodes.actions';
-import { getAllNodesStatus, policyGroupNodeList } from 'app/entities/infra-nodes/infra-nodes.selectors';
-import { InfraNode } from 'app/entities/infra-nodes/infra-nodes.model';
-import { EntityStatus } from 'app/entities/entities';
-import { TimeFromNowPipe } from 'app/pipes/time-from-now.pipe';
-
+import { policyGoupFromRoute } from '../../../entities/policy-files/policy-group-details.selectors';
+import { PolicyGroup, IncludedPolicyLocks } from '../../../entities/policy-files/policy-file.model';
+import { GetPolicyGroup } from '../../../entities/policy-files/policy-file.action';
+import { GetPolicyGroupNodes } from '../../../entities/infra-nodes/infra-nodes.actions';
+import { getAllNodesStatus, policyGroupNodeList } from '../../../entities/infra-nodes/infra-nodes.selectors';
+import { InfraNode } from '../../../entities/infra-nodes/infra-nodes.model';
+import { EntityStatus } from '../../../entities/entities';
+import { TimeFromNowPipe } from '../../../pipes/time-from-now.pipe';
+import { Org } from '../../../entities/orgs/org.model';
+import { getStatus as gtStatus, orgFromRoute } from '../../../entities/orgs/org.selectors';
+import { GetOrg } from '../../../entities/orgs/org.actions';
 export type PolicyGroupTabName = 'policyfiles' | 'nodes';
 
 @Component({
@@ -24,6 +26,7 @@ export type PolicyGroupTabName = 'policyfiles' | 'nodes';
   styleUrls: ['./policy-group-details.component.scss']
 })
 export class PolicyGroupDetailsComponent implements OnInit, OnDestroy {
+  public org: Org;
   public policyGroup: PolicyGroup;
   public serverId: string;
   public orgId: string;
@@ -58,6 +61,27 @@ export class PolicyGroupDetailsComponent implements OnInit, OnDestroy {
       this.tabValue = (fragment === 'nodes') ? 'nodes' : 'policyfiles';
     });
 
+    combineLatest([
+      this.store.select(routeParams).pipe(pluck('id'), filter(identity)),
+      this.store.select(routeParams).pipe(pluck('org-id'), filter(identity))
+    ]).pipe(
+      takeUntil(this.isDestroyed)
+    ).subscribe(([server_id, org_id]: string[]) => {
+      this.serverId = server_id;
+      this.orgId = org_id;
+      this.store.dispatch(new GetOrg({ server_id: server_id, id: org_id }));
+    });
+
+    combineLatest([
+      this.store.select(gtStatus),
+      this.store.select(orgFromRoute as any)
+    ]).pipe(
+      filter(([getOrgSt, orgState]) => getOrgSt ===
+        EntityStatus.loadingSuccess && !isNil(orgState)),
+      takeUntil(this.isDestroyed)
+    ).subscribe(([_getOrgSt, orgState]) => {
+      this.org = { ...orgState };
+    });
     // load policy Group details
     combineLatest([
       this.store.select(routeParams).pipe(pluck('id'), filter(identity)),
@@ -76,7 +100,7 @@ export class PolicyGroupDetailsComponent implements OnInit, OnDestroy {
       this.loadNodes();
     });
 
-    this.store.select(policyGoupFromRoute).pipe(
+    this.store.select(policyGoupFromRoute as any).pipe(
       filter(identity),
       takeUntil(this.isDestroyed)
     ).subscribe(policyGroup => {
@@ -112,7 +136,7 @@ export class PolicyGroupDetailsComponent implements OnInit, OnDestroy {
     this.isDestroyed.complete();
   }
 
-  onSelectedTab(event: { target: { value: PolicyGroupTabName } }) {
+  onSelectedTab(event: { target: { value: PolicyGroupTabName } } | any) {
     this.tabValue = event.target.value;
     this.router.navigate([this.url.split('#')[0]], { fragment: event.target.value });
   }
@@ -128,12 +152,12 @@ export class PolicyGroupDetailsComponent implements OnInit, OnDestroy {
   }
 
   timeFromNow(epochFormat: string) {
-    const epchoTime = Number(epochFormat);
+    const epchoTime = Number(epochFormat) * 1000;
     const fromNowValue = this.timeFromNowPipe.transform(epchoTime);
     return fromNowValue === '-' ? '--' : fromNowValue;
   }
 
-  onPageChange(event: number): void {
+  onPageChange(event: number | any): void {
     this.current_page = event;
     this.loadNodes();
   }

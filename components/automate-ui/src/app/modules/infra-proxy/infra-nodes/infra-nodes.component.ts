@@ -4,33 +4,34 @@ import { combineLatest, Subject } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
 import { isNil } from 'lodash/fp';
 
-import { NgrxStateAtom } from 'app/ngrx.reducers';
-import { LayoutFacadeService, Sidebar } from 'app/entities/layout/layout.facade';
-import { EntityStatus } from 'app/entities/entities';
-import { GetNodeRunlists } from 'app/entities/nodeRunlists/nodeRunlists.action';
-import { GetNodes, DeleteNode, GetNode } from 'app/entities/infra-nodes/infra-nodes.actions';
-import { GetRecipes } from 'app/entities/recipes/recipe.action';
-import { InfraNode } from 'app/entities/infra-nodes/infra-nodes.model';
+import { NgrxStateAtom } from '../../../ngrx.reducers';
+import { LayoutFacadeService, Sidebar } from '../../../entities/layout/layout.facade';
+import { EntityStatus } from '../../../entities/entities';
+import { GetNodeRunlists } from '../../../entities/nodeRunlists/nodeRunlists.action';
+import { GetNodes, DeleteNode, GetNode } from '../../../entities/infra-nodes/infra-nodes.actions';
+import { GetRecipes } from '../../../entities/recipes/recipe.action';
+import { InfraNode } from '../../../entities/infra-nodes/infra-nodes.model';
 import {
   nodeList,
   getAllStatus,
   deleteStatus,
   infraNodeFromRoute,
   getStatus
-} from 'app/entities/infra-nodes/infra-nodes.selectors';
+} from '../../../entities/infra-nodes/infra-nodes.selectors';
 import {
   allRecipes,
   getAllStatus as getAllRecipesForOrgStatus
-} from 'app/entities/recipes/recipe.selectors';
+} from '../../../entities/recipes/recipe.selectors';
 import {
   allNodeRunlist,
   getAllStatus as getAllNodeRunlistForOrgStatus
-} from 'app/entities/nodeRunlists/nodeRunlists.selectors';
+} from '../../../entities/nodeRunlists/nodeRunlists.selectors';
 import { AvailableType } from '../infra-roles/infra-roles.component';
 import { ListItem } from '../select-box/src/lib/list-item.domain';
-import { NodeList, NodeRunlist } from 'app/entities/nodeRunlists/nodeRunlists.model';
-import { TimeFromNowPipe } from 'app/pipes/time-from-now.pipe';
-import { Regex } from 'app/helpers/auth/regex';
+import { NodeList, NodeRunlist } from '../../../entities/nodeRunlists/nodeRunlists.model';
+import { TimeFromNowPipe } from '../../../pipes/time-from-now.pipe';
+import { Regex } from '../../../helpers/auth/regex';
+import { TelemetryService } from '../../../services/telemetry/telemetry.service';
 
 @Component({
   selector: 'app-infra-nodes',
@@ -45,7 +46,7 @@ export class InfraNodesComponent implements OnInit, OnDestroy {
 
   private isDestroyed = new Subject<boolean>();
   private timeFromNowPipe = new TimeFromNowPipe();
-  public nodes: InfraNode[] = [];
+  public nodes: any = [];
   public nodeListState: { items: InfraNode[], total: number };
   public nodesListLoading = true;
   public authFailure = false;
@@ -73,24 +74,25 @@ export class InfraNodesComponent implements OnInit, OnDestroy {
 
   // node reset
   public nodeName: string;
-  public openNotificationModal = new EventEmitter<void>();
+  public openNotificationModal = new EventEmitter<boolean>();
 
   // update node tag
   public updateNodeName: string;
-  public openTagModal = new EventEmitter<void>();
+  public openTagModal = new EventEmitter<boolean>();
 
   // edit attributes
   public editAttributesLoading = false;
   public editNodeAttributes: string;
-  public node: InfraNode;
+  public node: InfraNode | any;
   public jsonText;
   public attributes;
   public isGetNode = false;
-  public openAttributeModal = new EventEmitter<void>();
+  public openAttributeModal = new EventEmitter<boolean>();
 
   constructor(
     private store: Store<NgrxStateAtom>,
-    private layoutFacade: LayoutFacadeService
+    private layoutFacade: LayoutFacadeService,
+    private telemetryService: TelemetryService
   ) { }
 
   ngOnInit() {
@@ -133,19 +135,22 @@ export class InfraNodesComponent implements OnInit, OnDestroy {
     this.currentPage = 1;
     this.loading = true;
     this.searchValue = currentText;
-    if ( currentText !== ''  && !Regex.patterns.NO_WILDCARD_ALLOW_HYPHEN.test(currentText)) {
+    if ( currentText !== ''  &&
+      !Regex.patterns.NO_WILDCARD_ALLOW_HYPHEN_AND_DOT.test(currentText)) {
       this.loading = false;
       this.nodes.length = 0;
       this.total = 0;
     } else {
       this.getNodesData();
     }
+    this.telemetryService.track('InfraServer_Nodes_Search');
   }
 
-  onPageChange(event: number): void {
+  onPageChange(event: number | any): void {
     this.currentPage = event;
     this.loading = true;
     this.getNodesData();
+    this.telemetryService.track('InfraServer_Nodes_GetNodesData');
   }
 
   getNodesData() {
@@ -170,7 +175,7 @@ export class InfraNodesComponent implements OnInit, OnDestroy {
   }
 
   timeFromNow(epochFormat: string) {
-    const epchoTime = Number(epochFormat);
+    const epchoTime = Number(epochFormat) * 1000; // from seconds to milliseconds
     const fromNowValue = this.timeFromNowPipe.transform(epchoTime);
     return fromNowValue === '-' ? '--' : fromNowValue;
   }
@@ -216,6 +221,7 @@ export class InfraNodesComponent implements OnInit, OnDestroy {
     this.store.dispatch(new DeleteNode({
       server_id: this.serverId, org_id: this.orgId, name: this.nodeToDelete.name
     }));
+    this.telemetryService.track('InfraServer_Nodes_Delete');
   }
 
   public closeDeleteModal(): void {
@@ -336,5 +342,6 @@ export class InfraNodesComponent implements OnInit, OnDestroy {
     this.currentPage = $event.pageIndex + 1;
     this.per_page = $event.pageSize;
     this.getNodesData();
+    this.telemetryService.track('InfraServer_Nodes_GetNodesData');
   }
 }

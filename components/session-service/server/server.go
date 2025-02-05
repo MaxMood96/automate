@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -35,6 +36,7 @@ import (
 	"github.com/chef/automate/components/session-service/oidc"
 	"github.com/chef/automate/lib/db"
 	"github.com/chef/automate/lib/grpc/secureconn"
+	"github.com/chef/automate/lib/httputils"
 	"github.com/chef/automate/lib/logger"
 	util "github.com/chef/automate/lib/oidc"
 	"github.com/chef/automate/lib/tls/certs"
@@ -203,6 +205,10 @@ func initStore(pgDB *sql.DB) (scs.Store, error) {
 
 func (s *Server) initHandlers() {
 	r := mux.NewRouter()
+
+	//Middleware intercepter for HSTS
+	r.Use(httputils.HSTSMiddleware)
+
 	r.HandleFunc("/health", s.healthHandler).Methods("GET")
 	r.HandleFunc("/new", s.newHandler).Methods("GET")
 	r.HandleFunc("/refresh", s.refreshHandler).
@@ -213,7 +219,11 @@ func (s *Server) initHandlers() {
 		HeadersRegexp("Cookie", "session=.+")
 	r.HandleFunc("/logout", s.logoutHandler).
 		Methods("GET")
+	r.HandleFunc("/token_api", s.tokenApiHandler).
+		Methods("GET")
 
+	r.HandleFunc("/refresh_api", s.refreshApiHandler).
+		Methods("POST")
 	// these are only to be used if Builder is configured to authenticate with Automate
 	r.HandleFunc("/token", s.tokenHandler).
 		Methods("POST")
@@ -425,12 +435,9 @@ func (s *Server) callbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u := new(url.URL)
-
-	*u = *s.signInURL
-
-	u.Fragment = fmt.Sprintf("id_token=%s&state=%s", rawIDToken, clientState)
-	http.Redirect(w, r, u.String(), http.StatusSeeOther)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"id_token": rawIDToken, "state": clientState})
 }
 
 func (s *Server) tokenHandler(w http.ResponseWriter, r *http.Request) {
@@ -486,8 +493,8 @@ func (s *Server) tokenHandler(w http.ResponseWriter, r *http.Request) {
 	// need to grab 'code' from the request body, exchange for token, return token
 	code := r.PostFormValue("code")
 	fmt.Printf("code:%s\n", code)
-	if "" == code {
-		http.Error(w, fmt.Sprint("no code in request"), http.StatusBadRequest)
+	if code == "" {
+		http.Error(w, "no code in request", http.StatusBadRequest)
 		return
 	}
 
@@ -508,8 +515,45 @@ func (s *Server) tokenHandler(w http.ResponseWriter, r *http.Request) {
 	returnData := struct {
 		AccessToken string `json:"access_token"`
 	}{rawIDToken}
+
 	if err := json.NewEncoder(w).Encode(returnData); err != nil {
 		http.Error(w, errors.Wrap(err, "failed to set access token").Error(),
+			http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *Server) tokenApiHandler(w http.ResponseWriter, r *http.Request) {
+	// need to grab 'code' from the query params, exchange for token, return token
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		http.Error(w, "no code in request", http.StatusBadRequest)
+		return
+	}
+
+	token, err := s.client.Exchange(r.Context(), code)
+	if err != nil {
+		s.log.Debugf("failed to get token: %v", err)
+		http.Error(w, fmt.Sprintf("failed to get token: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	rawIDToken, ok := token.Extra("id_token").(string)
+	if !ok {
+		s.log.Debug("no id_token in token response")
+		http.Error(w, "no id_token in token response", http.StatusInternalServerError)
+		return
+	}
+
+	returnData := struct {
+		IdToken      string    `json:"id_token"`
+		TokenType    string    `json:"token_type"`
+		Expiry       time.Time `json:"expires_in"`
+		RefreshToken string    `json:"refresh_token"`
+	}{rawIDToken, token.TokenType, token.Expiry, token.RefreshToken}
+
+	if err := json.NewEncoder(w).Encode(returnData); err != nil {
+		http.Error(w, errors.Wrap(err, "failed to set token").Error(),
 			http.StatusInternalServerError)
 		return
 	}
@@ -610,7 +654,9 @@ func (s *Server) refreshHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO 2017/12/11 (sr): should we kill the session on failure here?
-	token, err := s.maybeExchangeRefreshTokenForIDToken(r.Context(), refreshToken, idToken)
+	// token, err := s.maybeExchangeRefreshTokenForIDToken(r.Context(), refreshToken, idToken)
+	token, err := s.maybeExchangeRefreshTokenForIDToken(r.Context(), refreshToken, idToken, false)
+
 	if err != nil {
 		s.log.Debugf("failed to exchange token: %s", err)
 		httpError(w, http.StatusUnauthorized)
@@ -634,7 +680,97 @@ func (s *Server) refreshHandler(w http.ResponseWriter, r *http.Request) {
 		IDToken string `json:"id_token"`
 	}{rawIDToken}
 	if err := json.NewEncoder(w).Encode(returnData); err != nil {
-		http.Error(w, errors.Wrap(err, "failed to set marshal id_token").Error(), http.StatusInternalServerError)
+		JSONError(w, prepareError(http.StatusInternalServerError, errors.Wrap(err, "failed to set marshal id_token").Error()), http.StatusInternalServerError)
+		return
+	}
+}
+
+type RefreshToken struct {
+	RefreshToken string `json:"refresh_token"`
+	GrantType    string `json:"grant_type"`
+}
+
+type ErrorResponse struct {
+	ErrorCode int    `json:"error_code"`
+	ErrorDesc string `json:"error"`
+}
+
+func prepareError(code int, errMsg string) ErrorResponse {
+	return ErrorResponse{
+		ErrorCode: code,
+		ErrorDesc: errMsg,
+	}
+}
+
+func JSONError(w http.ResponseWriter, err interface{}, code int) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(err)
+}
+
+func (s *Server) refreshApiHandler(w http.ResponseWriter, r *http.Request) {
+	var data RefreshToken
+	// Try to decode the request body into the struct. If there is an error,
+	// respond to the client with the error message and a 400 status code.
+	err := json.NewDecoder(r.Body).Decode(&data)
+	if err != nil {
+		JSONError(w, prepareError(http.StatusBadRequest, err.Error()), http.StatusBadRequest)
+		return
+	}
+	if data.RefreshToken == "" || data.GrantType == "" {
+		JSONError(w, prepareError(http.StatusBadRequest, "Send All Input Parameters"), http.StatusBadRequest)
+		return
+	}
+	refreshToken := data.RefreshToken
+	idToken, err := util.ExtractBearerToken(r)
+	if err != nil {
+		s.log.Debug("no bearer token")
+		JSONError(w, prepareError(http.StatusUnauthorized, err.Error()), http.StatusUnauthorized)
+		return
+	}
+
+	isBlacklisted, err := s.idTokenBlackLister.IsIdTokenBlacklisted(idToken)
+	if err != nil {
+		JSONError(w, prepareError(http.StatusInternalServerError, err.Error()), http.StatusInternalServerError)
+		return
+	}
+	if isBlacklisted {
+		JSONError(w, prepareError(http.StatusUnauthorized, "ID Token is Expired"), http.StatusUnauthorized)
+		return
+	}
+
+	resp, err := s.client.RefreshTokenValidator(refreshToken)
+	if err != nil {
+		JSONError(w, prepareError(http.StatusInternalServerError, err.Error()), http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		content, _ := ioutil.ReadAll(resp.Body) // nosemgrep
+		http.Error(w, string(content), resp.StatusCode)
+		return
+	}
+	token, err := s.maybeExchangeRefreshTokenForIDToken(r.Context(), refreshToken, idToken, true)
+	if err != nil {
+		s.log.Debugf("failed to exchange token: %s", err)
+		JSONError(w, prepareError(http.StatusInternalServerError, err.Error()), http.StatusInternalServerError)
+		return
+	}
+	rawIDToken, ok := token.Extra("id_token").(string)
+	if !ok {
+		JSONError(w, prepareError(http.StatusInternalServerError, errors.Wrap(err, "no id_token in token response").Error()), http.StatusInternalServerError)
+		return
+	}
+
+	returnData := struct {
+		IDToken      string `json:"id_token"`
+		TokenType    string `json:"token_type"`
+		Expiry       string `json:"expires_in"`
+		RefreshToken string `json:"refresh_token"`
+	}{rawIDToken, token.Type(), token.Expiry.String(), token.RefreshToken}
+	if err := json.NewEncoder(w).Encode(returnData); err != nil {
+		JSONError(w, prepareError(http.StatusInternalServerError, errors.Wrap(err, "failed to set marshal id_token").Error()), http.StatusInternalServerError)
 		return
 	}
 }
@@ -726,9 +862,6 @@ func (s *Server) newHandler(w http.ResponseWriter, r *http.Request) {
 	s.log.Debugf("stored relayState %s", relayState)
 
 	opts := []oauth2.AuthCodeOption{}
-	if connectorID := s.connectorIDFromRequest(r); connectorID != "" {
-		opts = append(opts, oauth2.SetAuthURLParam("connector_id", connectorID))
-	}
 	authCodeURL := s.client.AuthCodeURL(relayState, opts...)
 
 	if err := sess.PutBool(w, aliveKey, true); err != nil {
@@ -740,38 +873,12 @@ func (s *Server) newHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, authCodeURL, http.StatusSeeOther)
 }
 
-func (s *Server) connectorIDFromRequest(r *http.Request) string {
-	token := r.FormValue("id_token_hint")
-	if token == "" { // ignore errors, we just use this as a hint
-		s.log.Error("no id_token_hint")
-		return ""
-	}
-	// Note(sr): The way the verifier is set up, this allows for expired tokens --
-	// so, this wouldn't fail unless we're given something that is not a JWT at all.
-	idToken, err := s.client.Verify(r.Context(), token)
-	if err != nil {
-		s.log.Errorf("failed to verify id_token_hint: %v", err)
-		return ""
-	}
-	var claims struct {
-		Federated struct {
-			ConnectorID string `json:"connector_id"`
-		} `json:"federated_claims"`
-	}
-	err = idToken.Claims(&claims)
-	if err != nil {
-		s.log.Errorf("failed to read claims from id_token_hint: %v", err)
-		return ""
-	}
-	return claims.Federated.ConnectorID
-}
-
 func httpError(w http.ResponseWriter, code int) {
 	http.Error(w, http.StatusText(code), code)
 }
 
 func (s *Server) maybeExchangeRefreshTokenForIDToken(ctx context.Context,
-	refreshToken, rawIDToken string) (*oauth2.Token, error) {
+	refreshToken, rawIDToken string, newRefresh bool) (*oauth2.Token, error) {
 	idToken, err := s.client.Verify(ctx, rawIDToken)
 	if err != nil {
 		return nil, errors.Wrap(err, "verify id_token")
@@ -782,8 +889,12 @@ func (s *Server) maybeExchangeRefreshTokenForIDToken(ctx context.Context,
 		return nil, errors.Wrap(err, "build token from id_token")
 	}
 
-	// This makes a refresh happen although it's not required "just yet" (but soon)
-	t.Expiry = t.Expiry.Add(-s.remainingDuration)
+	if newRefresh {
+		t.Expiry = time.Now()
+	} else {
+		// This makes a refresh happen although it's not required "just yet" (but soon)
+		t.Expiry = t.Expiry.Add(-s.remainingDuration)
+	}
 
 	token, err := s.client.TokenSource(ctx, t).Token()
 	if err != nil {

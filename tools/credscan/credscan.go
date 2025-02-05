@@ -105,6 +105,7 @@ var a2Config = config{
 
 		// A2HA Component sample keys and certificates
 		{regex: `components/automate-backend-elasticsearch/habitat/config/certificates/*`},
+		{regex: `components/automate-backend-opensearch/habitat/config/certificates/*`},
 		{regex: `components/automate-backend-elasticsidecar/habitat/config/certificates/*`},
 		{regex: `components/automate-backend-kibana/habitat/config/certificates/*`},
 		{regex: `components/automate-backend-postgresql/habitat/config/*`},
@@ -133,6 +134,75 @@ var a2Config = config{
 
 		// Workaround for DST Root certificate expiry
 		{regex: `components/automate-load-balancer/habitat/cacert.pem`},
+
+		// Exclude test file for mockserver which uses RSA KEY for test cases
+		{regex: `components/automate-cli/pkg/verifyserver/services/mockserverservice/mockserverservice_test.go`},
+
+		// Exclude test file for portreachableservice with uses RSA KEY for test cases
+		{regex: `components/automate-cli/pkg/verifyserver/services/portreachableservice/portreachable_test.go`},
+
+		// Exclude test file for certificatevalidation with uses RSA KEY for test cases
+		{regex: `components/automate-cli/pkg/verifyserver/services/certificatevalidation/certificatevalidation_test.go`},
+
+		// Exclude test file for private key validation which uses RSA KEY for test cases
+		{regex: `components/automate-cli/pkg/verifyserver/services/sshusercheckservice/testfiles/ssh.pem`},
+
+		// Exclude test file for private key validation which uses RSA KEY for test cases
+		{regex: `components/automate-cli/pkg/verifyserver/server/api/v1/sshuserchecks_test.go`},
+
+		//Exclude test file for private key validation with uses RSA KEY for test cases
+		{regex: `lib/sshutils/testfiles/ssh`},
+
+		// Test data for hadeployconfig
+		{regex: `lib/config/testdata/.*\.toml`},
+		{regex: `lib/config/testdata/.*\.pem`},
+		{regex: `lib/config/hadeployconfig_test.go`},
+
+		//Test data for PopulateWith in batchcheck models
+		{regex: `components/automate-cli/pkg/verifyserver/models/testdata/.*\.toml`},
+		{regex: `components/automate-cli/pkg/verifyserver/models/testdata/.*\.pem`},
+		{regex: `components/automate-cli/pkg/verifyserver/models/batchcheck_test.go:`},
+
+		// Exclude test file for externalopensearchservice with uses RSA KEY for test cases
+		{regex: `components/automate-cli/pkg/verifyserver/services/externalopensearchservice/externalopensearchservice_test.go`},
+
+		// Exclude test file for fqdnservice which uses RSA KEY for test cases
+		{regex: `components/automate-cli/pkg/verifyserver/services/fqdnservice/fqdnservice_test.go`},
+
+		// Exclude test file for verifyservice which uses RSA KEY for test cases
+		{regex: `components/automate-cli/pkg/testfiles/aws/valid_config.toml`},
+
+		// Exclude test file for certificate rotation
+		{regex: `components/automate-cli/pkg/testfiles/certs/private_key.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/public_key.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_a2_private_key_1.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_a2_private_key_2.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_a2_private_key_3.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_a2_public_key_1.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_a2_public_key_2.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_a2_public_key_3.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_admin_cert.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_admin_key.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_cs_private_key_1.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_cs_private_key_2.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_cs_private_key_3.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_cs_public_key_1.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_cs_public_key_2.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_cs_public_key_3.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_os_private_key_1.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_os_private_key_2.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_os_private_key_3.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_os_public_key_1.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_os_public_key_2.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_os_public_key_3.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_pg_private_key_1.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_pg_private_key_2.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_pg_private_key_3.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_pg_public_key_1.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_pg_public_key_2.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_pg_public_key_3.pem`},
+		{regex: `components/automate-cli/pkg/testfiles/certs/test_root_ca.pem`},
+		{regex: `components/automate-cli/cmd/chef-automate/certRotate_test.go`},
 	},
 	contentInclude: []pattern{
 		{

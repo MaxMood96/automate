@@ -2,6 +2,7 @@
 #shellcheck disable=SC2154
 #stable channel
 
+
 pkg_name=trial-license-service
 pkg_origin=chef
 pkg_description="A2 trial license service"
@@ -30,4 +31,10 @@ scaffolding_go_binary_list=(
 
 do_strip() {
   return 0
+}
+
+
+do_before() {
+  do_default_before
+  git config --global --add safe.directory /src
 }

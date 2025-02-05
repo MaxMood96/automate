@@ -508,7 +508,7 @@ func (r *Runner) ShowBackup(ctx context.Context, t *api.BackupTask) (*api.Backup
 	desc := &api.BackupDescription{
 		Id:            t.TaskID(),
 		Sha256:        sha256,
-		ServerVersion: m.Build,
+		ServerVersion: m.Version(),
 		CliVersion:    cliRelease,
 	}
 	return desc, nil
@@ -573,7 +573,9 @@ func (r *Runner) startRestoreOperations(ctx context.Context) {
 	var err error
 	deadline, ok := ctx.Deadline()
 	if !ok {
-		deadline = time.Now().Add(2 * time.Hour)
+		// With large node counts or large volumes of cloud targets, restores may take several hours
+		// TODO: Change this from hard coded duration to timeout supplied by chef-automate CLI
+		deadline = time.Now().Add(12 * time.Hour)
 	}
 	ctx, cancel := context.WithDeadline(context.Background(), deadline)
 
@@ -709,11 +711,27 @@ func (r *Runner) restoreServices(ctx context.Context, desiredServices []*deploym
 
 	// Load the verifier from the remote bucket since the backup gateway won't be
 	// available yet by this point.
+	logrus.Debugf(" restoreCtx.restoreBucket : %v", restoreCtx.restoreBucket)
+	logrus.Debugf(" restoreCtx.bucket : %v", restoreCtx.bucket)
+	logrus.Debugf(" desiredServices : %v", desiredServices)
+	logrus.Debugf(" Length of desiredServices : %d", len(desiredServices))
+
 	verifier, err := LoadMetadataVerifier(ctx, restoreCtx.restoreBucket, r.restoreTask.Sha256)
 	if err != nil {
 		r.failf(err, "Failed to load service metadata checksum information")
 		return err
 	}
+	// stateFullServicesMap : List of Service need to restore
+	stateFullServicesMap := make(map[string]struct{})
+	stateFullServicesMap["backup-gateway"] = struct{}{}
+	for _, service := range r.specs {
+		logrus.Debug("Service Name : ", service.Name, "  Backup status : ", service.WriteMetadata)
+		if service.WriteMetadata {
+			stateFullServicesMap[service.Name] = struct{}{}
+		}
+	}
+	logrus.Debug("list of stateFullServicesMap services : ", stateFullServicesMap)
+	logrus.Debug(" Length of stateFullServicesMap ", len(stateFullServicesMap))
 
 	// Restore the services in topological order.
 	for _, svc := range desiredServices {
@@ -767,10 +785,15 @@ func (r *Runner) restoreServices(ctx context.Context, desiredServices []*deploym
 			verifier,
 		)
 
+		// stateFullServicesMap : contain the list of services which need to be restored
+
+		_, isStateFullService := stateFullServicesMap[svc.Name()]
+		r.infof("Service Name: %s, should check for metadata.json in backup data: %t", svc.Name(), isStateFullService)
+
 		// If the metadata file exists but we failed to load it for whatever
 		// reason, like a network issue or corrupted metadata file, then we want to
 		// error out.
-		if err != nil && !IsNotExist(err) {
+		if err != nil && !IsNotExist(err) && isStateFullService {
 			r.failf(err, "Failed to load metadata for service %s", svc.Name())
 			return err
 		}
@@ -997,7 +1020,9 @@ func (r *Runner) startBackupOperations(ctx context.Context) {
 	var err error
 	deadline, ok := ctx.Deadline()
 	if !ok {
-		deadline = time.Now().Add(2 * time.Hour)
+		// With large node counts or large volumes of cloud targets, backups may take several hours
+		// TODO: Change this from hard coded duration to timeout supplied by chef-automate CLI
+		deadline = time.Now().Add(12 * time.Hour)
 	}
 	ctx, cancel := context.WithDeadline(context.Background(), deadline)
 	defer cancel()

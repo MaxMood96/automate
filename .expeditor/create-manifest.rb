@@ -220,9 +220,10 @@ class ManifestGenerator
     # of an implementation mistake in deployment-service, changing this
     # version is impossible without major feature work in
     # deployment-service to manage the upgrade.
-    manifest["schema_version"] = "1"
+    manifest["schema_version"] = "2"
     manifest["hab_build"] = local_hab_version
     manifest["build"] = version
+    manifest["version"] = version
     manifest["hab"] = []
 
     ["hab", "hab-sup", "hab-launcher"].each do |p|
@@ -246,10 +247,10 @@ class ManifestGenerator
       manifest["packages"] << latest_release.ident
     end
 
-    products_meta["deleted_packages"].each do |pkg|
-      log.info "Adding last stable release of deleted package #{pkg}"
-      manifest["packages"] << "#{pkg}"
-    end
+    # products_meta["deleted_packages"].each do |pkg|
+    #   log.info "Adding last stable release of deleted package #{pkg}"
+    #   manifest["packages"] << "#{pkg}"
+    # end
 
     manifest["packages"].uniq!
     # Sort the packages for easier diff-ing
@@ -299,7 +300,7 @@ pins = {
   # This will pin the services that we package and start with the deployment service,
   # while still allowing the clients of these databases to upgrade their client
   # libraries if any fixes are shipped there.
-  "automate-postgresql"    => {"origin" => "chef", "name" => "automate-postgresql",    "version" => "9.6.11", "release" => "20200929122522"},
+  # "automate-postgresql"    => {"origin" => "chef", "name" => "automate-postgresql",    "version" => "9.6.24", "release" => "20220218015755"},
   # "automate-elasticsearch" => {"origin" => "chef", "name" => "automate-elasticsearch", "version" => "6.8.3",  "release" => "20200929123629"},
 }
 
@@ -308,9 +309,9 @@ unless no_pin_hab
   # components/automate-deployment/habitat/plan.sh
   #
   # WARNING: These pins are managed by .expeditor/update_habitat.sh.
-  pins["hab"]          = { "origin" => "core", "name" => "hab",          "version" => "1.6.181", "release" => "20201030172917"}
-  pins["hab-sup"]      = { "origin" => "core", "name" => "hab-sup",      "version" => "1.6.181", "release" => "20201030181202"}
-  pins["hab-launcher"] = { "origin" => "core", "name" => "hab-launcher", "version" => "14772",  "release" => "20201030181158"}
+  pins["hab"]          = { "origin" => "core", "name" => "hab",          "version" => "1.6.1205", "release" => "20241107140309"}
+  pins["hab-sup"]      = { "origin" => "core", "name" => "hab-sup",      "version" => "1.6.1205", "release" => "20241107150331"}
+  pins["hab-launcher"] = { "origin" => "core", "name" => "hab-launcher", "version" => "16260",  "release" => "20220603161305"}
 end
 
 # CONFIGURATION

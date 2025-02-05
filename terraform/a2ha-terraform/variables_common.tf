@@ -38,8 +38,17 @@ variable "automate_fqdn" {
   description = "Automate FQDN variable. Leave as an empty string for AWS"
 }
 
+variable "automate_frontend_url" {
+  default     = ""
+  description = "Automate FQDN variable. Leave as an empty string for AWS"
+}
+
 variable "automate_instance_count" {
   default = 1
+}
+
+variable "automate_lb_fqdn" {
+  default = ""
 }
 
 variable "automate_license" {
@@ -76,13 +85,20 @@ variable "elasticsearch_archive_disk_fs_path" {
 variable "elasticsearch_https_user" {
   default = "automate_elasticsearch"
 }
-
-variable "elasticsearch_instance_count" {
+variable "opensearch_instance_count" {
   default = 3
 }
 
-variable "elasticsearch_listen_port" {
+variable "opensearch_listen_port" {
   default = 9200
+}
+
+variable "opensearch_username" {
+  default = "admin"
+}
+
+variable "opensearch_user_password" {
+  default = "admin"
 }
 
 variable "elasticsearch_pkg_ident" {
@@ -145,6 +161,10 @@ variable "kibana_pkg_ident" {
   default = "chef/automate-ha-kibana"
 }
 
+variable "lb_access_logs" {
+  default = false
+}
+
 variable "metricbeat_pkg_ident" {
   default = "chef/automate-ha-metricbeat"
 }
@@ -152,6 +172,10 @@ variable "metricbeat_pkg_ident" {
 variable "nfs_mount_path" {
   default     = "/mnt/automate_backups"
   description = "The NFS mount base path for backups and archives."
+}
+
+variable "opensearch_pkg_ident" {
+  default = "chef/automate-ha-opensearch"
 }
 
 variable "pgleaderchk_listen_port" {
@@ -224,7 +248,7 @@ variable "teams_port" {
 }
 
 variable "tmp_path" {
-  default = "/var/tmp"
+  default = "/hab/var/automate-ha"
 }
 
 variable "sudo_password" {
@@ -242,4 +266,68 @@ variable "be_sudo_password" {
 locals {
   fe_sudo_password = var.fe_sudo_password != null ? var.fe_sudo_password : var.sudo_password
   be_sudo_password = var.be_sudo_password != null ? var.be_sudo_password : var.sudo_password
+}
+
+
+variable "automate_root_ca" {
+  default = ""
+}
+variable "automate_private_key" {
+  default = ""
+}
+variable "automate_public_key" {
+  default = ""
+}
+variable "chef_server_private_key" {
+  default = ""
+}
+variable "chef_server_public_key" {
+  default = ""
+}
+
+variable "postgresql_root_ca" {
+  default = ""
+}
+variable "postgresql_private_key" {
+  default = ""
+}
+variable "postgresql_public_key" {
+  default = ""
+}
+
+variable "opensearch_root_ca" {
+  default = ""
+}
+variable "opensearch_private_key" {
+  default = ""
+}
+variable "opensearch_public_key" {
+  default = ""
+}
+variable "opensearch_admin_dn" {
+  default = ""
+}
+variable "opensearch_nodes_dn" {
+  default = ""
+}
+variable "opensearch_admin_cert" {
+  default = ""
+}
+variable "opensearch_admin_key" {
+  default = ""
+}
+variable "automate_custom_certs_enabled" {
+  default = false
+}
+variable "chef_server_custom_certs_enabled" {
+  default = false
+}
+variable "postgresql_custom_certs_enabled" {
+  default = false
+}
+variable "opensearch_custom_certs_enabled" {
+  default = false
+}
+variable "tag_name" {
+  default = "A2"
 }

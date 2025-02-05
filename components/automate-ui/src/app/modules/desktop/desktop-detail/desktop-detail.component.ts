@@ -1,12 +1,12 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
-import { Desktop, DailyNodeRuns, DailyNodeRunsStatus } from 'app/entities/desktop/desktop.model';
+import { Desktop, DailyNodeRuns, DailyNodeRunsStatus } from '../../../entities/desktop/desktop.model';
 import { finalize } from 'rxjs/operators';
 import * as moment from 'moment/moment';
 import { saveAs } from 'file-saver';
-import { DateTime } from 'app/helpers/datetime/datetime';
-import { NodeRunsService } from 'app/services/node-details/node-runs.service';
-import { RunHistoryStore } from 'app/services/run-history-store/run-history.store';
-import { NodeRun } from 'app/types/types';
+import { DateTime } from '../../../helpers/datetime/datetime';
+import { NodeRunsService } from '../../../services/node-details/node-runs.service';
+import { RunHistoryStore } from '../../../services/run-history-store/run-history.store';
+import { NodeRun } from '../../../types/types';
 
 @Component({
   selector: 'app-desktop-detail',
@@ -28,6 +28,7 @@ export class DesktopDetailComponent {
   public DateTime = DateTime;
   public showCheckinDebug = false;
   public downloadDropdownVisible = false;
+  public checkInPeriodDropdownVisible = false;
   public downloadInProgress = false;
   public downloadFailed = false;
   public twoWeekNumDays = 15; // 14 days + 1 offset
@@ -48,10 +49,18 @@ export class DesktopDetailComponent {
     private nodeRunsService: NodeRunsService
   ) {}
 
-  updateCheckInDays() {
-    const numDaysChanged =
-      this.checkInNumDays === this.twoWeekNumDays ? this.fourWeekNumDays : this.twoWeekNumDays;
-    this.checkInNumDaysChanged.emit(numDaysChanged);
+  updateCheckInDays(value) {
+    this.toggleCheckInPeriodDropdown();
+    this.checkInNumDays = value;
+    this.checkInNumDaysChanged.emit(value);
+  }
+
+  toggleCheckInPeriodDropdown() {
+    this.checkInPeriodDropdownVisible = !this.checkInPeriodDropdownVisible;
+  }
+
+  closeCheckInPeriodDropdown() {
+    this.checkInPeriodDropdownVisible = false;
   }
 
   onDownloadCheckInHistory(format) {
@@ -90,10 +99,14 @@ export class DesktopDetailComponent {
       const startOfWeekLabelText = `${numWeeks} week${numWeeks !== 1 ? 's' : ''} ago`;
       const isToday = index === (buckets.length - 1);
       const labelText = isToday ? 'Today' : '';
-      history.label = isStartOfWeek ? startOfWeekLabelText : labelText;
+      const label = isStartOfWeek ? startOfWeekLabelText : labelText;
       if (isStartOfWeek) { --numWeeks; }
-      return history;
+      return { ...history, label };
     });
+  }
+
+  trackByFunction(_, item) {
+    return item.run_id;
   }
 
   public close(): void {

@@ -25,11 +25,14 @@ export const environment = {
   user_preference_url: '/api/v0/user-settings',
   compliance_stats_url: '/api/v0/compliance/reporting/stats',
   client_runs_stats_url: '/api/v0/cfgmgmt/telemetry',
+  download_report_list_url: '/api/v0/reportmanager',
   elasticsearch_url: '/api/v0/elasticsearch',
   notifier_url: '/api/v0/notifications',
   data_feed_url: '/api/v0/datafeed',
   visibility_url: '/api/v0/visibility',
   license_id: '00000000-0000-0000-0000-000000000000',
   install_id: '00000000-0000-0000-0000-000000000000',
-  use_default_session: false
+  use_default_session: false,
+  remote_library_url: 'https://services.chef.io/usage/v1/remoteclient.js',
+  remote_library_url_acceptance: 'https://licensing-acceptance.chef.co/usage/v1/remoteclient.js'
 };

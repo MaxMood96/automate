@@ -3,49 +3,54 @@ import { Router } from '@angular/router';
 import { Store } from '@ngrx/store';
 import { combineLatest, Subject } from 'rxjs';
 import { isNil } from 'lodash/fp';
-import { NgrxStateAtom } from 'app/ngrx.reducers';
-import { EntityStatus, pending } from 'app/entities/entities';
-import { LayoutFacadeService, Sidebar } from 'app/entities/layout/layout.facade';
-import { routeParams, routeURL } from 'app/route.selectors';
+import { NgrxStateAtom } from '../../../ngrx.reducers';
+import { EntityStatus, pending } from '../../../entities/entities';
+import { LayoutFacadeService, Sidebar } from '../../../entities/layout/layout.facade';
+import { routeParams, routeURL } from '../../../route.selectors';
 import { filter, pluck, takeUntil, take } from 'rxjs/operators';
 import { identity } from 'lodash/fp';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+
 import {
   infraNodeFromRoute
-} from 'app/entities/infra-nodes/infra-node-details.selectors';
+} from '../../../entities/infra-nodes/infra-node-details.selectors';
 import {
   updateTagsStatus,
   updateEnvStatus,
   nodeTags,
   nodeEnvironment
-} from 'app/entities/infra-nodes/infra-nodes.selectors';
+} from '../../../entities/infra-nodes/infra-nodes.selectors';
 import {
   getAllStatus,
   environmentList
-} from 'app/entities/environments/environment.selectors';
+} from '../../../entities/environments/environment.selectors';
 import {
   allRecipes,
   getAllStatus as getAllRecipesForOrgStatus
-} from 'app/entities/recipes/recipe.selectors';
+} from '../../../entities/recipes/recipe.selectors';
 import {
   allNodeRunlist,
   getAllStatus as getAllNodeRunlistForOrgStatus
-} from 'app/entities/nodeRunlists/nodeRunlists.selectors';
+} from '../../../entities/nodeRunlists/nodeRunlists.selectors';
 import {
   GetNode,
   UpdateNodeTags,
   UpdateNodeEnvironment
-} from 'app/entities/infra-nodes/infra-nodes.actions';
-import { GetEnvironments } from 'app/entities/environments/environment.action';
-import { GetNodeRunlists } from 'app/entities/nodeRunlists/nodeRunlists.action';
-import { GetRecipes } from 'app/entities/recipes/recipe.action';
-import { InfraNode } from 'app/entities/infra-nodes/infra-nodes.model';
-import { Environment } from 'app/entities/environments/environment.model';
-import { NodeList, NodeExpandedChildList, NodeRunlist } from 'app/entities/nodeRunlists/nodeRunlists.model';
+} from '../../../entities/infra-nodes/infra-nodes.actions';
+import { GetEnvironments } from '../../../entities/environments/environment.action';
+import { GetNodeRunlists } from '../../../entities/nodeRunlists/nodeRunlists.action';
+import { GetRecipes } from '../../../entities/recipes/recipe.action';
+import { InfraNode } from '../../../entities/infra-nodes/infra-nodes.model';
+import { Environment } from '../../../entities/environments/environment.model';
+import { NodeList, NodeExpandedChildList, NodeRunlist } from '../../../entities/nodeRunlists/nodeRunlists.model';
 import { Node, Options } from '../tree-table/models';
 import { AvailableType } from '../infra-roles/infra-roles.component';
 import { ListItem } from '../select-box/src/lib/list-item.domain';
 import { JsonTreeTableComponent as JsonTreeTable } from './../json-tree-table/json-tree-table.component';
+import { TelemetryService } from '../../../services/telemetry/telemetry.service';
+import { Org } from '../../../entities/orgs/org.model';
+import { getStatus as gtStatus, orgFromRoute } from '../../../entities/orgs/org.selectors';
+import { GetOrg } from '../../../entities/orgs/org.actions';
 
 export type InfraNodeTabName = 'details' | 'runList' | 'attributes';
 
@@ -56,8 +61,9 @@ export type InfraNodeTabName = 'details' | 'runList' | 'attributes';
 })
 
 export class InfraNodeDetailsComponent implements OnInit, OnDestroy {
+  public org: Org;
   public conflictError = false;
-  public InfraNode: InfraNode;
+  public InfraNode: InfraNode | any;
   public tabValue: InfraNodeTabName = 'details';
   public serverId: string;
   public orgId: string;
@@ -79,6 +85,7 @@ export class InfraNodeDetailsComponent implements OnInit, OnDestroy {
   public removeTags: string[] = [];
   public inputTxt = '';
   public updatingTags = false;
+  public isHtmlTags:boolean = false;
 
   // for environments
   public environmentListState: { items: Environment[], total: number };
@@ -123,7 +130,8 @@ export class InfraNodeDetailsComponent implements OnInit, OnDestroy {
     private fb: FormBuilder,
     private router: Router,
     private store: Store<NgrxStateAtom>,
-    private layoutFacade: LayoutFacadeService
+    private layoutFacade: LayoutFacadeService,
+    private telemetryService: TelemetryService
   ) {
     this.updateNodeForm = this.fb.group({
       environment: [null, [Validators.required]]
@@ -148,7 +156,29 @@ export class InfraNodeDetailsComponent implements OnInit, OnDestroy {
           break;
       }
     });
-    // load node details
+
+    combineLatest([
+      this.store.select(routeParams).pipe(pluck('id'), filter(identity)),
+      this.store.select(routeParams).pipe(pluck('org-id'), filter(identity))
+    ]).pipe(
+      takeUntil(this.isDestroyed)
+    ).subscribe(([server_id, org_id]: string[]) => {
+      this.serverId = server_id;
+      this.orgId = org_id;
+      this.store.dispatch(new GetOrg({ server_id: server_id, id: org_id }));
+    });
+
+    combineLatest([
+      this.store.select(gtStatus),
+      this.store.select(orgFromRoute as any)
+    ]).pipe(
+      filter(([getOrgSt, orgState]) => getOrgSt ===
+        EntityStatus.loadingSuccess && !isNil(orgState)),
+      takeUntil(this.isDestroyed)
+    ).subscribe(([_getOrgSt, orgState]) => {
+      this.org = { ...orgState };
+    });
+   // load node details
     combineLatest([
       this.store.select(routeParams).pipe(pluck('id'), filter(identity)),
       this.store.select(routeParams).pipe(pluck('org-id'), filter(identity)),
@@ -165,7 +195,7 @@ export class InfraNodeDetailsComponent implements OnInit, OnDestroy {
       }));
     });
     this.loadRecipes();
-    this.store.select(infraNodeFromRoute).pipe(
+    this.store.select(infraNodeFromRoute as any).pipe(
       filter(identity),
       takeUntil(this.isDestroyed)
     ).subscribe(node => {
@@ -243,10 +273,11 @@ export class InfraNodeDetailsComponent implements OnInit, OnDestroy {
 
   addTags() {
     if (this.inputTxt !== '') {
-      this.tags = this.tags.concat(this.inputTxt.replace(/^[,\s]+|[,\s]+$/g, '')
+      this.tags = this.tags.concat(this.inputTxt.replace(/^[,\s]+$|^[,\s]+$/g, '')
         .replace(/,[,\s]*,/g, ',').split(',').map(item => item.trim()));
       this.inputTxt = '';
       this.updateTags('add', this.tags);
+      this.telemetryService.track('InfraServer_Nodes_AddTags');
     }
   }
 
@@ -259,6 +290,7 @@ export class InfraNodeDetailsComponent implements OnInit, OnDestroy {
 
     this.removeTags.push(tag);
     this.updateTags('delete', this.removeTags);
+    this.telemetryService.track('InfraServer_Nodes_RemoveTags');
   }
 
   // load list of environments
@@ -282,7 +314,7 @@ export class InfraNodeDetailsComponent implements OnInit, OnDestroy {
     this.openEnvironmentModal.emit(true);
   }
 
-  onSelectedTab(event: { target: { value: InfraNodeTabName } }) {
+  onSelectedTab(event: { target: { value: InfraNodeTabName } } | any) {
     this.tabValue = event.target.value;
     this.router.navigate([this.url.split('#')[0]], { fragment: event.target.value });
   }
@@ -307,6 +339,7 @@ export class InfraNodeDetailsComponent implements OnInit, OnDestroy {
       environment: this.updateNodeForm.controls.environment.value.trim()
     };
     this.store.dispatch(new UpdateNodeEnvironment({node: updatedNode}));
+    this.telemetryService.track('InfraServer_Nodes_ChangeNodeEnvironment');
   }
 
   updateRunlist() {
@@ -424,6 +457,11 @@ export class InfraNodeDetailsComponent implements OnInit, OnDestroy {
     this.arrayOfNodesTree = [];
     this.selected = [];
     for (const expandValue of expandedList) {
+      // set the default environment if policy group is present
+      if (this.InfraNode.policy_group !== '') {
+        li = '_default';
+      }
+
       if (expandValue.id === li) {
         this.expandedRunList = expandValue.run_list;
         if (this.expandedRunList && this.expandedRunList.length) {
@@ -489,5 +527,12 @@ export class InfraNodeDetailsComponent implements OnInit, OnDestroy {
 
   public closeEditAttributeModal(): void {
     this.openEditAttr = false;
+  }
+
+  handleTagsChange(event: Event){
+    const inputElement = event.target as HTMLInputElement;
+    const htmlTagsRegex = /<\/?[^>]+(>|$)|[!@#$%^&*().?":{}|<>]/;
+    const hasHtmlTags = htmlTagsRegex.test(inputElement.value);
+    this.isHtmlTags = hasHtmlTags;
   }
 }

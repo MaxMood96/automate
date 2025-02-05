@@ -29,6 +29,8 @@ type Config struct {
 	OptOut           string          `mapstructure:"opt_out" toml:"opt_out"`
 	TelemetryEnabled bool
 	ServiceCerts     *certs.ServiceCerts
+	CerealConfig     CerealConfig `mapstructure:"cereal"`
+	LicenseAudit     LicenseAudit `mapstructure:"license_audit"`
 }
 
 // ListenAddress is the address where gRPC server will bind and listen
@@ -164,4 +166,14 @@ func removeOptOutFile(optOutPath string) error {
 	}
 
 	return err
+}
+
+type CerealConfig struct {
+	Target string `mapstructure:"target"`
+}
+
+type LicenseAudit struct {
+	Url       string `mapstructure:"url" toml:"url"`
+	Frequency string `mapstructure:"frequency" toml:"frequency"`
+	Interval  int    `mapstructure:"interval" toml:"interval"`
 }

@@ -2,6 +2,7 @@
 #shellcheck disable=SC2154
 #stable channel
 
+
 pkg_name=automate-scaffolding-go
 pkg_origin=chef
 pkg_description="Scaffolding for Automate Go Applications internally at Chef Software Inc."
@@ -10,8 +11,9 @@ pkg_version="0.1.0"
 pkg_license=('Chef-MLSA')
 pkg_source=nosuchfile.tar.gz
 pkg_deps=(
-  core/go/1.15 # This is only pinned to force a scaffolding rebuild to this version
-  core/git/2.26.2
+ core/go1_22/1.22.5  # This is only pinned to force a scaffolding rebuild to this version
+ core/git/2.39.1
+ 
 )
 
 do_build() {
@@ -40,3 +42,4 @@ do_install() {
   install -d "$pkg_prefix/lib/templates/"
   install -D -m 0644 "$PLAN_CONTEXT/../../../lib/scaffolding/templates/"* "$pkg_prefix/lib/templates/"
 }
+

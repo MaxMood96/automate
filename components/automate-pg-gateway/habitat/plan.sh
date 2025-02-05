@@ -9,20 +9,23 @@ pkg_maintainer="Chef Software Inc. <support@chef.io>"
 pkg_license=('Chef-MLSA')
 pkg_version="0.0.1"
 pkg_deps=(
-    core/bash
-    core/netcat-openbsd
-    core/jq-static
-    core/haproxy
+    core/bash/5.1/20240105214248
+    core/netcat-openbsd/1.226/20240106172343
+    core/jq-static/1.6/20240107004905
+    core/haproxy/2.2.29/20240106203532
 )
+
 
 chef_automate_hab_binding_mode="relaxed"
 pkg_exposes=(port)
 pkg_exports=(
     [port]=service.port
 )
+
 pkg_binds=(
   [automate-postgresql]="port"
 )
+
 pkg_description="PostgreSQL Gateway for Chef Automate"
 pkg_upstream_url="https://www.chef.io/automate"
 

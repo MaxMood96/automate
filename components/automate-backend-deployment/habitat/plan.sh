@@ -6,28 +6,33 @@ pkg_origin=chef
 pkg_version="0.1.0"
 pkg_maintainer="Chef Software Inc. <support@chef.io>"
 pkg_license=("Chef-MLSA")
+
 pkg_deps=(
-  core/ruby30
-  core/aws-cli
-  core/bash
-  core/coreutils
-  core/cacerts
-  core/findutils
-  core/gawk
-  core/gzip
-  core/jq-static
-  core/openssh
-  core/openssl
-  core/make
-  core/curl
-  core/rsync
-  core/terraform
-  core/busybox-static
+  core/ruby31/3.1.6/20240912144513
+  core/aws-cli/1.31.4/20240106034739
+  core/bash/5.1/20240105214248
+  core/coreutils/8.32/20240105213308
+  core/cacerts/2021.10.26/20240105224256
+  core/findutils/4.9.0/20240105220908
+  core/gawk/5.1.0/20240105214723
+  core/gzip/1.13/20240105221940
+  core/jq-static/1.6/20240107004905
+  core/openssh/7.9p1/20240106022237
+  core/openssl/1.0.2zi/20240105224424
+  core/make/4.3/20240105222044
+  core/curl/8.7.1/20240614090648
+  core/rsync/3.2.3/20240107034222
+  core/terraform1/1.5.7/20240106055300
+  core/busybox-static/1.34.1/20240105230035
   chef/automate-ha-cluster-ctl
 )
 
+#core/aws-cli ( core/aws-cli/1.21.11/20231020110846 core/aws-cli/1.21.11/20220817123642 )
+   # core/openssl11 ( core/openssl11/1.1.1w/20231020105352 core/openssl11/1.1.1k/20220311131131 )
+   # core/python ( core/python/3.10.0/20231020105702 core/python/3.10.0/20220817121853 )
+   #
 pkg_build_deps=(
-  core/gcc
+  core/gcc/9.5.0/20240105175314
 )
 
 # workaround for https://github.com/habitat-sh/habitat/issues/6341
@@ -59,11 +64,17 @@ do_install() {
   mkdir -p $pkg_prefix/workspace/scripts/
   mkdir -p $pkg_prefix/workspace/terraform/
 
+  build_line "Adding Certificates"
+  $(pkg_path_for core/bash)/bin/bash $PLAN_CONTEXT/cert.sh "$PLAN_CONTEXT"
+
+  build_line "Copying Certificates toml to workspace"
+  cp $PLAN_CONTEXT/default_backend_certificates.toml $pkg_prefix/workspace/
+
   build_line "Copying tests"
   cp -r $PLAN_CONTEXT/../../../test $pkg_prefix/workspace/
 
   build_line "Copying inspec"
-  cp -r $PLAN_CONTEXT/../../../inspec/automate-backend-elasticsearch-smoke $pkg_prefix/workspace/inspec/
+  cp -r $PLAN_CONTEXT/../../../inspec/automate-backend-opensearch-smoke $pkg_prefix/workspace/inspec/
   cp -r $PLAN_CONTEXT/../../../inspec/automate-backend-postgresql-smoke $pkg_prefix/workspace/inspec/
   cp -r $PLAN_CONTEXT/../../../inspec/automate-backend-resources $pkg_prefix/workspace/inspec/
   cp -r $PLAN_CONTEXT/../../../inspec/automate-frontend-chef-server-smoke $pkg_prefix/workspace/inspec/
@@ -87,8 +98,14 @@ do_install() {
   cp -r $PLAN_CONTEXT/../../../certs $pkg_prefix/workspace/ 
   cp -r $PLAN_CONTEXT/../../../terraform/a2ha-terraform/deployment-makefile/Makefile $pkg_prefix/workspace/
   cp -r $PLAN_CONTEXT/../../../terraform/a2ha-terraform/How-to-destroy-infra.md $pkg_prefix/workspace/terraform/
-  cp -r $PLAN_CONTEXT/.terraform $pkg_prefix/workspace/terraform/.terraform
-  cp -r $PLAN_CONTEXT/.terraform.lock.hcl $pkg_prefix/workspace/terraform/
+
+  # terraform dependecies
+  build_line "building dependencies"
+  cp -r $PLAN_CONTEXT/../../../terraform/a2ha-terraform/dependencies.tf $pkg_prefix/workspace/terraform/
+  pushd $pkg_prefix/workspace/terraform/
+  terraform init
+  rm -f dependencies.tf
+  popd
 
   # make sure no state is copied over
   rm -f $pkg_prefix/workspace/terraform/*.tfstate
@@ -107,3 +124,9 @@ do_install() {
 do_strip() {
   return 0
 }
+
+
+
+
+
+

@@ -22,7 +22,7 @@ To upgrade AWS RDS, please follow instructions on [Upgrading the PostgreSQL DB e
 
 ## Upgrade External PostgreSQL from 9.6 to 13.4
 
-Chef Automate uses PostgreSQL as the primary database for storing node data. [PostgreSQL 9.6 is EOL](https://endoflife.date/postgresql) and Chef customers running Chef Automate with PostgreSQL 9.6 should upgrade to [Postgres 13](https://www.postgresql.org/about/news/postgresql-13-released-2077/).
+Chef Automate uses PostgreSQL as the primary database for storing node data. [PostgreSQL 9.6 is EOL](https://endoflife.date/postgresql) and Chef customers running Chef Automate with PostgreSQL 9.6 should upgrade to [PostgreSQL 13](https://www.postgresql.org/about/news/postgresql-13-released-2077/).
 
 ### Migration Planning
 
@@ -30,9 +30,9 @@ The upgrade process for PostgreSQL from 9.6 to 13.4 requires a one-time downtime
 
 ### Requirements
 
-{{% warning %}}
+{{< warning >}}
 Upgrading PostgreSQL upgrades the database for all connected services. If you have multiple services connected to PostgreSQL, make sure that you have stopped the other services and prepared them for the upgrade.
-{{% /warning %}}
+{{< /warning >}}
 
 This upgrade guide is for systems running:
 
@@ -43,9 +43,9 @@ This upgrade guide is for systems running:
 
 ### Backup Chef Automate
 
-{{% danger %}}
+{{< danger >}}
 **BACKUP CHEF AUTOMATE AND SECURE THE DATA**. Preserve your backup at all costs. Copy the backup to a second and separate location.
-{{% /danger %}}
+{{< /danger >}}
 
 Database migrations have inherent risk to your system. Create a backup before beginning any migration or update. This ensures that you have a recoverable state in case any step in the process fails. Copy the backup to a another disk that is not connected to Chef Automate. This ensures that you have state to restore, in case of a failure in the upgrade process.
 
@@ -79,32 +79,18 @@ sudo chef-automate stop
     ssh -i "<xyz.pem>" <sudo_username>@<postgres_machine_ip>
     ```
 
-1. Install PostgreSQL v13
+2. Install PostgreSQL v13
 
     ```bash
     sudo apt-get update
     sudo apt-get install postgresql-13
     ```
 
-1. If the PostgreSQL v9.6 config was modified or customized. Please check the differences and update the new PostgreSQL v13 config with similar changes. Please connect with your database administrator if you don't know these changes.
+3. If the PostgreSQL v9.6 config was modified or customized. Please check the differences and update the new PostgreSQL v13 config with similar changes. Please connect with your database administrator if you don't know these changes.
 
     ```bash
     sudo sdiff -s /etc/postgresql/9.6/main/postgresql.conf /etc/postgresql/13/main/postgresql.conf
     sudo sdiff -s /etc/postgresql/9.6/main/pg_hba.conf /etc/postgresql/13/main/pg_hba.conf
-    ```
-
-### Stop PostgreSQL Services
-
-1. Stop Both PostgreSQL Servers:
-
-    ```bash
-    sudo systemctl stop postgresql.service
-    ```
-
-1. Login as the `postgres` user
-
-    ```bash
-    sudo su - postgres
     ```
 
 ### Prepare the Database for Migration
@@ -113,7 +99,13 @@ Run `vacuumdb --all --full` on the PostgreSQL database if you don't have automat
 
 For more information on upgrading using `vacuumdb` see the PostgreSQL 13 documentation for [vacuumdb](https://www.postgresql.org/docs/13/app-vacuumdb.html).
 
-1. Run Vacuum DB before moving data from PostgreSQL v9.6 to v13
+1. Login as `postgres` user
+
+    ```bash
+    sudo su - postgres
+    ```
+
+2. Run Vacuum DB before moving data from PostgreSQL v9.6 to v13
 
     ```bash
     vacuumdb --all --full
@@ -146,11 +138,29 @@ For more information on upgrading using `vacuumdb` see the PostgreSQL 13 documen
     vacuumdb: vacuuming database "template1"
     ```
 
+3. Exit PostgreSQL user
+
+    ```bash
+    exit
+    ```
+
 #### Upgrade
 
 For more information on upgrading using `pg_upgrade` and `pg_upgrade --check` see the PostgreSQL 13 documentation for [pg_upgrade](https://www.postgresql.org/docs/13/pgupgrade.html).
 
-1. Run pg_upgrade check command.
+1. Stop Both PostgreSQL Servers:
+
+    ```bash
+    sudo systemctl stop postgresql.service
+    ```
+
+2. Login as `postgres` user
+
+    ```bash
+    sudo su - postgres
+    ```
+
+3. Run pg_upgrade check command.
 
     ```bash
     cd ~
@@ -164,7 +174,7 @@ For more information on upgrading using `pg_upgrade` and `pg_upgrade --check` se
     --check
     ```
 
-1. Migrate the Data (run pg_upgrade command without --check):
+4. Migrate the Data (run pg_upgrade command without --check):
 
     ```bash
     cd ~
@@ -188,8 +198,8 @@ For more information on upgrading using `pg_upgrade` and `pg_upgrade --check` se
 1. Swap the ports of PostgreSQL v9.6 and 13.4:
 
     ```bash
-    PG_9_6_PORT=5432 # Assuming Postgres v9.6 is currently running on this port
-    PG_13_PORT=5433 # Assuming Postgres 13 is currently running on this port
+    PG_9_6_PORT=5432 # Assuming PostgreSQL v9.6 is currently running on this port
+    PG_13_PORT=5433 # Assuming PostgreSQL 13 is currently running on this port
     sudo sed -i "s/port = $PG_9_6_PORT/port = $PG_13_PORT/g" /etc/postgresql/9.6/main/postgresql.conf
     sudo sed -i "s/port = $PG_13_PORT/port = $PG_9_6_PORT/g" /etc/postgresql/13/main/postgresql.conf
     ```
@@ -218,7 +228,7 @@ For more information on upgrading using `pg_upgrade` and `pg_upgrade --check` se
 
     Reindexing is not required for Chef Automate. If `pg_upgrade` reported errors or need for reindexing please refer to [pg_upgrade documentation](https://www.postgresql.org/docs/13/pgupgrade.html) for details.
 
-1. Exit postgres user:
+1. Exit PostgreSQL user:
 
     ```bash
     exit

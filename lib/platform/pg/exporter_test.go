@@ -3,7 +3,6 @@ package pg_test
 import (
 	"fmt"
 	"io/ioutil"
-	"os"
 	"path"
 	"testing"
 
@@ -28,13 +27,13 @@ func NewDBMock() (pg.DBProvider, *pg.MockDB) {
 	return mockDBProvider{
 		mockDB: &db,
 	}, &db
-
 }
 
 var testExpectedEnv = []string{
 	"PGUSER=test-user",
 	"PGHOST=test-db.example.com",
 	"PGPORT=5432",
+	"PGPASSWORD=test",
 	"PGSSLMODE=verify-ca",
 	"PGSSLKEY=/hab/svc/automate-postgresql/config/server.key",
 	"PGSSLCERT=/hab/svc/automate-postgresql/config/server.crt",
@@ -44,13 +43,14 @@ var testExpectedEnv = []string{
 }
 
 var connInfo = &pg.A2ConnInfo{
-	Host:  "test-db.example.com",
-	User:  "test-user",
-	Port:  5432,
-	Certs: pg.A2SuperuserCerts,
+	Host:     "test-db.example.com",
+	User:     "test-user",
+	Password: "test",
+	Port:     5432,
+	Certs:    pg.A2SuperuserCerts,
 }
 
-var connURITemplate = "postgresql://test-user@test-db.example.com:5432/%s?sslmode=verify-ca&sslcert=/hab/svc/automate-postgresql/config/server.crt&sslkey=/hab/svc/automate-postgresql/config/server.key&sslrootcert=/hab/svc/automate-postgresql/config/root.crt"
+var connURITemplate = "postgresql://test-user:test@test-db.example.com:5432/%s?sslmode=verify-ca&sslcert=/hab/svc/automate-postgresql/config/server.crt&sslkey=/hab/svc/automate-postgresql/config/server.key&sslrootcert=/hab/svc/automate-postgresql/config/root.crt"
 
 func connURI(dbName string) string {
 	return fmt.Sprintf(connURITemplate, dbName)
@@ -157,7 +157,7 @@ func TestImport(t *testing.T) {
 		mockDB.On("Close").Return(nil)
 		pg.CurrentDBProvider = provider
 
-		tmpDataDir, _ := ioutil.TempDir("", "DatabaseExporterTestDir")
+		tmpDataDir := t.TempDir()
 
 		mockExec := command.NewMockExecutor(t)
 		exporter := pg.DatabaseExporter{
@@ -168,7 +168,6 @@ func TestImport(t *testing.T) {
 		}
 
 		cleanup := func() {
-			os.RemoveAll(tmpDataDir)
 			pg.CurrentDBProvider = pg.DefaultDBProvider
 		}
 

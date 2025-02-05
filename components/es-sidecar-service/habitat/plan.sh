@@ -2,6 +2,7 @@
 #shellcheck disable=SC2154
 #stable channel
 
+
 pkg_name=es-sidecar-service
 pkg_description="A service providing common functionality to Automate's Elasticsearch consumers"
 pkg_origin=chef
@@ -9,9 +10,15 @@ pkg_version="1.0.0"
 pkg_maintainer="Chef Software Inc. <support@chef.io>"
 pkg_license=('Chef-MLSA')
 pkg_upstream_url="http://github.com/chef/automate/components/es-sidecar-service"
+
+chef_automate_hab_binding_mode="relaxed"
+
 pkg_binds=(
-  [automate-elasticsearch]="deprecated_external_es"
   [automate-es-gateway]="http-port"
+)
+
+pkg_binds_optional=(
+  [automate-opensearch]="deprecated_external_os"
 )
 pkg_exports=(
   [port]=service.port
@@ -28,3 +35,8 @@ scaffolding_go_import_path="${scaffolding_go_base_path}/${scaffolding_go_repo_na
 scaffolding_go_binary_list=(
   "${scaffolding_go_import_path}/cmd/${pkg_name}"
 )
+
+do_before() {
+  do_default_before
+  git config --global --add safe.directory /src
+}

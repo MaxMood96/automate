@@ -131,7 +131,7 @@ To migrate to Chef Automate 2 without these features, invoke the migration with 
 
 These flags enable you to migrate by skipping preflight checks for unsupported features.
 
-### External Elasticsearch cluster
+### External Elasticsearch Cluster
 
 The Chef Automate 2 migration process requires manual intervention to migrate a Chef Automate 1 installation that uses external Elasticsearch.
 

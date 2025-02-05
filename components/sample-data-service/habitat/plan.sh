@@ -2,6 +2,7 @@
 #shellcheck disable=SC2154
 #stable channel
 
+
 pkg_name=sample-data-service
 pkg_description="Automate sample data service"
 pkg_origin=chef
@@ -38,4 +39,9 @@ do_install() {
 
 do_strip() {
   return 0
+}
+
+do_before() {
+  do_default_before
+  git config --global --add safe.directory /src
 }

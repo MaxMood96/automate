@@ -17,6 +17,7 @@ scaffolding_go_binary_list=(
   "${scaffolding_go_import_path}/cmd/chef-automate"
 )
 
+
 do_after() {
   do_default_after
 
@@ -41,4 +42,9 @@ do_after() {
     ln -sv "${pkg_prefix}/bin/${bin}" "${bin_path}"
     sha256sum "${bin_path}" | cut -d ' ' -f1 > "${bin_sha_path}"
   done
+}
+
+do_before() {
+  do_default_before
+  git config --global --add safe.directory /src
 }

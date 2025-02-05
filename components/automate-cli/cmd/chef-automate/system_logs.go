@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	api "github.com/chef/automate/api/interservice/deployment"
+	"github.com/chef/automate/components/automate-cli/pkg/docs"
 	"github.com/chef/automate/components/automate-cli/pkg/status"
 	"github.com/chef/automate/components/automate-deployment/pkg/client"
 )
@@ -17,7 +18,11 @@ var systemLogsCmd = &cobra.Command{
 	Use:   "system-logs",
 	Short: "Tail Chef Automate logs",
 	Long:  "Start streaming logs from the Chef Automate server. Ctrl + c to stop.",
-	RunE:  runSystemLogsCmd,
+	//PersistentPreRunE: WarnLicenseStatusForExpiry,
+	RunE: runSystemLogsCmd,
+	Annotations: map[string]string{
+		docs.Tag: docs.FrontEnd,
+	},
 }
 
 func runSystemLogsCmd(cmd *cobra.Command, args []string) error {

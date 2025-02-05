@@ -6,6 +6,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chef/automate/components/compliance-service/ingest/pipeline/processor"
+	"github.com/chef/automate/lib/cereal"
+
 	"github.com/chef/automate/components/compliance-service/ingest/ingestic"
 	"github.com/chef/automate/components/compliance-service/ingest/pipeline/message"
 	"github.com/chef/automate/components/compliance-service/reporting/relaxting"
@@ -15,20 +18,20 @@ import (
 )
 
 // StoreCompliance uses the publishers to save the data in ElasticSearch
-func StoreCompliance(client *ingestic.ESClient, numberOfPublishers int) message.CompliancePipe {
+func StoreCompliance(cerealService *cereal.Manager, client *ingestic.ESClient, numberOfPublishers int) message.CompliancePipe {
 	logrus.Debugf("StoreCompliance started with numberOfPublishers = %d", numberOfPublishers)
 	return func(in <-chan message.Compliance) <-chan message.Compliance {
-		out := make(chan message.Compliance, 100)
+		out := make(chan message.Compliance, 50)
 
 		for i := 0; i < numberOfPublishers; i++ {
-			go storeCompliance(in, out, client, i)
+			go storeCompliance(in, out, cerealService, client, i)
 		}
 
 		return out
 	}
 }
 
-func storeCompliance(in <-chan message.Compliance, out chan<- message.Compliance, client *ingestic.ESClient, number int) {
+func storeCompliance(in <-chan message.Compliance, out chan<- message.Compliance, cerealManager *cereal.Manager, client *ingestic.ESClient, number int) {
 	for msg := range in {
 		// Finish the ingestion if we have a DeadlineExceeded or Canceled context
 		err := msg.Ctx.Err()
@@ -54,7 +57,7 @@ func storeCompliance(in <-chan message.Compliance, out chan<- message.Compliance
 			}
 		}
 		errChannels = append(errChannels, insertInspecSummary(msg, client))
-		errChannels = append(errChannels, insertInspecReport(msg, client))
+		errChannels = append(errChannels, insertInspecReport(msg, client, cerealManager))
 		errChannels = append(errChannels, insertInspecReportRunInfo(msg, client))
 
 		for err := range merge(errChannels...) {
@@ -72,6 +75,7 @@ func storeCompliance(in <-chan message.Compliance, out chan<- message.Compliance
 			message.Propagate(out, &msg)
 		}
 		logrus.WithFields(logrus.Fields{"report_id": msg.Report.ReportUuid}).Debug("Published Compliance Report")
+
 	}
 	close(out)
 }
@@ -94,7 +98,7 @@ func insertInspecSummary(msg message.Compliance, client *ingestic.ESClient) <-ch
 	return out
 }
 
-func insertInspecReport(msg message.Compliance, client *ingestic.ESClient) <-chan error {
+func insertInspecReport(msg message.Compliance, client *ingestic.ESClient, cerealManager *cereal.Manager) <-chan error {
 	out := make(chan error)
 	go func() {
 		logrus.WithFields(logrus.Fields{"report_id": msg.Report.ReportUuid, "node_id": msg.Report.NodeUuid}).Debug("Ingesting inspec_report")
@@ -107,6 +111,22 @@ func insertInspecReport(msg message.Compliance, client *ingestic.ESClient) <-cha
 			out <- nil
 		}
 		logrus.WithFields(logrus.Fields{"report_id": msg.Report.ReportUuid, "took": time.Since(start).Truncate(time.Millisecond)}).Debug("InsertInspecReport")
+		if client.Conf.Service.EnableEnhancedReporting {
+			logrus.Infof("Enqueue workflow started at %v", time.Now())
+			errWorkflow := cerealManager.EnqueueWorkflow(context.TODO(), processor.ReportWorkflowName,
+				fmt.Sprintf("%s-%s", "control-workflow", msg.Report.ReportUuid),
+				processor.ControlWorkflowParameters{
+					ReportUuid: msg.Report.ReportUuid,
+					Retries:    2,
+					EndTime:    msg.Shared.EndTime,
+				})
+
+			logrus.Infof("Enqueue completed at %v", time.Now())
+
+			if errWorkflow != nil {
+				fmt.Errorf("error in enqueuing the  workflow for request id %s: %w", msg.Report.ReportUuid, err)
+			}
+		}
 		close(out)
 	}()
 	return out
@@ -117,7 +137,8 @@ func insertInspecReportRunInfo(msg message.Compliance, client *ingestic.ESClient
 	go func() {
 		logrus.WithFields(logrus.Fields{"report_id": msg.Report.ReportUuid, "node_id": msg.Report.NodeUuid}).Debug("Ingesting inspec_report")
 		start := time.Now()
-		err := client.InsertComplianceRunInfo(msg.Ctx, msg.Report.NodeUuid, msg.Shared.EndTime)
+
+		err := client.InsertComplianceRunInfo(msg.Ctx, msg.InspecReport, msg.Shared.EndTime)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{"error": err.Error()}).Error("Unable to ingest inspec_report object")
 			out <- err

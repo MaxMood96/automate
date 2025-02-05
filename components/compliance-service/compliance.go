@@ -10,6 +10,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/chef/automate/components/compliance-service/ingest/pipeline/processor"
+	"github.com/chef/automate/components/compliance-service/inspec-agent/resolver"
+	"github.com/chef/automate/components/compliance-service/migrations"
+
 	"github.com/pkg/errors"
 
 	"github.com/chef/automate/api/external/secrets"
@@ -25,9 +29,9 @@ import (
 	"github.com/chef/automate/api/interservice/data_lifecycle"
 	"github.com/chef/automate/api/interservice/es_sidecar"
 	"github.com/chef/automate/api/interservice/event"
-	aEvent "github.com/chef/automate/api/interservice/event"
 	"github.com/chef/automate/api/interservice/nodemanager/manager"
 	"github.com/chef/automate/api/interservice/nodemanager/nodes"
+	reportmanager "github.com/chef/automate/api/interservice/report_manager"
 	jobsserver "github.com/chef/automate/components/compliance-service/api/jobs/server"
 	profilesserver "github.com/chef/automate/components/compliance-service/api/profiles/server"
 	reportingserver "github.com/chef/automate/components/compliance-service/api/reporting/server"
@@ -41,7 +45,6 @@ import (
 	ingestserver "github.com/chef/automate/components/compliance-service/ingest/server"
 	"github.com/chef/automate/components/compliance-service/inspec"
 	"github.com/chef/automate/components/compliance-service/inspec-agent/remote"
-	"github.com/chef/automate/components/compliance-service/inspec-agent/resolver"
 	"github.com/chef/automate/components/compliance-service/inspec-agent/runner"
 	"github.com/chef/automate/components/compliance-service/inspec-agent/scheduler"
 	"github.com/chef/automate/components/compliance-service/reporting/relaxting"
@@ -78,13 +81,16 @@ var (
 	PurgeScheduleName = "periodic_purge"
 )
 
-func createESBackend(servConf *config.Compliance) relaxting.ES2Backend {
+func createESBackend(servConf *config.Compliance, db *pgdb.DB) relaxting.ES2Backend {
+
 	// define the ElasticSearch backend config with legacy automate auth
 	esr := relaxting.ES2Backend{
-		ESUrl:             servConf.ElasticSearch.Url,
-		Enterprise:        servConf.Delivery.Enterprise,
-		ChefDeliveryUser:  servConf.Delivery.User,
-		ChefDeliveryToken: servConf.Delivery.Token,
+		ESUrl:                      servConf.ElasticSearch.Url,
+		Enterprise:                 servConf.Delivery.Enterprise,
+		ChefDeliveryUser:           servConf.Delivery.User,
+		ChefDeliveryToken:          servConf.Delivery.Token,
+		PGdb:                       db,
+		IsEnhancedReportingEnabled: servConf.Service.EnableEnhancedReporting,
 	}
 	return esr
 }
@@ -97,7 +103,7 @@ func createPGBackend(conf *config.Postgres) (*pgdb.DB, error) {
 // here we execute migrations, create the es and pg backends, read certs, set up the needed env vars,
 // and modify config info
 func initBits(ctx context.Context, conf *config.Compliance) (db *pgdb.DB, connFactory *secureconn.Factory, esr relaxting.ES2Backend, statusSrv *statusserver.Server, err error) {
-	statusSrv = statusserver.New()
+	statusSrv = statusserver.New(conf.Service.EnableEnhancedReporting)
 
 	statusserver.AddMigrationUpdate(statusSrv, statusserver.MigrationLabelPG, "Initializing DB connection and schema migration...")
 	// start pg backend
@@ -107,10 +113,11 @@ func initBits(ctx context.Context, conf *config.Compliance) (db *pgdb.DB, connFa
 		statusserver.AddMigrationUpdate(statusSrv, statusserver.MigrationLabelPG, statusserver.MigrationFailedMsg)
 		return db, connFactory, esr, statusSrv, errors.Wrap(err, "createPGBackend failed")
 	}
+	statusSrv.SetPGBackend(db)
 	statusserver.AddMigrationUpdate(statusSrv, statusserver.MigrationLabelPG, statusserver.MigrationCompletedMsg)
 
 	// create esconfig info backend
-	esr = createESBackend(conf)
+	esr = createESBackend(conf, db)
 
 	backendCacheBool, err := strconv.ParseBool(conf.InspecAgent.BackendCache)
 	if err != nil {
@@ -171,9 +178,14 @@ func serveGrpc(ctx context.Context, db *pgdb.DB, connFactory *secureconn.Factory
 		logrus.Infof("not getting authz client; env var RUN_MODE found. value is 'test' ")
 	}
 	nodeManagerServiceClient := getManagerConnection(connFactory, conf.Manager.Endpoint)
-	ingesticESClient := ingestic.NewESClient(esClient)
+	ingesticESClient := ingestic.NewESClient(esClient, conf)
 	ingesticESClient.InitializeStore(context.Background())
 	runner.ESClient = ingesticESClient
+	var reportmanagerClient reportmanager.ReportManagerServiceClient
+	reportmanagerClient = nil
+	if conf.Service.EnableLargeReporting {
+		reportmanagerClient = createReportManager(connFactory, conf.ReportConfig.Endpoint)
+	}
 
 	s := connFactory.NewServer(tracing.GlobalServerInterceptor())
 
@@ -197,16 +209,33 @@ func serveGrpc(ctx context.Context, db *pgdb.DB, connFactory *secureconn.Factory
 		}
 	}
 
+	upgradeDB := pgdb.NewDB(db)
+	upgradeService := migrations.NewService(upgradeDB, cerealManager)
+	if conf.Service.EnableEnhancedReporting {
+		// Initiating cereal Manager for upgrade jobs
+		err = migrations.InitCerealManager(cerealManager, 1, ingesticESClient, upgradeDB)
+		if err != nil {
+			logrus.Fatalf("Failed to initiate cereal manager for upgrading jobs %v", err)
+		}
+	}
+
+	err = processor.InitCerealManager(cerealManager, conf.Service.ControlsPopulatorsCount, ingesticESClient)
+	if err != nil {
+		logrus.Fatalf("failed to initiate cereal manager: %v", err)
+	}
+
 	// needs to be the first one, since it creates the es indices
 	ingest.RegisterComplianceIngesterServiceServer(s,
 		ingestserver.NewComplianceIngestServer(ingesticESClient, nodeManagerServiceClient,
-			conf.InspecAgent.AutomateFQDN, notifier, authzProjectsClient, conf.Service.MessageBufferSize))
+			reportmanagerClient, conf.InspecAgent.AutomateFQDN, notifier, authzProjectsClient,
+			conf.Service.MessageBufferSize, conf.Service.EnableLargeReporting, cerealManager))
 
 	jobs.RegisterJobsServiceServer(s, jobsserver.New(db, connFactory, eventClient,
-		conf.Manager.Endpoint, cerealManager))
-	reporting.RegisterReportingServiceServer(s, reportingserver.New(&esr))
+		conf.Manager.Endpoint, cerealManager, conf.Service.FireJailExecProfilePath))
+	reporting.RegisterReportingServiceServer(s, reportingserver.New(&esr, reportmanagerClient,
+		conf.Service.LcrOpenSearchRequests, db, conf.Service.EnableEnhancedReporting))
 
-	ps := profilesserver.New(db, &esr, ingesticESClient, &conf.Profiles, eventClient, statusSrv)
+	ps := profilesserver.New(db, &esr, ingesticESClient, &conf.Profiles, eventClient, statusSrv, conf.Service.FirejailProfilePath, conf.Service.FireJailExecProfilePath)
 	profiles.RegisterProfilesServiceServer(s, ps)
 	profiles.RegisterProfilesAdminServiceServer(s, ps)
 
@@ -228,10 +257,31 @@ func serveGrpc(ctx context.Context, db *pgdb.DB, connFactory *secureconn.Factory
 	reflection.Register(s)
 	logrus.Info("Starting GRPC server on " + binding)
 
+	// check the index setting
+	maxInnerResults, err := relaxting.GetMaxInnerResultWindow(esr)
+	if err != nil {
+		logrus.Fatalf("serveGrpc aborting, unable to get max inner results window of indices: %v", err)
+	}
+	if maxInnerResults != int64(10000) {
+		err = relaxting.SetMaxInnerResultWindow(esr)
+		if err != nil {
+			logrus.Fatalf("serveGrpc aborting, unable to set max inner results window of indices: %v", err)
+		}
+	}
+
 	// running ElasticSearch migration
 	err = relaxting.RunMigrations(esr, statusSrv)
 	if err != nil {
 		logrus.Fatalf("serveGrpc aborting, unable to run migrations: %v", err)
+	}
+
+	date, err := upgradeService.UpdateFlags(conf.Service.EnableEnhancedReporting)
+	if err != nil {
+		logrus.Fatalf("serveGrpc aborting, unable to find the date to run the upgrades: %v", err)
+	}
+	if conf.Service.EnableEnhancedReporting {
+		// Running upgrade scenarios for DayLatest flag
+		go upgradeService.PollForUpgradeFlagDayLatest(date)
 	}
 
 	errc := make(chan error)
@@ -273,7 +323,7 @@ func createProjectUpdateCerealManager(connFactory *secureconn.Factory, address s
 }
 
 func getEventConnection(connectionFactory *secureconn.Factory,
-	eventEndpoint string) aEvent.EventServiceClient {
+	eventEndpoint string) event.EventServiceClient {
 	if eventEndpoint == "" || eventEndpoint == ":0" {
 		if os.Getenv("RUN_MODE") == "test" {
 			logrus.Infof("using mock Event service Client")
@@ -294,7 +344,7 @@ func getEventConnection(connectionFactory *secureconn.Factory,
 		logrus.Fatalf("compliance setup, error grpc dialing to event-service aborting...")
 	}
 	// get event client
-	eventClient := aEvent.NewEventServiceClient(conn)
+	eventClient := event.NewEventServiceClient(conn)
 	if eventClient == nil {
 		logrus.Fatalf("compliance setup, could not obtain automate events service client: %s", err)
 	}
@@ -375,6 +425,24 @@ func getManagerConnection(connectionFactory *secureconn.Factory,
 	if mgrClient == nil {
 		logrus.Fatalf("getManagerConnection got nil for NewNodeManagerServiceClient")
 	}
+
+	return mgrClient
+}
+
+func createReportManager(connFactory *secureconn.Factory, address string) reportmanager.ReportManagerServiceClient {
+	if address == "" || address == ":0" {
+		logrus.Fatal("report-manager cannot be empty or Dial will get stuck")
+	}
+
+	logrus.Debugf("Connecting to report-manager %q", address)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	conn, err := connFactory.DialContext(timeoutCtx, "report-manager-service",
+		address, grpc.WithBlock())
+	if err != nil {
+		logrus.Fatalf("report-manager, error grpc dialing to manager %s", err.Error())
+	}
+	mgrClient := reportmanager.NewReportManagerServiceClient(conn)
 
 	return mgrClient
 }
@@ -534,8 +602,9 @@ func setup(ctx context.Context, connFactory *secureconn.Factory, conf config.Com
 
 	// set up the scanner, scheduler, and runner servers with needed clients
 	// these are all inspec-agent packages
-	scanner := scanner.New(mgrClient, nodesClient, db)
-	resolver := resolver.New(mgrClient, nodesClient, db, secretsClient)
+	scanner := scanner.New(mgrClient, nodesClient, db, conf.FireJailExecProfilePath)
+	resolver := resolver.New(mgrClient, nodesClient, db, secretsClient, conf.FireJailExecProfilePath)
+
 	err = runner.InitCerealManager(cerealManager, conf.InspecAgent.JobWorkers, ingestClient, scanner, resolver, conf.RemoteInspecVersion)
 	if err != nil {
 		return errors.Wrap(err, "failed to initialize cereal manager")
@@ -611,6 +680,7 @@ func Serve(conf config.Compliance, grpcBinding string) error {
 	if err != nil {
 		return err
 	}
+
 	defer func() {
 		err := cerealManager.Stop()
 		if err != nil {
@@ -633,7 +703,7 @@ type ServiceInfo struct {
 	connFactory *secureconn.Factory
 }
 
-//TODO(jaym) If these don't get exposed in the gateway, we need to provide the http server certs
+// TODO(jaym) If these don't get exposed in the gateway, we need to provide the http server certs
 // this custom route is used by the inspec-agent scanner to retrieve profile tars for scan execution
 func (conf *ServiceInfo) serveCustomRoutes() error {
 	conf.ServerBind = fmt.Sprintf("%s:%d", conf.HostBind, conf.Port)

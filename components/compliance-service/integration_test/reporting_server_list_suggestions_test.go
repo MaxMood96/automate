@@ -18,7 +18,7 @@ import (
 )
 
 func TestReportingListSuggestionsFiltering(t *testing.T) {
-	server := reportingServer.New(&relaxting.ES2Backend{ESUrl: elasticsearchUrl})
+	server := reportingServer.New(&relaxting.ES2Backend{ESUrl: opensearchUrl}, nil, 5, nil, false)
 	ctx := context.Background()
 
 	cases := []struct {
@@ -773,7 +773,7 @@ func TestReportingListSuggestionsFiltering(t *testing.T) {
 
 // The terms (sorted alphabetically) after the first 500 are not included in the suggestions.
 func TestReportingListSuggestionsLargeArrayValues(t *testing.T) {
-	server := reportingServer.New(&relaxting.ES2Backend{ESUrl: elasticsearchUrl})
+	server := reportingServer.New(&relaxting.ES2Backend{ESUrl: opensearchUrl}, nil, 5, nil, false)
 	ctx := context.Background()
 
 	terms := make([]string, 500)
@@ -862,7 +862,7 @@ func TestReportingListSuggestionsUsersAccess(t *testing.T) {
 	reportFileName := "../ingest/examples/compliance-success-tiny-report.json"
 	everythingCtx := contextWithProjects([]string{authzConstants.AllProjectsExternalID})
 
-	server := reportingServer.New(&relaxting.ES2Backend{ESUrl: elasticsearchUrl})
+	server := reportingServer.New(&relaxting.ES2Backend{ESUrl: opensearchUrl}, nil, 5, nil, false)
 
 	n := 5
 
@@ -1008,6 +1008,7 @@ func TestReportingListSuggestionsUsersAccess(t *testing.T) {
 					Type: suggestionType,
 					Filters: []*reporting.ListFilter{
 						{Type: "end_time", Values: []string{"2018-10-25T18:18:41Z"}},
+						{Type: "start_time", Values: []string{"2018-10-25T00:00:00Z"}},
 					},
 				})
 

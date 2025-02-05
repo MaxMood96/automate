@@ -75,7 +75,7 @@ hab sup run \
   --event-stream-token="API_TOKEN" \
 ```
 
-* [hab sup run]({{< relref "/habitat/habitat_cli#hab-sup-run" >}}) is the hab cli commant to start the Habitat supervisor.
+* [hab sup run]({{< relref "/habitat/habitat_cli#hab-sup-run" >}}) is the hab CLI commant to start the Habitat supervisor.
 * `MY_APP` is the name of your application. Chef Automate groups services by application name in the Applications Dashboard
 * `MY_ENV` is the application environment for this supervisor. Chef Automate groups services by environment in the Applications Dashboard
 * `MY_SITE` describes the physical (for example, datacenter) or cloud-specific (for example, the AWS region) location where your services are deployed. The site field is a value filtering for services in the Applications Dashboard.
@@ -116,7 +116,7 @@ From Chef Automate:
 
 ### Share the TLS Certificate with Chef Habitat
 
-Share the automate certificate with the Chef Habitat supervisor.
+Share the Chef Automate certificate with the Chef Habitat supervisor.
 
 Use **one** of these three options:
 
@@ -243,8 +243,8 @@ bldr_client_id = "<your Habitat Builder Oauth2 Client ID>"
 bldr_client_secret = "<your Habitat Builder Oauth2 Client Secret>"
 ```
 
-You'll need to add Automate's TLS certificate to Builder's list of accepted certificates in addition to these configuration changes.
-Locate Automate's default self-signed certificate by running `cat /hab/svc/automate-load-balancer/data/{{< example_fqdn "automate" >}}.cert`
+You'll need to add Chef Automate's TLS certificate to Builder's list of accepted certificates in addition to these configuration changes.
+Locate Chef Automate's default self-signed certificate by running `cat /hab/svc/automate-load-balancer/data/{{< example_fqdn "automate" >}}.cert`
 You can copy this default certificate, and then add it to your Builder instance's list of accepted certs.
 
 ```text

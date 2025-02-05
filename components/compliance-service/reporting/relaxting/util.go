@@ -2,6 +2,7 @@ package relaxting
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,19 +10,25 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chef/automate/api/interservice/compliance/ingest/events/inspec"
+	"github.com/chef/automate/components/compliance-service/dao/pgdb"
+	"github.com/chef/automate/components/compliance-service/ingest/ingestic/mappings"
+
 	structpb "github.com/golang/protobuf/ptypes/struct"
+	elastic "github.com/olivere/elastic/v7"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	elastic "gopkg.in/olivere/elastic.v6"
 
 	"github.com/chef/automate/lib/grpc/auth_context"
 )
 
 type ES2Backend struct {
-	ESUrl             string
-	Enterprise        string
-	ChefDeliveryUser  string
-	ChefDeliveryToken string
+	ESUrl                      string
+	Enterprise                 string
+	ChefDeliveryUser           string
+	ChefDeliveryToken          string
+	PGdb                       *pgdb.DB
+	IsEnhancedReportingEnabled bool
 }
 
 // ReportingTransport structure for Automate login
@@ -64,11 +71,19 @@ func (backend *ES2Backend) getHttpClient() *http.Client {
 
 func (backend *ES2Backend) ES2Client() (*elastic.Client, error) {
 	//this is now a singleton as per best practice as outlined in the comment section of the elastic.NewClient
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			MinVersion:         tls.VersionTLS12,
+			InsecureSkipVerify: true,
+		},
+	}
+	client := &http.Client{Transport: tr}
 	once.Do(func() {
 		esClient, err = elastic.NewClient(
-			elastic.SetHttpClient(backend.getHttpClient()),
+			elastic.SetHttpClient(client),
 			elastic.SetURL(backend.ESUrl),
 			elastic.SetSniff(false),
+			elastic.SetBasicAuth("admin", "admin"),
 		)
 	})
 	return esClient, err
@@ -170,12 +185,37 @@ func MapValues(m map[string]string) []string {
 // A good reason would be when you pass a job_id and you don't know when it ran so you want to search all indices
 func GetEsIndex(filters map[string][]string, useSummaryIndex bool) (esIndex string, err error) {
 	// Extract end_time from filters or set it to today's UTC day if not specified
-	endDateAsString, err := computeIndexDate(firstOrEmpty(filters["end_time"]))
+	startDateAsString, endDateAsString, err := getStartDateAndEndDateAsString(filters)
 	if err != nil {
 		return esIndex, err
 	}
 
-	var startDateAsString string
+	logrus.Debugf("GetEsIndex called with (filters=%+v), using startDateAsString=%s, endDateAsString=%s", filters, startDateAsString, endDateAsString)
+
+	if useSummaryIndex {
+		esIndex, err = IndexDates(CompDailySumIndexPrefix, startDateAsString, endDateAsString)
+	} else {
+		esIndex, err = IndexDates(CompDailyRepIndexPrefix, startDateAsString, endDateAsString)
+	}
+	logrus.Debugf("GetEsIndex, using indices: %s", esIndex)
+	return esIndex, err
+}
+
+func getControlIndex(filters map[string][]string) (esIndex string, err error) {
+	startDateAsString, endDateAsString, err := getStartDateAndEndDateAsString(filters)
+	if err != nil {
+		return esIndex, err
+	}
+	logrus.Debugf("GetEsIndex called with (filters=%+v), using startDateAsString=%s, endDateAsString=%s", filters, startDateAsString, endDateAsString)
+	esIndex, err = IndexDates(CompDailyControlIndexPrefix, startDateAsString, endDateAsString)
+	return esIndex, err
+}
+
+func getStartDateAndEndDateAsString(filters map[string][]string) (startDateAsString string, endDateAsString string, err error) {
+	endDateAsString, err = computeIndexDate(firstOrEmpty(filters["end_time"]))
+	if err != nil {
+		return "", "", err
+	}
 	if len(filters["start_time"]) == 0 && len(filters["end_time"]) == 0 {
 		// With `start_time` and `end_time` filters, we use start_date as yesterday's UTC date and `end_date` as today's UTC day.
 		// This way, we have the indices to query the last 24 hours worth of reports
@@ -187,20 +227,11 @@ func GetEsIndex(filters map[string][]string, useSummaryIndex bool) (esIndex stri
 		// Using the start_time specified in the filters
 		startDateAsString, err = computeIndexDate(filters["start_time"][0])
 		if err != nil {
-			return esIndex, err
+			return "", "", err
 		}
 	}
+	return startDateAsString, endDateAsString, nil
 
-	logrus.Debugf("GetEsIndex called with (filters=%+v), using startDateAsString=%s, endDateAsString=%s", filters, startDateAsString, endDateAsString)
-
-	if useSummaryIndex {
-		esIndex, err = IndexDates(CompDailySumIndexPrefix, startDateAsString, endDateAsString)
-	} else {
-		esIndex, err = IndexDates(CompDailyRepIndexPrefix, startDateAsString, endDateAsString)
-	}
-
-	logrus.Debugf("GetEsIndex, using indices: %s", esIndex)
-	return esIndex, err
 }
 
 func GetFilterDepth(filters map[string][]string) int {
@@ -279,6 +310,54 @@ func StringTagsFromProtoFields(tKey string, tValue *structpb.Value) *ESInSpecRep
 				Values: stringValues,
 			}
 		}
+	}
+	return nil
+}
+
+func FetchLatestDataOrNot(filters map[string][]string) bool {
+	latestOnly := true
+	if filters["job_id"] != nil {
+		latestOnly = false
+	}
+	return latestOnly
+}
+
+func impactName(impactValue float64) (impact string) {
+	impact = inspec.ControlImpactCritical
+	if impactValue < 0.4 {
+		impact = inspec.ControlImpactMinor
+	} else if impactValue < 0.7 {
+		impact = inspec.ControlImpactMajor
+	}
+	return impact
+}
+
+func getRunInfoIndex() string {
+	return mappings.ComplianceRunInfo.Index
+}
+
+func ValidateTimeRangeForFilters(startTime string, endTime string) error {
+	if len(startTime) <= 0 {
+		logrus.Errorf("Startime cannot be null")
+		return errors.Errorf("StartTime cannot be null")
+	} else if startTime > endTime {
+		logrus.Errorf("Start time cannot be greater than end time")
+		return errors.Errorf("Start time cannot be greater than end time")
+	}
+	eTime, err := time.Parse(time.RFC3339, endTime)
+	sTime, err := time.Parse(time.RFC3339, startTime)
+	diff := int(eTime.Sub(sTime).Hours() / 24)
+	if err != nil {
+		logrus.Errorf("Error while getting the start time and end time diffrence:  %v", err)
+		return err
+	}
+	if diff > 90 {
+		logrus.Errorf("The diffrence between the startTime and endTime should not exceed 90 Days")
+		return errors.Errorf("The diffrence between the startTime and endTime should not exceed 90 Days")
+	}
+	if diff == 0 {
+		logrus.Errorf("The start time and end time should not be equal")
+		return errors.Errorf("The start time and end time should not be equal")
 	}
 	return nil
 }

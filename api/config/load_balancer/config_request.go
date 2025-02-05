@@ -64,6 +64,7 @@ func DefaultConfigRequest() *ConfigRequest {
 	c.V1.Sys.Ngx.Http.LargeClientHeaderBuffersSize = w.String("8k")
 	c.V1.Sys.Ngx.Http.Sendfile = w.String("on")
 	c.V1.Sys.Ngx.Http.SslCiphers = w.String(config.ExternalCipherSuite)
+	c.V1.Sys.Ngx.Http.EnableParam = w.Bool(false)
 	c.V1.Sys.Ngx.Http.SslProtocols = w.String("TLSv1.2 TLSv1.3")
 	c.V1.Sys.Ngx.Http.TcpNodelay = w.String("on")
 	c.V1.Sys.Ngx.Http.TcpNopush = w.String("on")
@@ -71,7 +72,6 @@ func DefaultConfigRequest() *ConfigRequest {
 	c.V1.Sys.Ngx.Http.ProxyBufferSize = w.String("8k")
 	c.V1.Sys.Ngx.Http.ProxyBuffers = w.String("8 8k")
 	c.V1.Sys.Ngx.Http.ProxyBusyBuffersSize = w.String("16k")
-
 	c.V1.Sys.Ngx.Http.Ipv6Supported = w.Bool(ipV6Supported())
 	c.V1.Sys.StaticConfig.Products = []string{"automate"}
 	return c
@@ -168,6 +168,11 @@ func (c *ConfigRequest) SetGlobalConfig(g *config.GlobalConfig) {
 	if logLevel := g.GetV1().GetLog().GetLevel().GetValue(); logLevel != "" {
 		c.V1.Sys.Log.Level.Value = config.GlobalLogLevelToNginxLevel(logLevel)
 	}
+
+	if xFwd := g.GetV1().GetSys().GetNgx().GetHttp().GetIncludeXForwardedFor(); xFwd != nil {
+		c.V1.Sys.Ngx.Http.IncludeXForwardedFor = xFwd
+	}
+
 }
 
 // PrepareSystemConfig returns a system configuration that can be used

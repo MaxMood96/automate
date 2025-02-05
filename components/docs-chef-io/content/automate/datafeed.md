@@ -28,6 +28,10 @@ A Data Feed operates by doing the following:
 
 By default, only Admin users of Chef Automate may create and manage Data Feeds.
 
+{{< note >}}
+You should have **ServiceNow** installed in your platform. For more information, see [ServiceNow Integration]({{< relref "servicenow_integration" >}}).
+{{< /note >}}
+
 ## Data Feed Integration
 
 Data Feed instance sends client run and compliance scan data to the 3rd party integrations available. To add a Data Feed instance in Chef Automate:
@@ -43,7 +47,7 @@ Currently, the data feed has two types of integrations:
   * ELK
   * Custom
 * Storage Integration
-  * Minio
+  * MinIO
   * Amazon S3
 
 {{< figure src="/images/automate/choose-a-data-feed-integration.png" alt="Choose a Data Feed Integration">}}
@@ -185,9 +189,9 @@ You can also [**Enable/Disable**]({{< relref "#enabledisable-a-data-feed-instanc
 
 Create a data feed using a storage integration.
 
-### Minio
+### MinIO
 
-To create a data feed select **Minio** from **Settings > Data Feed > New Integration**.
+To create a data feed select **MinIO** from **Settings > Data Feed > New Integration**.
 
 1. **Data Feed Name**: A unique name for this notification.
 1. **Endpoint**: The endpoint for the data feed integration, including any specific port details.
@@ -195,18 +199,18 @@ To create a data feed select **Minio** from **Settings > Data Feed > New Integra
 1. Select **Test Connection** to start validating the connection details.
 1. Once the test is successful, select **Save** to save the Data Feed configuration.
 
-{{< figure src="/images/automate/data-feed-instance-using-minio-integration.png" alt="Data Feed Instance using Minio Integration">}}
+{{< figure src="/images/automate/data-feed-instance-using-minio-integration.png" alt="Data Feed Instance using MinIO Integration">}}
 
-#### Edit a Minio Data Feed Instance
+#### Edit a MinIO Data Feed Instance
 
-To edit a Data Feed instance of Minio Integration:
+To edit a Data Feed instance of MinIO Integration:
 
 1. Select the data feed instance name to open its detail page.
 1. Edit the Data Feed **Name**, **End Point**, or the **Bucket**.
 1. Select the **Test Data Feed** button to test the Endpoint.
 1. Select **Save** to save your changes.
 
-{{< figure src="/images/automate/details-of-data-feed-instance-using-minio-integration.png" alt="Details of Data Feed Instance using Minio Integration">}}
+{{< figure src="/images/automate/details-of-data-feed-instance-using-minio-integration.png" alt="Details of Data Feed Instance using MinIO Integration">}}
 
 You can also [**Enable/Disable**]({{< relref "#enabledisable-a-data-feed-instance" >}}), and [**Delete**]({{< relref "#delete-a-data-feed-instance" >}}) the instance from the buttons provided on the details page.
 
@@ -280,7 +284,18 @@ To modify Data Feed behavior with the available configuration settings:
 * Include one or more configuration settings and their updated value(s) in your configuration patch `.toml` file to reflect the desired global Data Feed behavior:
   * Use the `feed_interval` setting to change the interval for the Data Feed collection. The default value is four hours
   * Use the `node_batch_size` setting to change the number of sets of node data sent in each batch to your endpoint. The default value is 50 nodes
-  * Use the `updated_nodes_only` setting to determine what data to include in each export. The default setting is `true`, which causes the aggregation of only the *changed* data of updated nodes since the last export. Set `updated_nodes_only` to `false`, and it aggregates *all* data of updated nodes since the last export
+  * If automate receives only one kind of data (either client run **or** inspec scan) in a given period of time then we use the `updated_nodes_only` setting to determine what data to include in each export. The default setting for this is `true`. 
+  To determine if the client run and scan report that was received in automate belongs to the same node or not, we use the `ipaddress` field in the reports. If the client run and scan report both contain same `ipaddress` field then we consider them belonging to same node. The explanation for the two possible scenarios where this setting is useful has been described below:
+    * When in a given period of time for a particular node, only **client run was received** but **compliance scan not received**:
+      * If `updated_nodes_only` is set to true:
+        * Only the client run for that node will be sent to external integrations
+      * If `updated_nodes_only` is set to false:
+        * The client run for that node + the most recent compliance report for this node(queried by ipaddress) if there is any, will be sent to external integrations
+    * When in a given period of time for a particular node, **client run was not received** but only **compliance scan was received**:
+      * If `updated_nodes_only` is set to true:
+        * The compliance scan report for that node + basic node details like *macaddress, hostname, ipaddress, fqdn* (queried by ipaddress) will be sent to external integrations
+      * If `updated_nodes_only` is set to false:
+        * The compliance scan report for that node + all node data like *attributes, last_run, macaddress, hostname, ipaddress, fqdn* (queried by ipaddress) will be sent to external integrations
   * To reduce the IP address range for the collected and processed node data, update the `disable_cidr_filter` setting to `false` **and** update the `cidr_filter` setting to cover the required IP address range. For example, you may wish to send only production or test node traffic
   * Use the `accepted_status_codes` setting to define an array of HTTP status codes that the Data Feed Service will treat as `success` if returned by the 3rd party endpoint. If the status code is not in the `accepted_status_codes` list, then an error will be logged
 * Save your configuration patch file changes before continuing to the next step.

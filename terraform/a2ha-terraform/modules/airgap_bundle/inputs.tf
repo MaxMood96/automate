@@ -2,7 +2,7 @@ variable "archive_disk_info" {
 }
 
 variable "bundle_files" {
-  default = []
+  default     = []
   description = "Array of hashs for bundle files, hash should have a source and destination key"
 }
 
@@ -18,6 +18,9 @@ variable "public_ips" {
 }
 
 variable "ssh_key_file" {
+}
+
+variable "ssh_port" {
 }
 
 variable "ssh_user" {

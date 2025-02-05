@@ -1,102 +1,130 @@
 +++
-title = "Deployment Workflows"
+title = "High Availability Overview"
 
 draft = false
 
 gh_repo = "automate"
 [menu]
   [menu.automate]
-    title = "Deployment Workflows"
-    parent = "automate/install"
-    identifier = "automate/install/ha.md Deployment Workflows"
-    weight = 230
+    title = "Overview"
+    parent = "automate/deploy_high_availability"
+    identifier = "automate/deploy_high_availability/ha.md High Availability Overview"
+    weight = 10
 +++
 
-This page includes the two types of Chef Automate High Availability (HA) Workflows in words and infographic format.
+{{< note >}}
+{{% automate/ha-warn %}}
+{{< /note >}}
 
-## Bare Infra Deployment
+**High availability (HA)** refers to a system or application that offers high operational availability. This means the entire site or application will not be down if one server goes down due to traffic overload or other issues. HA represents the application remains available with no interruption. We achieve high availability when an application continues to operate even when one or more underlying components fail.
 
-1. Set the software and hardware requirements.
-1. Obtain necessary virtual machine (VM) instance details (with private IP addresses and added public address for Elasticsearch) to create the cluster of the **Chef Automate** , **Chef Server** , **Postgres** , and **Elasticsearch** nodes.
-1. Obtain Bastion host server details from your system administrator.
+Thus, HA is designed to avoid loss of service by reducing or managing failures and minimizing unscheduled downtime (when your system or network is not available for use or is unresponsive) that happens due to power outages or failure of a component.
 
-1. Ensure the following network infrastructure is available:
+## Chef Automate High Availability (HA)
 
-   1. Linux or Centos 64 bit operating system available.
-   1. A Bastion host has the necessary 4 GB memory, 100 GB hard disk, and ports 22 and 9631 publicly accessible.
-   1. PostgreSQL instance of _t3.medium_ type with 8GB RAM for production (4 GB is enough for testing), 50 GB hard disk space, gp2 volume type, and 150 volume IOPS (input/output operations per second).
-   1. Elasticsearch instance of _m5.large_ type with 16GB RAM for production (8 GB is enough for testing), 50 GB hard disk space, gp2 volume type, and 300 volume IOPS.
-   1. Chef Automate instance of _t3.medium_ type with 8GB RAM for production (4 GB is enough for testing), 50 GB hard disk space, gp2 volume type, and 100 volume IOPS.
-   1. Chef Infra Server instance of _t3.medium_ type with 8GB RAM for production (4 GB is enough for testing), 50 GB hard disk space, gp2 volume type, and 100 volume IOPS.
+The Chef Automate HA equates to reliability, efficiency, and productivity, built on **Redundancy** and **Fail-over**. It aids in addressing significant issues like service failure and zone failure.
 
-1. Ensure the following ports are open:
+## Chef Automate HA Architecture
 
-   | Habitat gossip (UDP), 9638 | Habitat http API, 9631 |
-   | --- | --- |
-   | PostgreSQL, 5432 | Pgleaderchk, 6432 |
-   | HaProxy, 7432 | Elasticsearch (https), 9200 |
-   | Elasticsearch (transport), 9300 | Kibana, 5601 |
-   | Automate, ES-Node, 22,443 | |
+HA architecture includes the cluster of the *Chef Automate*, *Chef Server*, *PostgreSQL*, and *OpenSearch*.
 
-1. Login as a root in the Bastion host.
-1. Ensure you have _Chef Automate_ utility installed, else download and install the latest version.
-1. Execute the command, _./chef-automate init-config-ha existing\_infra_, that generates **config.toml** file.
-1. In the **config.toml** file, specify the list of VM's public IP addresses for the cluster.
-1. Execute the command, **./chef-automate deploy config.toml** , that creates deployment workspace (\*/hab/a2\_deploy\_workspace\*), downloads Habitat, and establishes the cluster provisioning in your workspace.
-1. Specify the following edits in the **config.toml** file:
+### Chef Automate HA Architecture for OnPremise / Cloud Non-Managed
 
-   1. SSH pair name, key file path, chef automate nodes, number of PostgreSQL nodes, number of Chef Server, and ElasticSearch nodes.
-   1. Provide load balancer URL as FQDN (Fully Qualified Domain Name).
+![High Availability Architecture](/images/automate/ha_arch_onprem.png)
 
-1. Deploy and provision the Chef Automate HA.
+### Chef Automate HA Architecture for AWS Managed
 
-## AWS Deployment
+![High Availability Architecture](/images/automate/ha_arch_aws_managedservices.png)
 
-1. Set the software and hardware requirements.
-1. Access or obtain an AWS account.
+{{< note >}}
+Chef Automate HA for Managed Services has default port 5432 for Managed PostgreSQL and 9200 for Managed OpenSearch. You can also change to your custom port.
+{{< /note >}}
 
-1. Ensure the following network infrastructure is available in your AWS account:
-   1. Linux or Centos 64 bit operating system available.
-   1. A bastion host has the necessary 4 GB memory, 100 GB hard disk, and ports 22 and _9631_ publicly accessible.
-   1. PostgreSQL instance of _t3.medium_ type with 8GB RAM for production (4 GB is enough for testing), 50 GB hard disk space, gp2 volume type, and 150 volume IOPS (input/output operations per second).
-   1. Elasticsearch instance of _m5.large_ type with 16GB RAM for production (8 GB is enough for testing), 50 GB hard disk space, gp2 volume type, and 300 volume IOPS.
-   1. Chef Automate instance of _t3.medium_ type with 8GB RAM for production (4 GB is enough for testing), 50 GB hard disk space, gp2 volume type, and 100 volume IOPS.
-   1. Chef Infra Server instance of _t3.medium_ type with 8GB RAM for production (4 GB is enough for testing), 50 GB hard disk space, gp2 volume type, and 100 volume IOPS.
+### Chef Automate HA Architecture for OnPremise Non-Managed Minimum Node Cluster
 
-1. Setup Virtual Private Cloud (VPC) in AWS.
+![High Availability Architecture](/images/automate/ha_arch_minnode_cluster.png)
 
-1. Build an AWS bastion host using the **AWS EC2 instance** option.
-   1. Specify instance type as t2.medium, vCPUs as 1, Memory (GiB) as 4, and Instance Storage (GB) as EBS only.
-   1. Modify **VPC** and **subnet** values as required.
-   1. Specify 100 GB of storage in the **Size** (GiB) field.
-   1. Create a new security group or Select an existing security group option. Ensure Type is SSH, Protocol is TCP, and Port Range is 22 to create rules and connections.
-   1. Launch the EC2 instance.
+{{< warning >}}
 
-1. Ensure you have Chef Automate utility installed, else download and install the latest version.
-1. Establish an AWS connection with the bastion host.
-    1. SSH your instance using public DNS.
+- Choose Minimum node deployment type when you have VM constraints.
+- Minimum node deployment is only for on-premises deployments
+- Minimum node deployment is not supported for AWS deployments
 
-1. Create an IAM user using your AWS account.
-   1. Provide the Programmatic access to the created user.
-   1. Attach the existing policy directly.
-   1. Provide Administrator access policy to the user.
-   1. Download and save the access key and secret key.
+{{< /warning >}}
 
-1. Configure the AWS Credential on the bastion host.
-   1. SSH into the bastion host.
-   1. Create a directory **.aws** in /root folder.
-   1. Create file **credentials** in the _/root/.aws_ directory.
-   1. Touch _~/.aws/credentials_.
-   1. Add the access key ID and secret key to the credentials file:
-      - aws\_access\_key\_id=access key id of the IAM user
-      - aws\_secret\_access\_key=secret access key of the IAM user.
+## Chef Automate HA Topology
 
-1. Create the certificate for the Chef Automate and Chef Server load balancers.
-1. Login as a root in the Bastion host.
-1. Execute the command, _`./chef-automate init-config-ha aws_, which generates **config.toml** file with default settings and installs latest deployment package.
-1. Execute the command, _./chef-automate provision-infra config.toml_, which downloads Habitat, creates deployment workspace (_/hab/a2\_deploy\_workspace_), and provisions the infrastructure on AWS.
+The Chef Automate HA Architecture involves the following clusters as part of the main cluster:
 
-1. Specify the following edits in the **config.toml** file:
-   1. SSH pair name, key file path, chef automate nodes, number of PostgreSQL nodes, number of Chef Server, and ElasticSearch nodes.
-   1. Attach the DNS certificate ARN to Chef Server load balancer certificate ARN (_automate\_lb\_certificate\_arn_)and Chef Automate load balancer certificate ARN (_chef\_server\_lb\_certificate\_arn_).
-1. Deploy and provision the chef automate HA.
+- **Backend Cluster** (Persistent Services)
+  - **PostgreSQL:** Database requires a minimum of three nodes. PostgreSQL database uses the *Leader-Follower* strategy, where one becomes a leader, and the other two are the followers.
+
+  - **OpenSearch:** Database requires a minimum of three nodes. OpenSearch database manages the [cluster internally](https://opensearch.org/docs/latest/opensearch/cluster/).
+
+- **Frontend Cluster** (Application Services)
+  - [Chef Automate](https://docs.chef.io/automate/)
+  - [Chef Server](https://docs.chef.io/server/)
+
+## Provisioning
+
+Chef Automate's high availability solution can run on cloud providers and on-premise infrastructure systems. Appropriately provisioned backend, frontend, and bastion systems will help ensure a smooth deployment and installation experience.
+
+  - On-premise provisioning
+  - Cloud provisioning
+
+### On-premise provisioning
+
+  The customer can provision virtual machines or bare metal machines on a supported operating system with the required system settings to deploy the Automate HA solution.
+
+### Cloud provisioing
+  Systems and services from the following cloud providers are supported:
+
+  - [AWS](https://docs.chef.io/automate/ha_aws_deploy_steps/#steps-to-provision)
+  - Azure
+  - Google
+
+Deploy the Automate HA on the cloud infrastructure after provisioning the cloud systems. We have a simplified provisioning utility for AWS, Azure, and Google, and we expect to provision the systems manually.
+
+## Deployment Methods
+
+Chef Automate High Availability (HA) supports two types of deployment:
+
+- [On-premise Deployment (Existing Node) Deployment](/automate/ha_onprim_deployment_procedure/)
+- [Amazon Web Services (AWS) Deployment](/automate/ha_aws_deploy_steps/)
+
+### On-premise Deployment (Existing Node/Bare Infrastructure)
+
+In this, we expect VM (Virtual machine) or Bare Metal machines (Physical machine) that are already created and have initial Operating System (OS) setup done. Including Ports and Security policies changed according to requirements.
+
+After this, installation steps will Deploy Chef Automate, Chef Infra Server, PostgreSQL DB, and OpenSearch DB to the relevant VMs or Physical Machines as provided in Config.
+
+Please refer [Performance Bench marking](https://docs.chef.io/automate/ha_performance_benchmarks/#performance-benchmarks) for more info.
+
+### Cloud Deployment using Amazon Web Services (AWS)
+
+The two-step deployment process is as shown below:
+
+- Provisioning Infrastructure. (Optional, if already manually done)
+- Deployment of services on the provisioned infrastructure.
+  - Installation of *PostgreSQL*, *OpenSearch*, *Chef Automate*, and *Chef Infra Server* will be done in this step.
+
+### Cloud Deployment using Azure
+
+The two-step deployment process is as shown below:
+
+- Provisioning Infrastructure: Manually provision the infrastructure
+- Deployment of services on the provisioned infrastructure (follow the [On-premise Deployment steps](/automate/ha_onprim_deployment_procedure/)).
+  - Installation of *PostgreSQL*, *OpenSearch*, *Chef Automate*, and *Chef Infra Server* will be done in this step.
+- Only File System Backup and Restore are supported.
+
+### Cloud Deployment using Google Cloud Platform (GCP)
+
+The two-step deployment process is as shown below:
+
+- Provisioning Infrastructure: Manually provision the infrastructure
+- Deployment of services on the provisioned infrastructure (follow the [On-premise Deployment steps](/automate/ha_onprim_deployment_procedure/)).
+  - Installation of *PostgreSQL*, *OpenSearch*, *Chef Automate*, and *Chef Infra Server* will be done in this step.
+
+## Performance (Benchmarking)
+
+Please refer to the [Performance Benchmarking document](/automate/ha_performance_benchmarks/) for the detailed performance benchmark numbers

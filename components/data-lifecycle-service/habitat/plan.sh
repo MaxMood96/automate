@@ -1,5 +1,6 @@
 #stable channel
 
+
 pkg_name="data-lifecycle-service"
 pkg_description="Automate Data Lifecycle Service"
 pkg_origin="chef"
@@ -24,3 +25,6 @@ do_install() {
 do_strip() {
     :
 }
+
+
+

@@ -1,8 +1,55 @@
 package stringutils
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 var ErrNotFound = errors.New("Not found")
+
+func SubSlice(s1 []string, s2 []string) bool {
+	if len(s1) > len(s2) {
+		return false
+	}
+	for _, e := range s1 {
+		if !SliceContains(s2, e) {
+			return false
+		}
+	}
+	return true
+}
+
+// This method is used to return comman elements between the two slices
+func SliceIntersection(first, second []string) []string {
+	out := []string{}
+	bucket := map[string]bool{}
+
+	for _, i := range first {
+		for _, j := range second {
+			if i == j && !bucket[i] {
+				out = append(out, i)
+				bucket[i] = true
+			}
+		}
+	}
+
+	return out
+}
+
+// This method is used to return uncomman elements between the two slices. It returns (A-B) operation
+func SliceDifference(first, second []string) []string {
+	mb := make(map[string]struct{}, len(second))
+	for _, x := range second {
+		mb[x] = struct{}{}
+	}
+	var diff []string
+	for _, x := range first {
+		if _, found := mb[x]; !found {
+			diff = append(diff, x)
+		}
+	}
+	return diff
+}
 
 func SliceContains(haystack []string, needle string) bool {
 	for _, s := range haystack {
@@ -47,4 +94,17 @@ func SliceReject(haystack []string, needle string) []string {
 	}
 
 	return res
+}
+
+func ConcatSlice(first, second []string) []string {
+	n := len(first)
+	return append(first[:n:n], second...)
+}
+
+func GetFullPlatformName(name, release string) string {
+	return fmt.Sprintf("%s %s", name, release)
+}
+
+func GetFullProfileName(name, release string) string {
+	return fmt.Sprintf("%s, v%s", name, release)
 }

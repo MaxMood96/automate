@@ -15,20 +15,22 @@ import {
   ElementRef,
   ViewChild
 } from '@angular/core';
-import { LayoutFacadeService, Sidebar } from 'app/entities/layout/layout.facade';
-import { ProfilesService } from 'app/services/profiles/profiles.service';
-import { UploadService } from 'app/services/profiles/upload.service';
-import { AvailableProfilesService } from 'app/services/profiles/available-profiles.service';
-import { ChefSessionService } from 'app/services/chef-session/chef-session.service';
+import { LayoutFacadeService, Sidebar } from '../../../../entities/layout/layout.facade';
+import { ProfilesService } from '../../../../services/profiles/profiles.service';
+import { UploadService } from '../../../../services/profiles/upload.service';
+import { AvailableProfilesService } from '../../../../services/profiles/available-profiles.service';
+import { ChefSessionService } from '../../../../services/chef-session/chef-session.service';
 import { find } from 'lodash';
-import { ProductDeployedService } from 'app/services/product-deployed/product-deployed.service';
-import { HttpStatus } from 'app/types/types';
+import { ProductDeployedService } from '../../../../services/product-deployed/product-deployed.service';
+import { HttpStatus } from '../../../../types/types';
+import { TelemetryService } from '../../../../services/telemetry/telemetry.service';
 
 interface Profile {
     name: String;
     version: String;
     latest_version?: String;
     installed_version?: String;
+    title?: string;
 }
 
 @Component({
@@ -54,6 +56,7 @@ export class ProfileOverviewComponent implements OnInit, OnDestroy {
   filteredAvailableProfiles: Array<Profile> = [];
   filteredProfilesLength = 0;
   filteredAvailableProfilesLength = 0;
+  formActive = false;
 
   // shows setup page when false
   profilesEnabled = true;
@@ -88,7 +91,8 @@ export class ProfileOverviewComponent implements OnInit, OnDestroy {
     private uploadService: UploadService,
     private chefSessionService: ChefSessionService,
     private layoutFacade: LayoutFacadeService,
-    private productDeployedService: ProductDeployedService
+    private productDeployedService: ProductDeployedService,
+    private telemetryService: TelemetryService
   ) {
     this.isAvailableProfilesVisible = !this.productDeployedService.isProductDeployed('desktop');
   }
@@ -109,8 +113,8 @@ export class ProfileOverviewComponent implements OnInit, OnDestroy {
       });
   }
 
-  onSearchInput(event) {
-    const value = event.target.value;
+  onSearchInput(searchText) {
+    const value = searchText;
     const filter = profile => {
       return ['name', 'version', 'title'].some(key => {
         return profile[key].toLowerCase().includes(value.toLowerCase());
@@ -118,6 +122,7 @@ export class ProfileOverviewComponent implements OnInit, OnDestroy {
     };
     this.filteredProfiles = this.installedProfiles.filter(filter);
     this.filteredAvailableProfiles = this.availableProfiles.filter(filter);
+    this.telemetryService.track('Compliance_Profiles_Search', { searchText });
   }
 
   // load the user's profiles
@@ -185,6 +190,7 @@ export class ProfileOverviewComponent implements OnInit, OnDestroy {
       if (profile.latest_version) {
         return { name: profile.name, version: profile.version, latest: profile.latest_version };
       }
+      return null;
     });
 
     // find profile from available profiles and push to array
@@ -314,5 +320,9 @@ export class ProfileOverviewComponent implements OnInit, OnDestroy {
 
   selectTab(tabToSelect: 'installed' | 'available') {
     this.selectedTab = tabToSelect;
+  }
+
+  toggleFocus(): void {
+    this.formActive = !this.formActive;
   }
 }

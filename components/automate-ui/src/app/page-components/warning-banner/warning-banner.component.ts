@@ -1,5 +1,5 @@
-import { Component, OnInit, HostBinding } from '@angular/core';
-import { AppConfigService } from 'app/services/app-config/app-config.service';
+import { Component, OnInit, HostBinding, Output, EventEmitter } from '@angular/core';
+import { AppConfigService } from '../../services/app-config/app-config.service';
 
 @Component({
   selector: 'app-warning-banner',
@@ -9,14 +9,16 @@ import { AppConfigService } from 'app/services/app-config/app-config.service';
 export class WarningBannerComponent implements OnInit {
   bannerMessage: string;
   bannerTextColor: string;
+  showBanner = false;
+  @Output() close = new EventEmitter();
   @HostBinding('style.backgroundColor') bannerBackgroundColor: string;
 
   constructor(private appConfigService: AppConfigService) { }
 
   ngOnInit() {
-    this.bannerMessage = this.appConfigService.bannerMessage;
-    this.bannerBackgroundColor = this.appConfigService.bannerBackgroundColor;
-    this.bannerTextColor = this.appConfigService.bannerTextColor;
+      this.bannerMessage = this.appConfigService.bannerMessage;
+      this.bannerBackgroundColor = this.appConfigService.bannerBackgroundColor;
+      this.bannerTextColor = this.appConfigService.bannerTextColor;
+      this.showBanner = this.appConfigService.showBanner;
   }
-
 }

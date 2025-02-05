@@ -2,6 +2,64 @@
 
 set -euo pipefail
 
+# Function to check SELinux status and mode
+check_selinux() {
+    # Check if /etc/selinux exists (common to RHEL, CentOS, Fedora)
+    if [ -e /etc/selinux/config ]; then
+        echo "SELinux configuration file found."
+
+        # check if getenforce command exists otherwise throw error
+        if ! command -v getenforce &> /dev/null; then
+            echo "SELinux commands not found. Please install the getenforce command."
+            exit 1
+        fi
+        # Check for SELinux status and mode
+        selinux_status=$(getenforce)
+        selinux_mode=$(awk -F= '/^SELINUX=/ {print $2}' /etc/selinux/config)
+
+        echo "SELinux Status: $selinux_status"
+        echo "SELinux Mode: $selinux_mode"
+
+        # If SELinux is enabled (Enforcing), set it to Permissive
+        if [ "$selinux_status" == "Enforcing" ]; then
+            # check if setenforce command exists otherwise throw error
+            if ! command -v setenforce &> /dev/null; then
+                echo "SELinux commands not found. Please install the setenforce command."
+                exit 1
+            fi
+            echo "SELinux is currently in Enforcing mode. Changing to Permissive..."
+            setenforce Permissive
+            echo "SELinux mode set to Permissive."
+        fi
+
+    # Check if /etc/selinux does not exist (common to Debian, Ubuntu)
+    elif [ -e /etc/default/grub ]; then
+        echo "SELinux configuration file not found."
+
+        # Check if "selinux=1" is present in grub (Enforcing)
+        if grep -q "selinux=1" /etc/default/grub; then
+            echo "SELinux is enabled (Enforcing) in GRUB."
+
+            # Change GRUB to Permissive
+            sed -i 's/selinux=1/selinux=0/' /etc/default/grub
+            # update-grub
+            # echo "GRUB configuration updated to Permissive."
+        # fi
+
+        # SELinux not found in grub (Disabled or Permissive)
+        else
+            echo "SELinux is not found or is already disabled in GRUB."
+        fi
+
+    # SELinux configuration file not found (SUSE, Amazon Linux, etc.)
+    else
+        echo "SELinux configuration file not found."
+    fi
+}
+
+# Check SELinux
+check_selinux
+
 umask 0022
 
 export HAB_NONINTERACTIVE=true
@@ -9,11 +67,73 @@ export HAB_NOCOLORING=true
 export HAB_LICENSE=accept-no-persist
 export HAB_SUP_GATEWAY_AUTH_TOKEN=${hab_sup_http_gateway_auth_token}
 
+export isSkipRequired=false
+# Below function is calculating the version of the install version and airgap bundle version
+# and do comparision in case if both are same it set isSkipRequired=true 
+semver_version_check() {
+    installed_version=$1
+    airgap_bundle_version=$2
+
+    IFS='.' read -r major1 minor1 patch1 <<< "$installed_version"
+    IFS='.' read -r major2 minor2 patch2 <<< "$airgap_bundle_version"
+
+    # Compare major versions
+    if (( major1 > major2 )); then
+        echo "$installed_version is greater than $airgap_bundle_version"
+        isSkipRequired=true
+    elif (( major1 < major2 )); then
+        echo "$airgap_bundle_version is greater than $installed_version, proceeding for upgrade"
+    else
+        # Compare minor versions
+        if (( minor1 > minor2 )); then
+            echo "$installed_version is greater than $airgap_bundle_version"
+            isSkipRequired=true
+        elif (( minor1 < minor2 )); then
+            echo "$airgap_bundle_version is greater than $installed_version, proceeding for upgrade"
+        else
+            # Compare patch versions
+            if (( patch1 > patch2 )); then
+                echo "$installed_version is greater than $airgap_bundle_version"
+                isSkipRequired=true
+            elif (( patch1 < patch2 )); then
+                echo "$airgap_bundle_version is greater than $installed_version, proceeding for upgrade"
+            else
+                echo "Both versions are equal"
+                isSkipRequired=true
+            fi
+        fi
+    fi
+}
+
+version_check_for_addnode() {
+    installed_version=$(chef-automate version 2>/dev/null | grep Server | awk '{print $3}')
+    airgap_bundle_version=$(chef-automate airgap bundle info ${frontend_aib_file} 2>/dev/null | grep "Version" | awk '{print $2}')
+    # Uncomment this if you want to override the versions for testing
+    # installed_version=$1  4.12.144
+    # airgap_bundle_version=$2  4.13.0
+    echo "Installed Version: $installed_version"
+    echo "Airgap Bundle Version: $airgap_bundle_version"
+    semver_version_check $installed_version $airgap_bundle_version
+    # If we reach this point, the version strings are equal up to the common components.
+     if [ $installed_version = $airgap_bundle_version ]; then
+        echo "Both version strings are equal."
+        isSkipRequired=true
+    fi
+}
+
 failure() {
   echo "$1"
   exit 1
 }
 
+# Creating mount path for elasticsearch backup 
+sudo mkdir -p ${nfs_mount_path}
+
+if [ ! -e "/hab/user/deployment-service/config/user.toml" ]; then
+  sudo chown hab:hab -RL ${nfs_mount_path}/
+fi
+
+ADMIN_PASSWORD_SET="admin.password.done"
 # When we truncate the file we need to preserve the file permisssions
 truncate_with_timestamp() {
   local TMPFILE=$(mktemp)
@@ -27,7 +147,7 @@ export -f truncate_with_timestamp
 
 save_space() {
   # this will truncate all but the most recent frontend .aib files
-  find ${tmp_path} -name frontend\*aib -printf "%T+\t%p\n" | sort -r | awk '{print $2}' | tail -n +2 | xargs -n1 -I{} bash -c 'truncate_with_timestamp "$@"' _ {}
+   find /var/tmp/ -name frontend\*aib -printf '%T+\t%p\n' | sort -r | awk '{print $2}' | tail -n +2 | xargs -I{} bash -c 'truncate_with_timestamp "$@"' bash {}
 }
 
 wait_for_install() {
@@ -41,6 +161,19 @@ wait_for_install() {
     n=$((n+1))
     echo "Waiting for $1 cli to be installed.."
     sleep 30
+    if [ $cmd == "automate-backend-ctl" ]
+      then
+        echo "bin-linking automate-backend-ctl"
+        pkg_count=$(ls -Art ${tmp_path}/aib_workspace/hab/cache/artifacts/chef-automate-ha-ctl* | tail -n 1 | wc -l )
+        pkg_name=$(ls -Art ${tmp_path}/aib_workspace/hab/cache/artifacts/chef-automate-ha-ctl* | tail -n 1)
+        echo "Installing the package $pkg_name"
+        echo "pkg_count:$pkg_count"
+        echo "pkg_name:$pkg_name"
+        if [ $pkg_count -eq 1 ]
+          then
+            hab pkg install $pkg_name -bf 
+        fi
+    fi    
   done
   if [[ $n -ge $max ]]; then
     failure "Timed out waiting for $1 to be installed within $max iterations!"
@@ -122,7 +255,7 @@ wait_for_upgrade() {
             return 1
     esac
 
-    if echo "$upgrade_status_output" | grep 'up-to-date'; then
+    if echo "$upgrade_status_output" | grep 'upgraded to airgap bundle'; then
         upgrade_complete="true"
         break
     else
@@ -167,10 +300,32 @@ wait_for_healthy() {
   fi
 }
 
-wait_for_install chef-automate
-wait_for_install automate-backend-ctl
+create_bootstrap_bundle() {
+# actions to perform only on the Automate + bootstrap node
+if [[ "${automate_role}" == "bootstrap_automate" ]]; then
+  # reset the admin user password to the one specified in the TF config
+  if [ ! -f ${tmp_path}/$ADMIN_PASSWORD_SET ] && [ -n "${admin_password}" ]; then
+    echo "Applying the password for chef-automate on bootstrap node" 
+    chef-automate iam admin-access restore '${admin_password}'
+    sudo touch ${tmp_path}/$ADMIN_PASSWORD_SET
+  else
+    echo "Escaping the password reset command, this might be upgrade flow"  
+  fi  
+  # generate a bootstrap bundle and make it available to scp down
+  rm -f ${tmp_path}/bootstrap.abb
+  chef-automate bootstrap bundle create ${tmp_path}/bootstrap.abb
+  chown ${ssh_user} ${tmp_path}/bootstrap.abb
+  # creating skip_migration file to avoid db lock for restart on First Automate node
+  # this file will getting removed in upgrade flow at line #295
+  [ ! -f /hab/.skip_migration ] && echo "creating on bootstrap node " && touch /hab/.skip_migration
+fi
+}
+
 wait_for_frontend_aib
 wait_for_backend_aib
+
+wait_for_install chef-automate
+wait_for_install automate-backend-ctl
 wait_for_backend_ctl
 
 mkdir -p /etc/chef-automate
@@ -185,12 +340,21 @@ rm ${automate_custom_config}
 # Test if this is a non-bootstrap Automate or chef_api only install, else it's a bootstrap install
 if [[ "${automate_role}" != "bootstrap_automate" ]]; then
   DEPLOY_BUNDLES="--airgap-bundle ${frontend_aib_file} --bootstrap-bundle ${tmp_path}/bootstrap.abb"
+  [ ! -f /hab/.skip_migration ] && echo "file not exist, will create it " && touch /hab/.skip_migration
 else
   DEPLOY_BUNDLES="--airgap-bundle ${frontend_aib_file}"
+  [ -f /hab/.skip_migration ] && echo " file exist on bootstrap node" && rm /hab/.skip_migration 
 fi
 
 if [ -e "/hab/user/deployment-service/config/user.toml" ]; then
   # existing installation
+  version_check_for_addnode
+  # If isSkipRequired is true then we are exiting from here  
+  if $isSkipRequired ; then
+     create_bootstrap_bundle 
+     echo "Skipping the below flow, not required for the add-node case"
+     exit
+  fi
   echo "MAINTENANCE MODE ON!"
   if ! timeout 30 chef-automate maintenance on; then
     echo "ERROR while enabling maintance mode, this is likely caused by a configuration error"
@@ -201,10 +365,36 @@ if [ -e "/hab/user/deployment-service/config/user.toml" ]; then
   [ ! -L /usr/bin/hab ] && mv /usr/bin/hab /usr/bin/hab.$timestamp
 
   echo "Upgrading Automate"
-  chef-automate upgrade run --airgap-bundle ${frontend_aib_file}
 
-  wait_for_upgrade
+#  ERROR=$(chef-automate upgrade run --airgap-bundle ${frontend_aib_file} 2>&1 >/dev/null) || true
+#  if echo "$ERROR" | grep 'This is a Major upgrade'; then
+#    echo "y
+#y
+#y
+#y
+#y" | chef-automate upgrade run --major --airgap-bundle ${frontend_aib_file}
 
+    # NOTE: This is a hack
+    # The hack above was no longer good enough because we have a thing that needs
+    # to be updated that isn't a service
+#    sleep 45
+
+    #shellcheck disable=SC2154
+#    wait_for_upgrade
+#    chef-automate post-major-upgrade migrate --data=PG -y
+#  else
+#    echo "regular normal upgrade airgap"
+#    sleep 45
+
+    #shellcheck disable=SC2154
+#    wait_for_upgrade
+#  fi
+   chef-automate upgrade run --airgap-bundle ${frontend_aib_file}
+
+   wait_for_upgrade
+
+  # Below command is commented as patch is not required during upgrade and add/remove node
+  # Also when it is being applied, it was reverting patched configs (automate) to the older ones
   echo "Applying /etc/chef-automate/config.toml"
   chef-automate config patch /etc/chef-automate/config.toml
 
@@ -219,14 +409,6 @@ else
   chef-automate deploy /etc/chef-automate/config.toml $DEPLOY_BUNDLES --accept-terms-and-mlsa | grep --line-buffered -v "\┤\|\┘\|\└\|\┴\|\├\|\┌\|\┬\|\┴\|\┐"
 fi
 
-# actions to perform only on the Automate + bootstrap node
-if [[ "${automate_role}" == "bootstrap_automate" ]]; then
-  # reset the admin user password to the one specified in the TF config
-  chef-automate iam admin-access restore '${admin_password}'
-  # generate a bootstrap bundle and make it available to scp down
-  rm -f ${tmp_path}/bootstrap.abb
-  chef-automate bootstrap bundle create ${tmp_path}/bootstrap.abb
-  chown ${ssh_user} ${tmp_path}/bootstrap.abb
-fi
+create_bootstrap_bundle
 
 save_space

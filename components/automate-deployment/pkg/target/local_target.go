@@ -25,6 +25,7 @@ import (
 	api "github.com/chef/automate/api/interservice/deployment"
 	"github.com/chef/automate/components/automate-deployment/pkg/bootstrapbundle"
 	"github.com/chef/automate/components/automate-deployment/pkg/cli"
+	"github.com/chef/automate/components/automate-deployment/pkg/constants"
 	"github.com/chef/automate/components/automate-deployment/pkg/depot"
 	"github.com/chef/automate/components/automate-deployment/pkg/habapi"
 	"github.com/chef/automate/components/automate-deployment/pkg/habpkg"
@@ -686,7 +687,6 @@ func parseDesiredState(s string) DesiredProcessState {
 // both the old and new service:
 //
 // https://github.com/habitat-sh/habitat/issues/5317
-//
 func preferredDeployedService(svcA, svcB DeployedService) DeployedService {
 	if svcA.DesiredProcessState == ProcessStateUp {
 		return svcA
@@ -1269,12 +1269,12 @@ func (t *LocalTarget) startHabSupFromLauncher(m manifest.ReleaseManifest, writer
 // waitForHabSupToStart waits for the supervisor status command to
 // complete successfully.  There are two cases we are trying to handle with this loop:
 //
-// - systemctl will return a 0 exit code in some
-//   cases of `hab sup run` failures (for example if /bin/hab doesn't
-//   exist).
+//   - systemctl will return a 0 exit code in some
+//     cases of `hab sup run` failures (for example if /bin/hab doesn't
+//     exist).
 //
-// - the main hab-sup process starts, it may take a few moments before
-//   the daemon is listening.
+//   - the main hab-sup process starts, it may take a few moments before
+//     the daemon is listening.
 //
 // TODO(ssd) 2018-06-19: We currently look up the exact path to our
 // manifest version of hab and hab-sup in this function since it is
@@ -1358,10 +1358,11 @@ func (t *LocalTarget) installHabViaInstallScript(ctx context.Context, requiredVe
 	}
 
 	version := requiredVersion.Version()
+	versionWithRelease := version + "/" + requiredVersion.Release()
 
 	output, execErr := t.Executor.CombinedOutput(
 		"bash",
-		command.Args(script.Name(), "-v", version),
+		command.Args(script.Name(), "-v", versionWithRelease),
 		command.Envvar("TMPDIR", t.habTmpDir()),
 		command.Context(ctx),
 	)
@@ -1521,11 +1522,18 @@ func (t *LocalTarget) HabCache() depot.HabCache {
 	return depot.FromLocalCache()
 }
 
-func (t *LocalTarget) InstallAutomateBackendDeployment(ctx context.Context, c *dc.ConfigRequest, m manifest.ReleaseManifest) error {
-	pkg := manifest.InstallableFromManifest(m, "automate-ha-deployment")
+func (t *LocalTarget) InstallAutomateBackendDeployment(ctx context.Context, c *dc.ConfigRequest, m manifest.ReleaseManifest, saas bool) error {
+	backendDeploymentPkg := ""
+	if saas {
+		backendDeploymentPkg = constants.SaasBackendDeploymentPkg
+	} else {
+		backendDeploymentPkg = constants.HABackendDeploymentPkg
+	}
+	//logrus.Info("=====" + backendDeploymentPkg + "=====")
+	pkg := manifest.InstallableFromManifest(m, backendDeploymentPkg)
 	if pkg == nil {
-		logrus.Info("(HA) unable to find automate-ha-deployment package in manifest")
-		return errors.New("automate-ha-deployment (HA) was not found in the manifest")
+		logrus.Info("unable to find " + backendDeploymentPkg + " package in manifest")
+		return errors.New(backendDeploymentPkg + " was not found in the manifest")
 	}
 	output, err := t.InstallPackage(ctx, pkg, c.GetV1().GetSvc().GetChannel().GetValue())
 	if err != nil {
@@ -1535,6 +1543,6 @@ func (t *LocalTarget) InstallAutomateBackendDeployment(ctx context.Context, c *d
 		}).Error("install failed")
 		return errors.Wrapf(err, "msg=\"failed to install\" package=%s output=%s", pkg.InstallIdent(), output)
 	}
-	logrus.Info("Chef Automate backend deployment Installed")
+	logrus.Info(backendDeploymentPkg + " Installed")
 	return nil
 }

@@ -3,10 +3,29 @@ locals {
     tmp_path = var.tmp_path
   })
   archive_disk_info = templatefile("${path.module}/templates/archive_disk.info.tpl", {
-    automate_archive_disk_fs_path      = var.automate_archive_disk_fs_path,
-    elasticsearch_archive_disk_fs_path = var.elasticsearch_archive_disk_fs_path,
-    postgresql_archive_disk_fs_path    = var.postgresql_archive_disk_fs_path
+    automate_archive_disk_fs_path   = var.automate_archive_disk_fs_path,
+    opensearch_archive_disk_fs_path = var.opensearch_archive_disk_fs_path,
+    postgresql_archive_disk_fs_path = var.postgresql_archive_disk_fs_path
   })
+}
+resource "null_resource" "create_temp_path" {
+
+  count = var.instance_count
+
+  connection {
+    user        = var.ssh_user
+    port        = var.ssh_port
+    private_key = file(var.ssh_key_file)
+    host        = var.private_ips[count.index]
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "echo tmp_path: ${var.tmp_path}",
+      "echo '${var.ssh_user_sudo_password}' | ${var.sudo_cmd} -S mkdir -p ${var.tmp_path}",
+      "echo '${var.ssh_user_sudo_password}' | ${var.sudo_cmd} -S chown -R ${var.ssh_user} ${var.tmp_path}"
+    ]
+  }
 }
 
 resource "null_resource" "system_base_provisioning" {
@@ -18,6 +37,7 @@ resource "null_resource" "system_base_provisioning" {
 
   connection {
     user        = var.ssh_user
+    port        = var.ssh_port
     private_key = file(var.ssh_key_file)
     host        = var.private_ips[count.index]
     script_path = "${var.tmp_path}/tf_inline_script_system.sh"
@@ -39,5 +59,7 @@ resource "null_resource" "system_base_provisioning" {
       "echo '${var.ssh_user_sudo_password}' | ${var.sudo_cmd} -S ${var.tmp_path}/tunables.sh",
     ]
   }
+
+  depends_on = [null_resource.create_temp_path]
 }
 

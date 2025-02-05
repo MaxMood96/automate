@@ -3,7 +3,6 @@
     "chef/backup-gateway",
     "chef/automate-postgresql",
     "chef/automate-pg-gateway",
-    "chef/automate-elasticsearch",
     "chef/automate-es-gateway",
     "chef/automate-minio",
     "chef/automate-ui",
@@ -36,9 +35,8 @@
     "chef/automate-cs-bookshelf",
     "chef/automate-cs-oc-bifrost",
     "chef/automate-cs-oc-erchef",
+    "chef/automate-cs-ocid",
     "chef/automate-cs-nginx",
-    "chef/automate-workflow-server",
-    "chef/automate-workflow-nginx",
     "chef/automate-builder-memcached",
     "chef/automate-builder-api",
     "chef/automate-builder-api-proxy",
@@ -47,25 +45,20 @@
     "chef/automate-cli",
     "chef/user-settings-service",
     "chef/automate-ha-deployment",
-    "chef/automate-ha-elasticsearch",
     "chef/automate-ha-elasticsidecar",
-    "chef/automate-ha-kibana",
-    "chef/automate-ha-metricbeat",
-    "chef/automate-ha-journalbeat",
     "chef/automate-ha-ctl",
-    "chef/automate-ha-curator",
     "chef/automate-ha-haproxy",
     "chef/automate-ha-pgleaderchk",
     "chef/automate-ha-postgresql",
     "chef/automate-ha-cluster-ctl",
     "chef/automate-netcat",
+    "chef/automate-ha-opensearch",
+    "chef/automate-opensearch",
+    "chef/automate-elasticsearch",
+    "chef/report-manager-service",
+    "chef/automate-knife-ec-backup",
     "core/rsync"
   ],
-
-  "deleted_packages": [
-    "chef/data-lifecycle-service/0.0.1/20191101111721"
-  ],
-
   "collections": [
     {
       "name": "core",
@@ -73,8 +66,9 @@
       "services": [
         "chef/backup-gateway",
         "chef/deployment-service",
+        "chef/cereal-service",
         "chef/license-control-service",
-        "chef/automate-load-balancer"
+        "chef/automate-load-balancer"     
       ],
       "packages": [
         "chef/automate-cli",
@@ -91,10 +85,10 @@
       ]
     },
     {
-      "name": "elasticsearch",
+      "name": "opensearch",
       "type": "base",
       "services": [
-        "chef/automate-elasticsearch",
+        "chef/automate-opensearch",
         "chef/automate-es-gateway",
         "chef/es-sidecar-service"
       ]
@@ -136,7 +130,7 @@
       "dependencies": [
         "core",
         "postgresql",
-        "elasticsearch",
+        "opensearch",
         "cereal",
         "auth",
         "ui"
@@ -154,6 +148,7 @@
         "chef/infra-proxy-service",
         "chef/config-mgmt-service",
         "chef/data-feed-service",
+        "chef/report-manager-service",
         "chef/event-gateway"
       ]
     },
@@ -164,6 +159,8 @@
       "dependencies": ["automate"],
       "services": [
         "chef/automate-cds",
+        "chef/automate-opensearch",
+        "chef/report-manager-service",
         "chef/user-settings-service"
       ]
     },
@@ -171,21 +168,13 @@
       "name": "chef-server",
       "type": "product",
       "aliases": ["chef-infra-server", "infra-server"],
-      "dependencies": ["core", "postgresql", "elasticsearch"],
+      "dependencies": ["core", "postgresql", "opensearch"],
       "services": [
         "chef/automate-cs-bookshelf",
         "chef/automate-cs-oc-bifrost",
         "chef/automate-cs-oc-erchef",
-        "chef/automate-cs-nginx"
-      ]
-    },
-    {
-      "name": "workflow",
-      "type": "product",
-      "dependencies": ["automate"],
-      "services": [
-        "chef/automate-workflow-server",
-        "chef/automate-workflow-nginx"
+        "chef/automate-cs-nginx",
+        "chef/automate-cs-ocid"
       ]
     },
     {

@@ -2,6 +2,7 @@
 // session-service, and use a standard http.Client to interacting with them.
 // These interactions do properly handle redirects and cookies, so they closely
 // approximate what happens in a real-world setting.
+
 package server_test
 
 import (
@@ -59,6 +60,7 @@ func TestMain(t *testing.T) {
 	s := httptest.NewUnstartedServer(mux)
 	dexCerts := devDexCerts(t)
 	s.TLS = &tls.Config{
+
 		// We have to use the dex certs here because session-service is going
 		// to check that the thing its talking to is automate-dex
 		Certificates: []tls.Certificate{*dexCerts.ServiceKeyPair},
@@ -140,12 +142,15 @@ func TestMain(t *testing.T) {
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-		// This final redirect means we've successfully logged in, so we'll want to
-		// capture that id_token
-		if assert.Contains(t, resp.Request.URL.String(), "/signin#id_token=") {
-			vals, err := url.ParseQuery(resp.Request.URL.Fragment)
-			require.NoError(t, err)
-			idToken = vals.Get("id_token")
+		body, err := ioutil.ReadAll(resp.Body)
+		require.NoError(t, err, "read new response")
+		data := struct {
+			IDToken string `json:"id_token"`
+		}{}
+		err = json.Unmarshal(body, &data)
+		require.NoError(t, err, "parse new response")
+		if assert.NotEmpty(t, data.IDToken) {
+			idToken = data.IDToken
 		}
 	})
 
@@ -154,16 +159,16 @@ func TestMain(t *testing.T) {
 		require.NoError(t, err)
 		req.Header.Set("Authorization", fmt.Sprintf("bearer %s", idToken))
 		resp, err := c.Do(req)
-		require.NoError(t, err, "refresh request")
+		require.NoError(t, err, "session refresh request")
 		defer resp.Body.Close()
 
 		body, err := ioutil.ReadAll(resp.Body)
-		require.NoError(t, err, "read refresh response")
+		require.NoError(t, err, "read session refresh response")
 		data := struct {
 			IDToken string `json:"id_token"`
 		}{}
 		if err := json.Unmarshal(body, &data); err != nil {
-			t.Fatalf("parse refresh response: %s", err)
+			t.Fatalf("parse session refresh response: %s", err)
 		}
 
 		assert.Equal(t, idToken, data.IDToken,
@@ -182,20 +187,6 @@ func TestMain(t *testing.T) {
 		require.NoError(t, err, "GET /new")
 		defer resp.Body.Close()
 
-		// This final redirect means we've successfully logged in, so we'll want to
-		// capture that id_token
-		if assert.Contains(t, resp.Request.URL.String(), "/signin#id_token=") {
-			vals, err := url.ParseQuery(resp.Request.URL.Fragment)
-			require.NoError(t, err, "parse fragment")
-			idToken = vals.Get("id_token")
-		}
-		req, err := http.NewRequest("GET", refreshEndpoint.String(), nil)
-		require.NoError(t, err, "create refresh request")
-		req.Header.Set("Authorization", fmt.Sprintf("bearer %s", idToken))
-		resp, err = c.Do(req)
-		require.NoError(t, err, "send refresh request")
-		defer resp.Body.Close()
-
 		body, err := ioutil.ReadAll(resp.Body)
 		require.NoError(t, err, "read refresh response")
 		data := struct {
@@ -203,27 +194,25 @@ func TestMain(t *testing.T) {
 		}{}
 		err = json.Unmarshal(body, &data)
 		require.NoError(t, err, "parse refresh response")
+		if assert.NotEmpty(t, data.IDToken) {
+			idToken = data.IDToken
+		}
+
+		req, err := http.NewRequest("GET", refreshEndpoint.String(), nil)
+		require.NoError(t, err, "create refresh request")
+		req.Header.Set("Authorization", fmt.Sprintf("bearer %s", idToken))
+		resp, err = c.Do(req)
+		require.NoError(t, err, "send refresh request")
+		defer resp.Body.Close()
+
+		body, err = ioutil.ReadAll(resp.Body)
+		require.NoError(t, err, "read refresh response")
+
+		err = json.Unmarshal(body, &data)
+		require.NoError(t, err, "parse refresh response")
 
 		assert.NotEqual(t, idToken, data.IDToken,
 			"the token has expired, so we're given a new one")
-	})
-
-	t.Run("GET /session/new?id_token_hint=ID_TOKEN", func(t *testing.T) {
-		// no redirect we just want to see the dex URL we're sent to
-		cl := http.Client{
-			CheckRedirect: func(*http.Request, []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-			Jar:       c.Jar,
-			Transport: c.Transport, // copy custom TLS stuff from httptest's client
-		}
-
-		resp, err := cl.Get(fmt.Sprintf("%s?id_token_hint=%s", newEndpoint.String(), idToken))
-		require.NoError(t, err, "GET /new?id_token_hint=...")
-		defer resp.Body.Close()
-		require.Equal(t, http.StatusSeeOther, resp.StatusCode)
-		require.Contains(t, resp.Header.Get("Location"), "/dex/auth?")
-		require.Contains(t, resp.Header.Get("Location"), "connector_id=mock")
 	})
 
 	t.Run("GET /session/new (login, logout, try reusing old session", func(t *testing.T) {
@@ -240,13 +229,17 @@ func TestMain(t *testing.T) {
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 		// This indicates that the new-session dance with dex has succeeded
-		require.Contains(t, resp.Request.URL.Path, "/signin")
-		// This final redirect means we've successfully logged in, so we'll want to
-		// capture that id_token
-		if assert.Contains(t, resp.Request.URL.String(), "/signin#id_token=") {
-			vals, err := url.ParseQuery(resp.Request.URL.Fragment)
-			require.NoError(t, err, "parse fragment")
-			oldIDToken = vals.Get("id_token") // we need this below
+		if assert.Contains(t, resp.Request.URL.Path, "/callback") {
+			body, err := ioutil.ReadAll(resp.Body)
+			require.NoError(t, err, "read new response")
+			data := struct {
+				IDToken string `json:"id_token"`
+			}{}
+			err = json.Unmarshal(body, &data)
+			require.NoError(t, err, "parse new response")
+			if assert.NotEmpty(t, data.IDToken) {
+				oldIDToken = data.IDToken
+			}
 		}
 
 		// save cookie for re-use below
@@ -366,7 +359,7 @@ func TestMain(t *testing.T) {
 					Sub string `json:"sub"`
 					PU  string `json:"preferred_username"`
 				}{}
-				err = json.NewDecoder(resp.Body).Decode(&respMsg)
+				json.NewDecoder(resp.Body).Decode(&respMsg)
 				assert.Equal(t, "Cg0wLTM4NS0yODA4OS0wEgRtb2Nr", respMsg.Sub)
 				assert.Equal(t, "kilgore@kilgore.trout", respMsg.PU)
 			})

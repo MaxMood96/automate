@@ -86,3 +86,35 @@ func TestSliceReject(t *testing.T) {
 		})
 	}
 }
+
+func TestGetFullPlatformName(t *testing.T) {
+	fullName := stringutils.GetFullPlatformName("platform", "1.2.3")
+	assert.Equal(t, "platform 1.2.3", fullName)
+}
+
+func TestGetFullProfileName(t *testing.T) {
+	fullName := stringutils.GetFullProfileName("profile", "1.2.3")
+	assert.Equal(t, "profile, v1.2.3", fullName)
+}
+
+func TestSliceDifference(t *testing.T) {
+	a := []string{"hardware-check", "abc"}
+	b := []string{"hardware-check", "ssh-user"}
+	diff := stringutils.SliceDifference(a, b)
+	assert.Equal(t, []string{"abc"}, diff)
+}
+
+func TestSliceIntersection(t *testing.T) {
+	a := []string{"hardware-check", "abc"}
+	b := []string{"hardware-check", "ssh-user"}
+	diff := stringutils.SliceIntersection(a, b)
+	assert.Equal(t, []string{"hardware-check"}, diff)
+}
+
+func TestConcatSlice(t *testing.T) {
+	a := []string{"1", "2", "4"}
+	b := []string{"3", "5", "6"}
+	concat := stringutils.ConcatSlice(a, b)
+	assert.Equal(t, []string{"1", "2", "4", "3", "5", "6"}, concat)
+
+}

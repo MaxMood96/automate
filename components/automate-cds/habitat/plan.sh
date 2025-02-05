@@ -7,6 +7,7 @@ pkg_version="0.1.0"
 pkg_maintainer="Chef Software Inc. <support@chef.io>"
 pkg_license=('Chef-MLSA')
 pkg_upstream_url="http://github.com/chef/automate/components/automate-cds"
+
 pkg_deps=(
   core/bash
   "${local_platform_tools_origin:-chef}/automate-platform-tools"
@@ -30,3 +31,9 @@ scaffolding_go_build_tags=(prod)
 scaffolding_go_binary_list=(
   "${scaffolding_go_import_path}/cmd/${pkg_name}"
 )
+
+do_before() {
+  do_default_before
+  git config --global --add safe.directory /src
+}
+

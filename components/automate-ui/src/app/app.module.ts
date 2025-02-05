@@ -8,6 +8,7 @@ the NgModule decorator metadata.
 import { BrowserModule } from '@angular/platform-browser';
 import { CookieModule } from 'ngx-cookie';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { CommonModule } from '@angular/common';
 import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
 import { NgModule, CUSTOM_ELEMENTS_SCHEMA, APP_INITIALIZER } from '@angular/core';
 import { environment } from '../environments/environment';
@@ -31,15 +32,16 @@ import { ChefComponentsModule } from './components/chef-components.module';
 import { ChefPipesModule } from './pipes/chef-pipes.module';
 import { ComplianceModule } from './pages/+compliance/compliance.module';
 import { ComplianceSharedModule } from './pages/+compliance/shared/shared.module';
+import { InfiniteScrollDirective } from 'ngx-infinite-scroll';
 import { IntegrationsModule } from './pages/integrations/integrations.module';
 import { PolicyModule } from './modules/policy/policy.module';
 import { ProjectModule } from './pages/project/project.module';
 import { RoleModule } from './modules/roles/roles.module';
-import { LicenseModule } from 'app/modules/license/license.module';
-import { TelemetryCheckboxModule } from 'app/page-components/telemetry-checkbox/telemetry-checkbox.module';
-import { UserModule } from 'app/modules/user/user.module';
-import { TeamModule } from 'app/modules/team/team.module';
-import { InfraProxyModule } from 'app/modules/infra-proxy/infra-proxy.module';
+import { LicenseModule } from './modules/license/license.module';
+import { TelemetryCheckboxModule } from './page-components/telemetry-checkbox/telemetry-checkbox.module';
+import { UserModule } from './modules/user/user.module';
+import { TeamModule } from './modules/team/team.module';
+import { InfraProxyModule } from './modules/infra-proxy/infra-proxy.module';
 
 // Services
 import { ApplicationStatsService } from './services/telemetry/application-stats/application-stats.service';
@@ -51,7 +53,7 @@ import { ConfigService } from './services/config/config.service';
 import { EventFeedService } from './services/event-feed/event-feed.service';
 import { FeatureFlagsService } from './services/feature-flags/feature-flags.service';
 import { HttpClientAuthInterceptor } from './services/http/http-client-auth.interceptor';
-import { LayoutSidebarService } from 'app/entities/layout/layout-sidebar.service';
+import { LayoutSidebarService } from './entities/layout/layout-sidebar.service';
 import { LocalStorageService } from './services/storage/localstorage.service';
 import { MetadataService } from './services/metadata/metadata.service';
 import { NodeDetailsResolverService } from './services/node-details/node-details-resolver.service';
@@ -80,6 +82,7 @@ import { CookbookDetailsRequests } from './entities/cookbooks/cookbook-details.r
 import { CookbookVersionsRequests } from './entities/cookbooks/cookbook-versions.requests';
 import { ClientRequests } from './entities/clients/client.requests';
 import { ClientRunsRequests } from './entities/client-runs/client-runs.requests';
+import { ControlDetailRequests } from './entities/control-details/control-details.requests';
 import { CredentialRequests } from './entities/credentials/credential.requests';
 import { DataBagsRequests } from './entities/data-bags/data-bags.requests';
 import { DesktopRequests } from './entities/desktop/desktop.requests';
@@ -204,18 +207,21 @@ import {
   ServicesSidebarComponent
 } from './page-components/services-sidebar/services-sidebar.component';
 import { TopNavLandingComponent } from './pages/top-nav-landing/top-nav-landing.component';
-import { UIComponent } from 'app/ui.component';
+import { UIComponent } from './ui.component';
 import { WelcomeModalComponent } from './page-components/welcome-modal/welcome-modal.component';
 
 // Warning Banner
 import { WarningBannerComponent } from './page-components/warning-banner/warning-banner.component';
-import { AppConfigService } from 'app/services/app-config/app-config.service';
+import { AppConfigService } from './services/app-config/app-config.service';
 import { DataFeedCreateComponent } from './pages/data-feed-create/data-feed-create.component';
 import { DataFeedConfigDetailsComponent } from './pages/data-feed-config-details/data-feed-config-details.component';
 import {
   DataFeedTableComponent
 } from './page-components/data-feed-table/data-feed-table.component';
-
+import { SigninService } from './services/signin/signin.service';
+import { ManualUpgradeBannerComponent } from './page-components/manual-upgrade-banner/manual-upgrade-banner.component';
+import { LicenseUsageService } from './services/license-usage/license-usage.service';
+import { MfeSessionService } from './services/mfe-session/mfe-session.service';
 
 
 @NgModule({
@@ -278,7 +284,8 @@ import {
     WelcomeModalComponent,
     WarningBannerComponent,
     DataFeedConfigDetailsComponent,
-    DataFeedTableComponent
+    DataFeedTableComponent,
+    ManualUpgradeBannerComponent
   ],
   imports: [
     ApiTokenModule,
@@ -287,11 +294,13 @@ import {
     BrowserModule,
     ChefComponentsModule,
     ChefPipesModule,
+    CommonModule,
     ComplianceModule,
     ComplianceSharedModule.forRoot(),
-    CookieModule.forRoot(),
+    CookieModule.withOptions(),
     FormsModule,
     HttpClientModule,
+    InfiniteScrollDirective,
     InfraProxyModule,
     IntegrationsModule,
     NgrxEffectsModule,
@@ -333,6 +342,7 @@ import {
     ComplianceStatsService,
     ConfigService,
     ClientRunsRequests,
+    ControlDetailRequests,
     CookbookDetailsRequests,
     CookbookRequests,
     CookbookVersionsRequests,
@@ -359,6 +369,7 @@ import {
     LocalStorageService,
     ManagerRequests,
     MetadataService,
+    MfeSessionService,
     NodesRequests,
     NodeRunlistRequests,
     NotificationRuleRequests,
@@ -367,6 +378,7 @@ import {
     NodeNoRunIdResolverService,
     NodeDetailsService,
     NodeRunsService,
+    LicenseUsageService,
     PolicyRequests,
     ProductDeployedService,
     ProfileRequests,
@@ -391,10 +403,11 @@ import {
     TelemetryService,
     UserPermsRequests,
     UserPreferencesRequests,
-    UserRequests
+    UserRequests,
+    SigninService
   ],
-  bootstrap: [ AppComponent ],
-  schemas: [ CUSTOM_ELEMENTS_SCHEMA ]
+  bootstrap: [AppComponent],
+  schemas: [CUSTOM_ELEMENTS_SCHEMA]
 })
 
-export class AppModule {}
+export class AppModule { }

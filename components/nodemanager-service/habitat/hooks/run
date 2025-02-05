@@ -2,9 +2,6 @@
 set -e
 exec 2>&1
 
-# Required to allow common name feild in certificate. Feature soon to deprecated by 1.17
-export GODEBUG=x509ignoreCN=0
-
 # Call the script to block until user accepts the MLSA via the package's config
 {{pkgPathFor "chef/mlsa"}}/bin/accept {{cfg.mlsa.accept}}
 
@@ -14,9 +11,11 @@ export DBNAME="{{cfg.storage.database}}"
 
 source {{pkg.svc_config_path}}/migration.sh
 
-trigger_migrations
 
-pg-helper ensure-service-database "$DBNAME" || exit 1
+if [ ! -f /hab/.skip_migration ]; then
+  trigger_migrations
+  pg-helper ensure-service-database "$DBNAME" || exit 1
+fi
 
 # cleanup old migration files
 rm -rf {{pkg.svc_static_path}}/*.sql

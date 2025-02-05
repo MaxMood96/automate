@@ -19,6 +19,7 @@ var AllMappings = []Mapping{
 	ComplianceSumDate,
 	ComplianceProfiles,
 	ComplianceRunInfo,
+	ComplianceControlRepData,
 }
 
 const (
@@ -30,18 +31,21 @@ const (
 	ComplianceCurrentTimeSeriesIndicesVersion = "7"
 	//ComplianceCurrentProfilesIndicesVersion allows us to know, for any version of compliance, what level we are at with our profiles and profiles-mappings indices
 	ComplianceCurrentProfilesIndicesVersion = "3"
-	ComplianceCurrentRunInfoVersion         = "2"
+	ComplianceCurrentRunInfoVersion         = "3"
+	ComplianceCurrentControlInfoVersion     = "1"
 
 	compAndVersionTimeSeries = "comp-" + ComplianceCurrentTimeSeriesIndicesVersion
 	compAndVersionProfiles   = "comp-" + ComplianceCurrentProfilesIndicesVersion
 	compAndVersionRunInfo    = "comp-" + ComplianceCurrentRunInfoVersion
+	compAndControlRunInfo    = "comp-" + ComplianceCurrentControlInfoVersion
 
-	DocType                    = "_doc"
 	IndexNameProf              = compAndVersionProfiles + "-profiles"
 	IndexNameComplianceRunInfo = compAndVersionRunInfo + "-run-info"
 
 	IndexNameRep = compAndVersionTimeSeries + "-r"
 	IndexNameSum = compAndVersionTimeSeries + "-s"
+
+	IndexNameControl = compAndControlRunInfo + "-control"
 )
 
 // Mapping type is the representation of an ES mapping, it contains
@@ -50,7 +54,6 @@ const (
 type Mapping struct {
 	Index      string
 	Alias      string
-	Type       string
 	Timeseries bool
 	Mapping    string
 }

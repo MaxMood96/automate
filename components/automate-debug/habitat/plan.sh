@@ -7,6 +7,7 @@ pkg_version="0.1.0"
 pkg_maintainer="Chef Software Inc. <support@chef.io>"
 pkg_license=('Chef-MLSA')
 pkg_upstream_url="https://www.chef.io/automate"
+
 pkg_deps=()
 
 do_build() {
@@ -16,3 +17,5 @@ do_build() {
 do_install() {
   return 0
 }
+
+

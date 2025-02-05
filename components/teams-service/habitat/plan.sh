@@ -2,6 +2,7 @@
 #shellcheck disable=SC2154
 #stable channel
 
+
 pkg_name=teams-service
 pkg_description="A2 team management service"
 pkg_origin=chef
@@ -45,4 +46,10 @@ do_install() {
 
   build_line "Copying migration files"
   cp -r storage/postgres/migration/sql "${pkg_prefix}/migrations"
+}
+
+
+do_before() {
+  do_default_before
+  git config --global --add safe.directory /src
 }

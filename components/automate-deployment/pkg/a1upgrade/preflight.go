@@ -74,9 +74,9 @@ type PreflightRunner struct {
 	reindexer       *Reindexer
 	writer          cli.FormatWriter
 	checkChefServer bool
-	checkWorkflow   bool
-	details         []string
-	err             error
+	// checkWorkflow   bool
+	details []string
+	err     error
 }
 
 // NewPreflightRunner sets up a PreflightRunner
@@ -84,15 +84,13 @@ func NewPreflightRunner(
 	writer cli.FormatWriter,
 	deliveryRunning *DeliveryRunning,
 	deliverySecrets *DeliverySecrets,
-	checkChefServer bool,
-	checkWorkflow bool) *PreflightRunner {
+	checkChefServer bool) *PreflightRunner {
 
 	return &PreflightRunner{
 		writer:          writer,
 		deliveryRunning: deliveryRunning,
 		deliverySecrets: deliverySecrets,
 		checkChefServer: checkChefServer,
-		checkWorkflow:   checkWorkflow,
 	}
 }
 
@@ -303,17 +301,16 @@ support@chef.io for assistance.
 // checkExpectedDataPaths checks the source and destination paths for
 // the transfers.
 //
-// - Source Path must exist unless the migration has been completed.
-// - Destination Path must not exist or be an empty directory (or
-//   symlink to an empty directory)
-//
+//   - Source Path must exist unless the migration has been completed.
+//   - Destination Path must not exist or be an empty directory (or
+//     symlink to an empty directory)
 func (p *PreflightRunner) checkExpectedDataPaths() {
 	if p.err != nil {
 		return
 	}
 
 	checkDesc := "expected Automate 1 data paths exist"
-	moveJobs := FileMoversForConfig(p.deliveryRunning, p.checkWorkflow)
+	moveJobs := FileMoversForConfig(p.deliveryRunning)
 
 	missingPaths := make([]string, 0)
 	for _, m := range moveJobs {
@@ -467,9 +464,9 @@ func (p *PreflightRunner) pgDatabasesToCheck() []string {
 	if p.checkChefServer {
 		databases = append(databases, chefServerDatabaseNames...)
 	}
-	if p.checkWorkflow {
-		databases = append(databases, "delivery")
-	}
+	//if p.checkWorkflow {
+	//	databases = append(databases, "delivery")
+	//}
 	return databases
 }
 
@@ -480,7 +477,7 @@ func (p *PreflightRunner) checkFreeSpace() {
 
 	checkDesc := "sufficient disk space to move Automate 1 data"
 	moveJobsByMount := make(map[string][]moveJob)
-	moveJobs := FileMoversForConfig(p.deliveryRunning, p.checkWorkflow)
+	moveJobs := FileMoversForConfig(p.deliveryRunning)
 	for _, m := range moveJobs {
 		mountPoint, err := sys.MountFor(m.DestPath())
 		if err != nil {
@@ -531,7 +528,7 @@ func (p *PreflightRunner) getReindexer() (*Reindexer, error) {
 	if p.reindexer != nil {
 		return p.reindexer, nil
 	}
-	esURL := p.deliveryRunning.Delivery.Elasticsearch.NginxProxyURL
+	esURL := p.deliveryRunning.Delivery.Opensearch.NginxProxyURL
 	r, err := NewReindexer(p.writer, esURL)
 	if err != nil {
 		return nil, err

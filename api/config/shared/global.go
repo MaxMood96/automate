@@ -3,15 +3,21 @@ package shared
 import (
 	"fmt"
 	"net/url"
+	"os/exec"
 	"strings"
 
-	gw "github.com/golang/protobuf/ptypes/wrappers"
-	"github.com/sirupsen/logrus"
+	"github.com/pkg/errors"
 
 	w "github.com/chef/automate/api/config/shared/wrappers"
 	"github.com/chef/automate/lib/io/fileutils"
 	"github.com/chef/automate/lib/proxy"
 	"github.com/chef/automate/lib/stringutils"
+	gw "github.com/golang/protobuf/ptypes/wrappers"
+	"github.com/sirupsen/logrus"
+)
+
+const (
+	habPkgPlatformToolsPath = "hab pkg path chef/automate-platform-tools"
 )
 
 // NewGlobalConfig returns a new GlobalConfig instance with zero values.
@@ -47,6 +53,16 @@ func DefaultGlobalConfig() *GlobalConfig {
 			SessionSettings: &SessionSettings{
 				EnableIdleTimeout:  w.Bool(false),
 				IdleTimeoutMinutes: w.Int32(30),
+			},
+			LargeReporting: &LargeReporting{
+				EnableLargeReporting: w.Bool(false),
+			},
+			Sys: &V1_System{
+				Ngx: &Nginx{
+					Http: &Http{
+						IncludeXForwardedFor: w.Bool(false),
+					},
+				},
 			},
 		},
 	}
@@ -237,7 +253,15 @@ func (c *GlobalConfig) Validate() error { // nolint gocyclo
 				cfgErr.AddMissingKey("global.v1.external.elasticsearch.auth.basic_auth.username")
 			}
 			if p == "" {
-				cfgErr.AddMissingKey("global.v1.external.elasticsearch.auth.basic_auth.password")
+				args := []string{
+					"show",
+					"userconfig.es_password",
+				}
+				execGetPass := exec.Command(getLatestPlatformToolsPath()+"/bin/secrets-helper", args...)
+				getPass, err := execGetPass.Output()
+				if err != nil || string(getPass) == "" {
+					cfgErr.AddMissingKey("global.v1.external.elasticsearch.auth.basic_auth.password")
+				}
 			}
 		case "aws_es":
 			u := auth.GetAwsEs().GetUsername().GetValue()
@@ -255,6 +279,62 @@ func (c *GlobalConfig) Validate() error { // nolint gocyclo
 		}
 	}
 
+	if externalOS := c.GetV1().GetExternal().GetOpensearch(); externalOS.GetEnable().GetValue() {
+		// External ES nodes all either have https urls or https urls
+		nodes := externalOS.GetNodes()
+		httpsNodes := make([]string, 0)
+		for _, n := range nodes {
+			ns := n.GetValue()
+			if strings.HasPrefix(ns, "https") {
+				httpsNodes = append(httpsNodes, ns)
+			}
+		}
+		if len(httpsNodes) > 0 && len(httpsNodes) < len(nodes) {
+			cfgErr.AddInvalidValue("global.v1.external.opensearch.nodes", "Cannot mix http and https nodes")
+		}
+
+		// Only one of root_cert or root_cert_file has been specified
+		rc := c.GetV1().GetExternal().GetOpensearch().GetSsl().GetRootCert().GetValue()
+		rcf := c.GetV1().GetExternal().GetOpensearch().GetSsl().GetRootCertFile().GetValue()
+		if rc != "" && rcf != "" {
+			cfgErr.AddInvalidValue("global.v1.external.opensearch.ssl", "Specify either global.v1.external.opensearch.ssl.root_cert or global.v1.external.opensearch.ssl.root_cert_file, but not both.")
+		}
+
+		auth := c.GetV1().GetExternal().GetOpensearch().GetAuth()
+		scheme := auth.GetScheme().GetValue()
+		switch scheme {
+		case "basic_auth":
+			u := auth.GetBasicAuth().GetUsername().GetValue()
+			p := auth.GetBasicAuth().GetPassword().GetValue()
+			if u == "" {
+				cfgErr.AddMissingKey("global.v1.external.opensearch.auth.basic_auth.username")
+			}
+			if p == "" {
+				args := []string{
+					"show",
+					"userconfig.os_password",
+				}
+				execGetPass := exec.Command(getLatestPlatformToolsPath()+"/bin/secrets-helper", args...)
+				getPass, err := execGetPass.Output()
+				if err != nil || string(getPass) == "" {
+					cfgErr.AddMissingKey("global.v1.external.opensearch.auth.basic_auth.password")
+				}
+			}
+		case "aws_os":
+			u := auth.GetAwsOs().GetUsername().GetValue()
+			p := auth.GetAwsOs().GetPassword().GetValue()
+			if u == "" {
+				cfgErr.AddMissingKey("global.v1.external.opensearch.auth.aws_os.username")
+			}
+			if p == "" {
+				cfgErr.AddMissingKey("global.v1.external.opensearch.auth.aws_os.password")
+			}
+		case "":
+		default:
+			cfgErr.AddInvalidValue("global.v1.external.opensearch.auth.scheme",
+				"Scheme should be one of 'basic_auth', 'aws_os'.")
+		}
+	}
 	if externalPG := c.GetV1().GetExternal().GetPostgresql(); externalPG.GetEnable().GetValue() {
 		if auth := c.GetV1().GetExternal().GetPostgresql().GetAuth(); auth.GetScheme().GetValue() != "password" {
 			// use supported auth scheme (currently only password auth is
@@ -339,4 +419,41 @@ func (c *GlobalConfig) NoProxyString() *gw.StringValue {
 	}
 
 	return w.String(strings.Join(noProxy, ","))
+}
+
+func (c *GlobalConfig) SetGlobalConfig(g *GlobalConfig) {
+}
+
+func (c *GlobalConfig) PrepareSystemConfig(certificate *TLSCredentials) (PreparedSystemConfig, error) {
+	sys := c.V1.Sys
+	sys.Tls = certificate
+	return c.V1.Sys, nil
+}
+
+func (c *GlobalConfig) ValidateReDirectSysLogConfig() error {
+	if c.GetV1().GetLog().GetRedirectSysLog().GetValue() == true {
+		if c.GetV1().GetLog().GetRedirectLogFilePath().GetValue() == "" {
+			return errors.New("Please specify a log path location using redirect_log_file_path")
+		}
+
+		if c.GetV1().GetLog().GetMaxSizeRotateLogs().GetValue() == "" {
+			c.V1.Log.MaxSizeRotateLogs = w.String("100M")
+		}
+
+		if c.GetV1().GetLog().GetMaxNumberRotatedLogs().GetValue() == 0 {
+			c.V1.Log.MaxNumberRotatedLogs = w.Int32(10)
+		}
+	}
+
+	return nil
+}
+
+func getLatestPlatformToolsPath() string {
+	cmd, err := exec.Command("/bin/sh", "-c", habPkgPlatformToolsPath).Output()
+	if err != nil {
+		fmt.Printf("error %s", err)
+	}
+	output := string(cmd)
+
+	return strings.TrimSpace(output)
 }

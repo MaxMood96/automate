@@ -15,6 +15,7 @@ resource "null_resource" "system_hardening" {
 
   connection {
     user        = var.ssh_user
+    port        = var.ssh_port
     private_key = file(var.ssh_key_file)
     host        = var.private_ips[count.index]
     script_path = "${var.tmp_path}/tf_inline_script_system_hardening.sh"
@@ -27,7 +28,7 @@ resource "null_resource" "system_hardening" {
 
   provisioner "remote-exec" {
     inline = [
-      "sudo -E /bin/bash -x ${var.tmp_path}/hardening.sh",
+      "echo '${var.ssh_user_sudo_password}' | ${var.sudo_cmd} -S bash -ex ${var.tmp_path}/hardening.sh",
     ]
   }
 }

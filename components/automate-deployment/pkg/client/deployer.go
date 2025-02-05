@@ -278,7 +278,7 @@ func DeployHA(writer cli.FormatWriter,
 	overrideConfig *dc.AutomateConfig,
 	manifestProvider manifest.ReleaseManifestProvider,
 	cliVersion string,
-	airgap bool) error {
+	airgap bool, saas bool) error {
 	d := newDeployer(writer, overrideConfig, manifestProvider, cliVersion, airgap)
 	d.genMergedConfig()
 	ctx := context.Background()
@@ -287,7 +287,7 @@ func DeployHA(writer cli.FormatWriter,
 		logrus.Debug("Failed to get manifest for current channel")
 	}
 	b := bootstrap.NewCompatBootstrapper(d.target)
-	err = bootstrap.FullBootstrapHA(context.Background(), b, d.mergedCfg.Deployment, currentM, writer)
+	err = bootstrap.FullBootstrapHA(context.Background(), b, d.mergedCfg.Deployment, currentM, writer, saas)
 	return err
 }
 
@@ -589,7 +589,6 @@ func (d *deployer) upgradePreflight() {
 		d.upgrade.DeliveryRunning,
 		d.upgrade.DeliverySecrets,
 		d.upgrade.EnableChefServer,
-		d.upgrade.EnableWorkflow,
 	)
 
 	if err := p.Run(); err != nil {
@@ -966,7 +965,7 @@ When you can backup your Chef Automate v1 installation successfully, run the upg
 		return
 	}
 
-	esURL := d.upgrade.A1Config.DeliveryRunning.Delivery.Elasticsearch.NginxProxyURL
+	esURL := d.upgrade.A1Config.DeliveryRunning.Delivery.Opensearch.NginxProxyURL
 	repoType := d.upgrade.A1Config.DeliveryRunning.Delivery.Backup.Type
 
 	if err := a1upgrade.WaitForEsSnapshot(d.writer, esURL, repoType, d.a1BackupName()); err != nil {
@@ -1003,7 +1002,7 @@ func (d *deployer) migrateEs2Indices() {
 
 	d.writer.Title("Ensuring Elasticsearch data is compatible with Chef Automate v2")
 
-	esURL := d.upgrade.A1Config.DeliveryRunning.Delivery.Elasticsearch.NginxProxyURL
+	esURL := d.upgrade.A1Config.DeliveryRunning.Delivery.Opensearch.NginxProxyURL
 	w := cli.NewWriter(os.Stdout, os.Stderr, os.Stdin)
 
 	r, err := a1upgrade.NewReindexer(w, esURL)
@@ -1703,13 +1702,13 @@ func (d *deployer) validateUpgradableA1Config() {
 		ExternalESCheck:       u.SkipExternalESCheck,
 		FIPSCheck:             u.SkipFIPSCheck,
 		SAMLCheck:             u.SkipSAMLCheck,
-		WorkflowCheck:         u.SkipWorkflowCheck,
+		//WorkflowCheck:         u.SkipWorkflowCheck,
 	}
 
 	// @afiune delete me when workflow feature is completed, as well as the skip flags
-	if d.upgrade.EnableWorkflow {
-		skips.SkipWorkflowCheck()
-	}
+	//if d.upgrade.EnableWorkflow {
+	//	skips.SkipWorkflowCheck()
+	//}
 
 	err := checker.RunAutomateChecks(u.A1Config, skips)
 	if err != nil {

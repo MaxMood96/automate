@@ -17,7 +17,7 @@ require 'json'
 
 class AutomateClusterTest < AutomateCluster::Command
   INSPEC_PROFILES = {
-    elasticsearch: ['automate-backend-elasticsearch-smoke'],
+    opensearch: ['automate-backend-opensearch-smoke'],
     postgresql: ['automate-backend-postgresql-smoke'],
     automate: ['automate-frontend-smoke'],
     chef_server: ['automate-frontend-chef-server-smoke'],
@@ -32,6 +32,9 @@ class AutomateClusterTest < AutomateCluster::Command
 
   def execute
     results = []
+
+    # store the secret envs so we can pass them to the command
+    store_secret_envs
 
     INSPEC_PROFILES.each do |name, profiles|
       next unless service_name.nil? || name == service_name.to_sym
@@ -66,6 +69,18 @@ class AutomateClusterTest < AutomateCluster::Command
     [:elasticsearch, :postgresql].include?(name)
   end
 
+  # store the sudo_password from the env variable in the secrets hash
+  def store_secret_envs
+    sudo_password = ENV['sudo_password']
+    # If the sudo_password is set, store it in the secrets hash
+    if sudo_password
+      # Set a new secret
+      secrets.set('sudo_password', sudo_password)
+      # Save the updated secrets store to disk
+      secrets.save(File.expand_path(AutomateCluster::Config.secrets_store_file))
+    end
+  end
+
   # def default_sudo_password
   #   AutomateCluster.secrets['sudo_password']
   # end
@@ -82,7 +97,7 @@ class AutomateClusterTest < AutomateCluster::Command
     cmd << "--input-file #{input_file}"
     cmd << "--sudo-password=#{sudo_password(service)}" if sudo_password(service)
     cmd << "--sudo-command=#{AutomateCluster.sudo_}" if sudo_command
-    cmd << "--target ssh://#{config.ssh_user}@#{server}"
+    cmd << "--target ssh://#{config.ssh_user}@#{server}:#{config.ssh_port}"
     cmd << File.join(profile_path, profile)
 
     cmd.join(' ')

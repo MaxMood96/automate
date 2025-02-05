@@ -8,11 +8,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chef/automate/components/compliance-service/config"
+	"github.com/chef/automate/components/compliance-service/ingest/pipeline/processor"
+	"github.com/chef/automate/lib/cereal"
+	"github.com/chef/automate/lib/cereal/postgres"
+
 	"github.com/chef/automate/api/interservice/authz"
 	"github.com/chef/automate/api/interservice/compliance/ingest/events/compliance"
 	event "github.com/chef/automate/api/interservice/event"
 	"github.com/chef/automate/api/interservice/nodemanager/manager"
 	nodes "github.com/chef/automate/api/interservice/nodemanager/nodes"
+	"github.com/chef/automate/api/interservice/report_manager"
 	"github.com/chef/automate/components/compliance-service/ingest/ingestic"
 	"github.com/chef/automate/components/compliance-service/ingest/ingestic/mappings"
 	"github.com/chef/automate/components/compliance-service/ingest/server"
@@ -23,9 +29,9 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/jsonpb"
 	empty "github.com/golang/protobuf/ptypes/empty"
+	elastic "github.com/olivere/elastic/v7"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	elastic "gopkg.in/olivere/elastic.v6"
 )
 
 var complianceReportIndex = fmt.Sprintf("%s-%s", mappings.ComplianceRepDate.Index, "*")
@@ -34,13 +40,15 @@ var complianceSummaryIndex = fmt.Sprintf("%s-%s", mappings.ComplianceSumDate.Ind
 // Suite helps you manipulate various stages of your tests, it provides
 // common functionality.
 type Suite struct {
-	elasticClient          *elastic.Client
-	ingesticESClient       *ingestic.ESClient
-	ComplianceIngestServer *server.ComplianceIngestServer
-	ProjectsClientMock     *authz.MockProjectsServiceClient
-	NodeManagerMock        *NodeManagerMock
-	NotifierMock           *NotifierMock
-	EventServiceClientMock *event.MockEventServiceClient
+	elasticClient           *elastic.Client
+	ingesticESClient        *ingestic.ESClient
+	ComplianceIngestServer  *server.ComplianceIngestServer
+	ProjectsClientMock      *authz.MockProjectsServiceClient
+	NodeManagerMock         *NodeManagerMock
+	NotifierMock            *NotifierMock
+	EventServiceClientMock  *event.MockEventServiceClient
+	ReportServiceClientMock *report_manager.MockReportManagerServiceClient
+	CerealManagerMock       *cereal.Manager
 }
 
 // Initialize the test suite
@@ -52,16 +60,16 @@ func NewGlobalSuite() *Suite {
 
 	// Create a new elastic Client
 	esclient, err := elastic.NewClient(
-		elastic.SetURL(elasticsearchUrl),
+		elastic.SetURL(opensearchUrl),
 		elastic.SetSniff(false),
 	)
 	if err != nil {
-		fmt.Printf("Could not create elasticsearch client from %q: %s\n", elasticsearchUrl, err)
+		fmt.Printf("Could not create elasticsearch client from %q: %s\n", opensearchUrl, err)
 		os.Exit(1)
 	}
 
 	s.elasticClient = esclient
-	s.ingesticESClient = ingestic.NewESClient(esclient)
+	s.ingesticESClient = ingestic.NewESClient(esclient, config.Compliance{})
 	s.ingesticESClient.InitializeStore(context.Background())
 
 	s.ProjectsClientMock = authz.NewMockProjectsServiceClient(gomock.NewController(nil))
@@ -73,9 +81,17 @@ func NewGlobalSuite() *Suite {
 	s.EventServiceClientMock.EXPECT().Publish(gomock.Any(), gomock.Any()).AnyTimes().Return(
 		&event.PublishResponse{}, nil)
 
+	cereal, err := cereal.NewManager(postgres.NewPostgresBackend(postgresUrl))
+	if err != nil {
+		fmt.Printf("could not create job manager %v", err)
+	}
+
+	err = processor.InitCerealManager(cereal, 2, s.ingesticESClient)
+	cereal.Start(context.TODO())
+	s.CerealManagerMock = cereal
 	s.ComplianceIngestServer = server.NewComplianceIngestServer(s.ingesticESClient,
-		s.NodeManagerMock, "", s.NotifierMock,
-		s.ProjectsClientMock, 100)
+		s.NodeManagerMock, nil, "", s.NotifierMock,
+		s.ProjectsClientMock, 100, false, s.CerealManagerMock)
 
 	return s
 }
@@ -85,26 +101,34 @@ func NewLocalSuite(t *testing.T) *Suite {
 
 	// Create a new elastic Client
 	esclient, err := elastic.NewClient(
-		elastic.SetURL(elasticsearchUrl),
+		elastic.SetURL(opensearchUrl),
 		elastic.SetSniff(false),
 	)
 	if err != nil {
-		fmt.Printf("Could not create elasticsearch client from %q: %s\n", elasticsearchUrl, err)
+		fmt.Printf("Could not create elasticsearch client from %q: %s\n", opensearchUrl, err)
 		os.Exit(1)
 	}
 
 	s.elasticClient = esclient
-	s.ingesticESClient = ingestic.NewESClient(esclient)
+	s.ingesticESClient = ingestic.NewESClient(esclient, config.Compliance{})
 	s.ingesticESClient.InitializeStore(context.Background())
 
 	s.ProjectsClientMock = authz.NewMockProjectsServiceClient(gomock.NewController(t))
 	s.NodeManagerMock = &NodeManagerMock{}
 	s.NotifierMock = &NotifierMock{}
+	s.ReportServiceClientMock = report_manager.NewMockReportManagerServiceClient(gomock.NewController(t))
 	s.EventServiceClientMock = event.NewMockEventServiceClient(gomock.NewController(t))
 
+	cereal, err := cereal.NewManager(postgres.NewPostgresBackend(postgresUrl))
+	if err != nil {
+		fmt.Printf("could not create job manager %v", err)
+	}
+	err = processor.InitCerealManager(cereal, 2, s.ingesticESClient)
+	cereal.Start(context.TODO())
+	s.CerealManagerMock = cereal
 	s.ComplianceIngestServer = server.NewComplianceIngestServer(s.ingesticESClient,
-		s.NodeManagerMock, "", s.NotifierMock,
-		s.ProjectsClientMock, 100)
+		s.NodeManagerMock, s.ReportServiceClientMock, "", s.NotifierMock,
+		s.ProjectsClientMock, 100, false, s.CerealManagerMock)
 
 	return s
 }
@@ -139,7 +163,7 @@ func (s *Suite) ingestReport(fileName string, f func(*compliance.Report)) error 
 	ctx := context.Background()
 
 	for tries := 0; tries < 3; tries++ {
-		_, err = s.ComplianceIngestServer.ProcessComplianceReport(ctx, &iReport)
+		err = server.SendComplianceReport(ctx, &iReport, s.ComplianceIngestServer)
 		if err == nil {
 			break
 		}
@@ -150,7 +174,6 @@ func (s *Suite) ingestReport(fileName string, f func(*compliance.Report)) error 
 			os.Exit(3)
 		}
 	}
-
 	return err
 }
 
@@ -179,11 +202,11 @@ func (s *Suite) GetAllReportsESInSpecReport() ([]*relaxting.ESInSpecReport, erro
 		).
 		Do(context.Background())
 
-	if searchResult.TotalHits() > 0 && searchResult.Hits.TotalHits > 0 {
+	if searchResult.TotalHits() > 0 {
 		for _, hit := range searchResult.Hits.Hits {
 			esInSpecReport := relaxting.ESInSpecReport{}
 			if hit.Source != nil {
-				err := json.Unmarshal(*hit.Source, &esInSpecReport)
+				err := json.Unmarshal(hit.Source, &esInSpecReport)
 				if err != nil {
 					logrus.Errorf("GetAllReportsESInSpecReport unmarshal error: %s", err.Error())
 					return reports, err
@@ -210,11 +233,11 @@ func (s *Suite) GetAllSummaryESInSpecSummary() ([]*relaxting.ESInSpecSummary, er
 		).
 		Do(context.Background())
 
-	if searchResult.TotalHits() > 0 && searchResult.Hits.TotalHits > 0 {
+	if searchResult.TotalHits() > 0 {
 		for _, hit := range searchResult.Hits.Hits {
 			esInSpecSummary := relaxting.ESInSpecSummary{}
 			if hit.Source != nil {
-				err := json.Unmarshal(*hit.Source, &esInSpecSummary)
+				err := json.Unmarshal(hit.Source, &esInSpecSummary)
 				if err != nil {
 					logrus.Errorf("GetAllSummaryESInSpecSummary unmarshal error: %s", err.Error())
 					return summaries, err
@@ -281,7 +304,7 @@ func (s *Suite) InsertComplianceRunInfos(reports []*relaxting.ESInSpecReport) ([
 		ids[i] = report.NodeID
 
 		for tries := 0; tries < 3; tries++ {
-			err = s.ingesticESClient.InsertComplianceRunInfo(context.Background(), report.NodeID, report.EndTime)
+			err = s.ingesticESClient.InsertComplianceRunInfo(context.Background(), report, report.EndTime)
 			if err == nil {
 				break
 			}
@@ -410,12 +433,19 @@ func (s *Suite) DeleteAllDocuments() {
 	var err error
 	// ES Query to match all documents
 	q := elastic.RawStringQuery("{\"match_all\":{}}")
-
+	indices, _ := s.elasticClient.IndexNames()
+	for i, v := range indices {
+		if v == ".opendistro_security" {
+			indices = append(indices[:i], indices[i+1:]...)
+			break
+		}
+	}
 	maxNumberOfTries := 3
 	tries := 0
 	for ; tries < maxNumberOfTries; tries++ {
-		_, err = s.elasticClient.DeleteByQuery("_all").
+		_, err = s.elasticClient.DeleteByQuery().
 			Query(q).
+			Index(indices...).
 			IgnoreUnavailable(true).
 			Refresh("true").
 			WaitForCompletion(true).
@@ -535,4 +565,8 @@ func (nm *NodeManagerMock) SearchManagerNodes(ctx context.Context, in *manager.N
 func contextWithProjects(projects []string) context.Context {
 	ctx := context.Background()
 	return auth_context.NewContext(ctx, []string{}, projects, "", "")
+}
+
+func contextWithRequestorID(ctx context.Context) context.Context {
+	return auth_context.NewRequestorContext(ctx, "testRequestorID")
 }

@@ -14,18 +14,24 @@ gh_repo = "automate"
     weight = 60
 +++
 
-{{% warning %}}
+{{< warning >}}
 
 Chef Automate will not deploy the Chef Manage add-on for Chef Infra Server.
 
-{{% /warning %}}
+{{< /warning >}}
 
-{{% warning %}}
+{{< warning >}}
 
 Supermarket cannot authenticate users on Chef Infra Server deployed
 with Chef Automate.
 
-{{% /warning %}}
+{{< /warning >}}
+
+{{< warning >}}
+
+The Chef Server deployed and running with Automate will also require a license. The Chef Automate license will cover the Chef Server license.
+
+{{< /warning >}}
 
 Use Chef Automate to install Chef Infra Server either for a single-host installation that contains both Chef Infra Server and Chef Automate, or for a standalone Chef Infra Server instance.
 See the [Chef Infra Server documentation]({{< relref "server.md" >}}) for instructions and guidance on using and managing your Chef Infra Server.
@@ -241,7 +247,15 @@ The [`knife` command-line utility]({{< relref "workstation/knife.md" >}}) provid
 
 On the Chef Infra Server host:
 
-1. Run the following command to create a user:
+1. Apply License:  
+   Chef Automate offers two license tiers that have different entitlements:  
+   **Trial:** A trial license is for users or organizations interested in exploring the product before buying. Generate the license from https://www.chef.io/license-generation-free-trial  
+   **Commercial:** A commercial license is for customers who have purchased and are entitled to use it according to the license terms.
+
+   If you do not have the license, you can use the trial license to explore the product or contact the Chef Account Team to get a commercial license.  
+   Please follow the instructions in the [Chef Automate License]({{< relref "chef_automate_license.md" >}}) documentation to apply for the license.  
+
+2. Run the following command to create a user:
 
     ```shell
       sudo chef-server-ctl user-create USER_NAME FIRST_NAME LAST_NAME EMAIL 'PASSWORD' --filename USER_NAME.pem
@@ -251,7 +265,7 @@ On the Chef Infra Server host:
     Save this RSA private key to a safe location.
     The `--filename` option will save the RSA private key to the specified absolute path.
 
-1. Run the following command to create an organization, generate its validator key, and assign the user created in the previous step as an administrator:
+3. Run the following command to create an organization, generate its validator key, and assign the user created in the previous step as an administrator:
 
     ```shell
       sudo chef-server-ctl org-create SHORT_NAME 'FULL_ORGANIZATION_NAME' --association_user USER_NAME --filename ORGANIZATION-validator.pem
@@ -301,7 +315,7 @@ On the workstation:
     ```
 
     For airgapped installations, [create a bootstrap
-    template]({{< relref "install_chef_air_gap.md#create-a-bootstrap-template" >}}) and [add it]({{< relref "install_chef_air_gap.md#configure-knife" >}}) to your `config.rb`.
+    template]({{< relref "install_chef_air_gap.md#create-a-bootstrap-template" >}}) and [add it]({{< relref "install_chef_air_gap.md#configure-knife" >}}) to your `config.rb`. You can also configure the Chef Automate Infra Server to use the [S3 storage type](/automate/chef_infra_external_cookbooks_in_chef_automate).
 
 1. Run `knife ssl fetch` to get the SSL certificates from Chef Infra Server and make them available to `knife`.
 

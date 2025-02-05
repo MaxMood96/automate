@@ -36,10 +36,13 @@ import (
 	minio "github.com/chef/automate/api/config/minio"
 	nodemanager "github.com/chef/automate/api/config/nodemanager"
 	notifications "github.com/chef/automate/api/config/notifications"
+	ocid "github.com/chef/automate/api/config/ocid"
+	opensearch "github.com/chef/automate/api/config/opensearch"
 	pggateway "github.com/chef/automate/api/config/pg_gateway"
 	pgsidecar "github.com/chef/automate/api/config/pg_sidecar"
 	postgresql "github.com/chef/automate/api/config/postgresql"
 	prometheus "github.com/chef/automate/api/config/prometheus"
+	reportmanager "github.com/chef/automate/api/config/report_manager"
 	sampledata "github.com/chef/automate/api/config/sample_data"
 	secrets "github.com/chef/automate/api/config/secrets"
 	session "github.com/chef/automate/api/config/session"
@@ -47,8 +50,6 @@ import (
 	teams "github.com/chef/automate/api/config/teams"
 	ui "github.com/chef/automate/api/config/ui"
 	usersettings "github.com/chef/automate/api/config/user_settings"
-	workflownginx "github.com/chef/automate/api/config/workflow_nginx"
-	workflowserver "github.com/chef/automate/api/config/workflow_server"
 )
 
 // NewAutomateConfig returns a new instance of AutomateConfig with zero values.
@@ -88,18 +89,19 @@ func NewAutomateConfig() *AutomateConfig {
 		Minio:            minio.NewConfigRequest(),
 		Nodemanager:      nodemanager.NewConfigRequest(),
 		Notifications:    notifications.NewConfigRequest(),
+		Ocid:             ocid.NewConfigRequest(),
+		Opensearch:       opensearch.NewConfigRequest(),
 		PgGateway:        pggateway.NewConfigRequest(),
 		PgSidecar:        pgsidecar.NewConfigRequest(),
 		Postgresql:       postgresql.NewConfigRequest(),
 		Prometheus:       prometheus.NewConfigRequest(),
+		ReportManager:    reportmanager.NewConfigRequest(),
 		SampleData:       sampledata.NewConfigRequest(),
 		Secrets:          secrets.NewConfigRequest(),
 		Session:          session.NewConfigRequest(),
 		Teams:            teams.NewConfigRequest(),
 		UI:               ui.NewConfigRequest(),
 		UserSettings:     usersettings.NewConfigRequest(),
-		Workflow:         workflowserver.NewConfigRequest(),
-		WorkflowNginx:    workflownginx.NewConfigRequest(),
 	}
 }
 
@@ -140,18 +142,19 @@ func DefaultAutomateConfig() *AutomateConfig {
 		Minio:            minio.DefaultConfigRequest(),
 		Nodemanager:      nodemanager.DefaultConfigRequest(),
 		Notifications:    notifications.DefaultConfigRequest(),
+		Ocid:             ocid.DefaultConfigRequest(),
+		Opensearch:       opensearch.DefaultConfigRequest(),
 		PgGateway:        pggateway.DefaultConfigRequest(),
 		PgSidecar:        pgsidecar.DefaultConfigRequest(),
 		Postgresql:       postgresql.DefaultConfigRequest(),
 		Prometheus:       prometheus.DefaultConfigRequest(),
+		ReportManager:    reportmanager.DefaultConfigRequest(),
 		SampleData:       sampledata.DefaultConfigRequest(),
 		Secrets:          secrets.DefaultConfigRequest(),
 		Session:          session.DefaultConfigRequest(),
 		Teams:            teams.DefaultConfigRequest(),
 		UI:               ui.DefaultConfigRequest(),
 		UserSettings:     usersettings.DefaultConfigRequest(),
-		Workflow:         workflowserver.DefaultConfigRequest(),
-		WorkflowNginx:    workflownginx.DefaultConfigRequest(),
 	}
 }
 
@@ -162,7 +165,7 @@ and enforces other invariants on configuration option values.
 If the configuration is valid, the returned error is nil.
 */
 func (c *AutomateConfig) Validate() error {
-	err := shared.Validate(c.Global.Validate(), c.AuthN.Validate(), c.AuthZ.Validate(), c.Compliance.Validate(), c.ConfigMgmt.Validate(), c.Deployment.Validate(), c.Dex.Validate(), c.Elasticsearch.Validate(), c.Esgateway.Validate(), c.EsSidecar.Validate(), c.Gateway.Validate(), c.Ingest.Validate(), c.LoadBalancer.Validate(), c.LocalUser.Validate(), c.LicenseControl.Validate(), c.Notifications.Validate(), c.Postgresql.Validate(), c.Session.Validate(), c.Teams.Validate(), c.UI.Validate(), c.Secrets.Validate(), c.BackupGateway.Validate(), c.PgSidecar.Validate(), c.PgGateway.Validate(), c.Applications.Validate(), c.Bookshelf.Validate(), c.Bifrost.Validate(), c.Erchef.Validate(), c.CsNginx.Validate(), c.Workflow.Validate(), c.WorkflowNginx.Validate(), c.EventService.Validate(), c.Nodemanager.Validate(), c.EventGateway.Validate(), c.Prometheus.Validate(), c.DataFeedService.Validate(), c.EventFeedService.Validate(), c.Cereal.Validate(), c.BuilderApi.Validate(), c.BuilderApiProxy.Validate(), c.Minio.Validate(), c.BuilderMemcached.Validate(), c.InfraProxy.Validate(), c.Cds.Validate(), c.SampleData.Validate(), c.UserSettings.Validate())
+	err := shared.Validate(c.Global.Validate(), c.AuthN.Validate(), c.AuthZ.Validate(), c.Compliance.Validate(), c.ConfigMgmt.Validate(), c.Deployment.Validate(), c.Dex.Validate(), c.Elasticsearch.Validate(), c.Esgateway.Validate(), c.EsSidecar.Validate(), c.Gateway.Validate(), c.Ingest.Validate(), c.LoadBalancer.Validate(), c.LocalUser.Validate(), c.LicenseControl.Validate(), c.Notifications.Validate(), c.Postgresql.Validate(), c.Session.Validate(), c.Teams.Validate(), c.UI.Validate(), c.Secrets.Validate(), c.BackupGateway.Validate(), c.PgSidecar.Validate(), c.PgGateway.Validate(), c.Applications.Validate(), c.Bookshelf.Validate(), c.Bifrost.Validate(), c.Erchef.Validate(), c.CsNginx.Validate(), c.EventService.Validate(), c.Nodemanager.Validate(), c.EventGateway.Validate(), c.Prometheus.Validate(), c.DataFeedService.Validate(), c.EventFeedService.Validate(), c.Cereal.Validate(), c.BuilderApi.Validate(), c.BuilderApiProxy.Validate(), c.Minio.Validate(), c.BuilderMemcached.Validate(), c.InfraProxy.Validate(), c.Cds.Validate(), c.SampleData.Validate(), c.UserSettings.Validate(), c.Opensearch.Validate(), c.ReportManager.Validate(), c.Ocid.Validate())
 	if err == nil {
 		return nil
 	}
@@ -205,8 +208,6 @@ func (c *AutomateConfig) SetGlobalConfig() {
 	c.Bifrost.SetGlobalConfig(c.Global)
 	c.Erchef.SetGlobalConfig(c.Global)
 	c.CsNginx.SetGlobalConfig(c.Global)
-	c.Workflow.SetGlobalConfig(c.Global)
-	c.WorkflowNginx.SetGlobalConfig(c.Global)
 	c.EventService.SetGlobalConfig(c.Global)
 	c.Nodemanager.SetGlobalConfig(c.Global)
 	c.EventGateway.SetGlobalConfig(c.Global)
@@ -222,11 +223,16 @@ func (c *AutomateConfig) SetGlobalConfig() {
 	c.Cds.SetGlobalConfig(c.Global)
 	c.SampleData.SetGlobalConfig(c.Global)
 	c.UserSettings.SetGlobalConfig(c.Global)
+	c.Opensearch.SetGlobalConfig(c.Global)
+	c.ReportManager.SetGlobalConfig(c.Global)
+	c.Ocid.SetGlobalConfig(c.Global)
 }
 
 // PlatformServiceConfigForService gets the config for the service by name
 func (c *AutomateConfig) PlatformServiceConfigForService(serviceName string) (shared.PlatformServiceConfigurable, bool) {
 	switch serviceName {
+	case "global":
+		return c.Global, true
 	case "authn-service":
 		return c.AuthN, true
 	case "authz-service":
@@ -283,10 +289,6 @@ func (c *AutomateConfig) PlatformServiceConfigForService(serviceName string) (sh
 		return c.Erchef, true
 	case "automate-cs-nginx":
 		return c.CsNginx, true
-	case "automate-workflow-server":
-		return c.Workflow, true
-	case "automate-workflow-nginx":
-		return c.WorkflowNginx, true
 	case "event-service":
 		return c.EventService, true
 	case "nodemanager-service":
@@ -317,6 +319,12 @@ func (c *AutomateConfig) PlatformServiceConfigForService(serviceName string) (sh
 		return c.SampleData, true
 	case "user-settings-service":
 		return c.UserSettings, true
+	case "automate-opensearch":
+		return c.Opensearch, true
+	case "report-manager-service":
+		return c.ReportManager, true
+	case "automate-cs-ocid":
+		return c.Ocid, true
 	default:
 		return nil, false
 	}

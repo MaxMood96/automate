@@ -10,16 +10,17 @@ import {
 import { Subject } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
-import { NgrxStateAtom } from 'app/ngrx.reducers';
+import { NgrxStateAtom } from '../../../ngrx.reducers';
 import {
   updateStatus
-} from 'app/entities/infra-nodes/infra-nodes.selectors';
-import { EntityStatus, pending } from 'app/entities/entities';
-import { InfraNode } from 'app/entities/infra-nodes/infra-nodes.model';
+} from '../../../entities/infra-nodes/infra-nodes.selectors';
+import { EntityStatus, pending } from '../../../entities/entities';
+import { InfraNode } from '../../../entities/infra-nodes/infra-nodes.model';
 import { ListItem } from '../select-box/src/lib/list-item.domain';
-import { UpdateNode } from 'app/entities/infra-nodes/infra-nodes.actions';
-import { Utilities } from 'app/helpers/utilities/utilities';
+import { UpdateNode } from '../../../entities/infra-nodes/infra-nodes.actions';
+import { Utilities } from '../../../helpers/utilities/utilities';
 import { AvailableType } from '../infra-roles/infra-roles.component';
+import { TelemetryService } from '../../../services/telemetry/telemetry.service';
 
 @Component({
   selector: 'app-edit-infra-node-modal',
@@ -57,7 +58,8 @@ export class EditInfraNodeModalComponent implements OnInit, OnDestroy, OnChanges
   private isDestroyed = new Subject<boolean>();
 
   constructor(
-    private store: Store<NgrxStateAtom>
+    private store: Store<NgrxStateAtom>,
+    private telemetryService: TelemetryService
   ) {
 
   }
@@ -162,6 +164,7 @@ export class EditInfraNodeModalComponent implements OnInit, OnDestroy, OnChanges
     }
 
     this.updatingData(node);
+    this.telemetryService.track('InfraServer_Nodes_EditRunList');
   }
 
   private resetEditModal(): void {

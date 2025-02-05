@@ -25,21 +25,21 @@ export class NodeRollupComponent implements OnInit, OnChanges {
   // 'RollupState | RollupState' syntax is a workaround for an issue
   // with webpack type exports/imports on Inputs
   @Input() name: RollupState | RollupState;
-  @Input() active: false;
-  @Input() count: string;
+  @Input() active: boolean;
+  @Input() count: string | number;
   @Output() activated: EventEmitter<any> = new EventEmitter();
   @HostBinding('attr.role') role = 'button';
   @HostBinding('attr.tabindex') tabindex = '0';
 
-  @HostListener('click', ['$event']) onClick() {
+  @HostListener('click') onClick() {
     this.activated.emit(null);
   }
 
-  @HostListener('keyup.enter', ['$event']) onKeyEnter() {
+  @HostListener('keyup.enter') onKeyEnter() {
     this.activated.emit(null);
   }
 
-  @HostListener('keyup.space', ['$event']) onKeySpace() {
+  @HostListener('keyup.space') onKeySpace() {
     this.activated.emit(null);
   }
 

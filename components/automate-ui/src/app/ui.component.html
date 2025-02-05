@@ -33,6 +33,7 @@
       <div id="notifications-wrapper" class="sticky-notifications">
         <app-chef-notifications></app-chef-notifications>
       </div>
+      <app-manual-upgrade-banner *ngIf="upgradeBanner" (close)="closeBanner()"></app-manual-upgrade-banner>
       <chef-loading-spinner [hidden]="!(layoutFacade.showPageLoading$ | async)" size='50' fixed></chef-loading-spinner>
       <router-outlet></router-outlet>
     </div>
@@ -40,6 +41,7 @@
     <div [hidden]="!layoutFacade.layout.sidebar.display">
       <chef-sidebar id="app-sidebar" [hidden]="!layoutFacade.layout.sidebar.navigation"></chef-sidebar>
     </div>
+    <chef-scroll-top></chef-scroll-top>
   </div>
   
   <!-- User Notifications -->

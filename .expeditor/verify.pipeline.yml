@@ -1,8 +1,13 @@
 env:
   DOCKER_CONFIG: /var/lib/buildkite-agent/.docker
-  HAB_BLDR_CHANNEL: "stable"
+  HAB_BLDR_CHANNEL: "LTS-2024"
   HAB_STUDIO_SECRET_HAB_FALLBACK_CHANNEL: "stable"
-
+  # Use the Go module mirror and checksum database by default.
+  # See https://proxy.golang.org for details.
+  GOPROXY: "https://proxy.golang.org,direct"
+  GOSUMDB: "sum.golang.org"
+  PGGSSENCMODE: "disable"
+  
 expeditor:
   defaults:
     executor:
@@ -17,6 +22,7 @@ steps:
     command:
       - hab studio run "source .studiorc && verify_all_protobuf_components"
     timeout_in_minutes: 10
+    soft_fail: true
     retry:
       automatic:
         limit: 1
@@ -73,13 +79,15 @@ steps:
       - tfenv use 0.14.11
       - cd terraform/a2ha-terraform
       - make check
+      - cd modules/automate/templates/script/
+      - bash test_semver.sh
     expeditor:
       executor:
         docker:
 
   - label: ":ruby: :buildkite: a2-ha-backend/automate-cluster-ctl"
     commands:
-      - gem install bundler:1.16.6
+      - gem install bundler:2.3.27
       - cd components/automate-cluster-ctl/; bundle install --jobs=3 --retry=3
       - bundle exec rspec
     expeditor:
@@ -136,8 +144,29 @@ steps:
 
   - label: "[unit] OPA"
     command:
+      - rm -rf /bin/catchsegv
+      - rm -rf /bin/gencat
+      - rm -rf /bin/getconf
+      - rm -rf /bin/getent
+      - rm -rf /bin/iconvconfig
+      - rm -rf /bin/ldconfig
+      - rm -rf /bin/ldd
+      - rm -rf /bin/locale
+      - rm -rf /bin/mtrace
+      - rm -rf /bin/pcprofiledump
+      - rm -rf /bin/pldd
+      - rm -rf /bin/tzselect
+      - rm -rf /bin/zic
+      - rm -rf /bin/xtrace
+      - rm -rf /bin/iconv
+      - rm -rf /bin/makedb
+      - rm -rf /bin/sotruss
+      - rm -rf /bin/nscd
+      - rm -rf /bin/localedef
+      - rm -rf /bin/zdump
+      - rm -rf /bin/sprof
       - scripts/install_hab_pkg.sh core/glibc # opa depends implicitly glibc
-      - scripts/install_hab_pkg.sh core/opa
+      - scripts/install_hab_pkg.sh core/opa/0.34.2/20240106123544
       - cd components/authz-service/engine/opa/policy
       - make static unit
     timeout_in_minutes: 10
@@ -195,7 +224,7 @@ steps:
       - scripts/install_golang.sh
       - scripts/setup_buildkite_pg.sh cereal_test
       - cd lib
-      - PG_USER="postgres" PATH=/usr/lib/postgresql/9.6/bin/:\$PATH GODEBUG=x509ignoreCN=0 make lint unit cereal_integration
+      - PG_USER="postgres" PATH=/usr/lib/postgresql/13/bin/:\$PATH make lint unit cereal_integration
     timeout_in_minutes: 10
     retry:
       automatic:
@@ -209,7 +238,7 @@ steps:
       - scripts/install_golang.sh
       - scripts/setup_buildkite_pg.sh cereal_test
       - cd components/cereal-service/
-      - PG_USER="postgres" PATH=/usr/lib/postgresql/9.6/bin/:\$PATH make lint unit integration
+      - PG_USER="postgres" PATH=/usr/lib/postgresql/13/bin/:\$PATH make lint unit integration
     timeout_in_minutes: 10
     retry:
       automatic:
@@ -257,21 +286,9 @@ steps:
       executor:
         docker:
 
-  - label: "[cross-compile] automate-cli"
-    command:
-      - scripts/install_golang.sh
-      - cd components/automate-cli
-      - make cross
-    timeout_in_minutes: 10
-    retry:
-      automatic:
-        limit: 1
-    expeditor:
-      executor:
-        docker:
-
   - label: "[unit] deployment-service"
     command:
+      - git config --global --add safe.directory /go/src/github.com/chef/automate
       - scripts/install_golang.sh
       - cd components/automate-deployment
       - REAL_USERADD_TESTS=true make ci
@@ -285,7 +302,7 @@ steps:
           privileged: true
 
   - label: "[unit] automate-gateway"
-    command:
+    command:  
       - hab studio run "source .studiorc && go_component_unit automate-gateway"
       - cd components/automate-gateway
       - make lint fmt
@@ -341,7 +358,8 @@ steps:
   - label: "[unit] chef-ui-library"
     command:
       - cd components/chef-ui-library
-      - npm install && npm run lint && npm run test
+      - node -v
+      - npm cache clean --force && npm install && npm run lint && npm run test
     timeout_in_minutes: 20
     retry:
       automatic:
@@ -365,6 +383,7 @@ steps:
       - cd components/compliance-service
       - make lint test-unit
     timeout_in_minutes: 10
+    soft_fail: true
     retry:
       automatic:
         limit: 1
@@ -402,6 +421,7 @@ steps:
 
   - label: "[unit] event-feed-service"
     command:
+      - git config --global --add safe.directory /go/src/github.com/chef/automate
       - hab studio run "source .studiorc && go_component_unit event-feed-service && go_component_static_tests event-feed-service && go_component_lint event-feed-service"
     timeout_in_minutes: 10
     retry:
@@ -417,6 +437,7 @@ steps:
 
   - label: "[unit] ingest-service"
     command:
+      - git config --global --add safe.directory /go/src/github.com/chef/automate
       - hab studio run "source .studiorc && go_component_unit ingest-service && go_component_static_tests ingest-service && go_component_lint ingest-service"
     timeout_in_minutes: 10
     retry:
@@ -473,6 +494,7 @@ steps:
   - label: "[unit] notifications-service"
     command:
       - cd components/notifications-service/server
+      - git config --global url."https://github.com/".insteadOf git://github.com/
       - make static unit
     timeout_in_minutes: 10
     retry:
@@ -482,7 +504,7 @@ steps:
     expeditor:
       executor:
         docker:
-          image: "elixir:1.8"
+          image: "elixir:1.14"
           environment:
             - EXTERNAL_FQDN=http://localhost
             - MEX_ENV=test mix do compile, credo

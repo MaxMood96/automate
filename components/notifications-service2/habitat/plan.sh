@@ -1,5 +1,6 @@
 #stable channel
 
+
 # NOTE/TODO: remove this when we cut over the packages
 chef_automate_dev_only_pkg=true
 
@@ -58,4 +59,6 @@ do_install() {
 do_strip() {
   return 0
 }
+
+
 

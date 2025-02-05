@@ -29,9 +29,9 @@ var ProductMetadataJSON = `
       "metadata": null
     },
     {
-      "name": "chef/automate-elasticsearch",
+      "name": "chef/automate-opensearch",
       "metadata": {
-        "name": "chef/automate-elasticsearch",
+        "name": "chef/automate-opensearch",
         "data_service": true,
         "binlinks": null,
         "uses_platform_scaffolding": false,
@@ -269,6 +269,16 @@ var ProductMetadataJSON = `
       "metadata": null
     },
     {
+      "name": "chef/report-manager-service",
+      "metadata": {
+        "name": "chef/report-manager-service",
+        "data_service": false,
+        "binlinks": null,
+        "uses_platform_scaffolding": true,
+        "bootstrap": null
+      }
+    },
+    {
       "name": "chef/user-settings-service",
       "metadata": {
         "name": "chef/user-settings-service",
@@ -380,6 +390,16 @@ var ProductMetadataJSON = `
       }
     },
     {
+      "name": "chef/automate-cs-ocid",
+      "metadata": {
+        "name": "chef/automate-cs-ocid",
+        "data_service": false,
+        "binlinks": null,
+        "uses_platform_scaffolding": true,
+        "bootstrap": null
+      }
+    },
+    {
       "name": "chef/automate-cs-nginx",
       "metadata": {
         "name": "chef/automate-cs-nginx",
@@ -391,22 +411,6 @@ var ProductMetadataJSON = `
         "uses_platform_scaffolding": false,
         "bootstrap": null
       }
-    },
-    {
-      "name": "chef/automate-workflow-server",
-      "metadata": {
-        "name": "chef/automate-workflow-server",
-        "data_service": false,
-        "binlinks": [
-          "workflow-ctl"
-        ],
-        "uses_platform_scaffolding": false,
-        "bootstrap": null
-      }
-    },
-    {
-      "name": "chef/automate-workflow-nginx",
-      "metadata": null
     },
     {
       "name": "chef/automate-load-balancer",
@@ -449,31 +453,11 @@ var ProductMetadataJSON = `
       "metadata": null
     },
     {
-      "name": "chef/automate-ha-elasticsearch",
-      "metadata": null
-    },
-    {
       "name": "chef/automate-ha-elasticsidecar",
       "metadata": null
     },
     {
-      "name": "chef/automate-ha-kibana",
-      "metadata": null
-    },
-    {
-      "name": "chef/automate-ha-metricbeat",
-      "metadata": null
-    },
-    {
-      "name": "chef/automate-ha-journalbeat",
-      "metadata": null
-    },
-    {
       "name": "chef/automate-ha-ctl",
-      "metadata": null
-    },
-    {
-      "name": "chef/automate-ha-curator",
       "metadata": null
     },
     {
@@ -497,13 +481,29 @@ var ProductMetadataJSON = `
       "metadata": null
     },
     {
+      "name": "chef/automate-ha-opensearch",
+      "metadata": {
+        "name": "chef/automate-ha-opensearch",
+        "data_service": true,
+        "binlinks": null,
+        "uses_platform_scaffolding": false,
+        "bootstrap": null
+      }
+    },
+    {
+      "name": "chef/automate-elasticsearch",
+      "metadata": null
+    },
+    {
+      "name": "chef/automate-knife-ec-backup",
+      "metadata": null
+    },
+    {
       "name": "core/rsync",
       "metadata": null
     }
   ],
-  "deleted_packages": [
-    "chef/data-lifecycle-service/0.0.1/20191101111721"
-  ],
+  "deleted_packages": null,
   "collections": [
     {
       "name": "core",
@@ -511,6 +511,7 @@ var ProductMetadataJSON = `
       "type": "base",
       "services": [
         "chef/backup-gateway",
+        "chef/cereal-service",
         "chef/license-control-service",
         "chef/automate-load-balancer"
       ],
@@ -535,11 +536,11 @@ var ProductMetadataJSON = `
       "hidden": false
     },
     {
-      "name": "elasticsearch",
+      "name": "opensearch",
       "aliases": null,
       "type": "base",
       "services": [
-        "chef/automate-elasticsearch",
+        "chef/automate-opensearch",
         "chef/automate-es-gateway",
         "chef/es-sidecar-service"
       ],
@@ -613,13 +614,14 @@ var ProductMetadataJSON = `
         "chef/infra-proxy-service",
         "chef/config-mgmt-service",
         "chef/data-feed-service",
+        "chef/report-manager-service",
         "chef/event-gateway"
       ],
       "packages": null,
       "dependencies": [
         "core",
         "postgresql",
-        "elasticsearch",
+        "opensearch",
         "cereal",
         "auth",
         "ui"
@@ -632,6 +634,8 @@ var ProductMetadataJSON = `
       "type": "product",
       "services": [
         "chef/automate-cds",
+        "chef/automate-opensearch",
+        "chef/report-manager-service",
         "chef/user-settings-service"
       ],
       "packages": null,
@@ -651,27 +655,14 @@ var ProductMetadataJSON = `
         "chef/automate-cs-bookshelf",
         "chef/automate-cs-oc-bifrost",
         "chef/automate-cs-oc-erchef",
-        "chef/automate-cs-nginx"
+        "chef/automate-cs-nginx",
+        "chef/automate-cs-ocid"
       ],
       "packages": null,
       "dependencies": [
         "core",
         "postgresql",
-        "elasticsearch"
-      ],
-      "hidden": false
-    },
-    {
-      "name": "workflow",
-      "aliases": null,
-      "type": "product",
-      "services": [
-        "chef/automate-workflow-server",
-        "chef/automate-workflow-nginx"
-      ],
-      "packages": null,
-      "dependencies": [
-        "automate"
+        "opensearch"
       ],
       "hidden": false
     },

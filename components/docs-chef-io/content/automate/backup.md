@@ -26,7 +26,7 @@ This amount of space needed for a backup varies depending on your Chef Automate 
 
 * Complete copies of each Chef Automate service PostgreSQL database
 * Complete copies of your configuration files
-* Elasticsearch snapshots of your Chef Automate configuration and data, such as converge, scan, and report data. You will need enough disk space for the each Elasticsearch snapshot and the delta--or the list of changes--for each successive snapshot
+* OpenSearch snapshots of your Chef Automate configuration and data, such as converge, scan, and report data. You will need enough disk space for the each OpenSearch snapshot and the delta--or the list of changes--for each successive snapshot
 * Chef Habitat Builder artifacts
 
 ## Backup to a Filesystem
@@ -42,6 +42,8 @@ To configure your Chef Automate installation's backup directory to another locat
 1. Create a `backup_config.toml` file in your current directory with the following content. Replace `/path/to/backups` with the path to your backup directory:
 
     ```toml
+    [global.v1.backups]
+      location = "filesystem"
     [global.v1.backups.filesystem]
       path = "/path/to/backups"
     ```
@@ -62,7 +64,7 @@ The [configured backup directory]({{< ref "backup.md#backup-to-a-filesystem" >}}
 
 A timestamp-based directory has a date-based name, such as `20180518010336`, in the `automate-elasticsearch-data` directory.
 
-To provide externally-deployed Elasticsearch nodes access to Chef Automate's built-in backup storage services, you must [configure Elasticsearch backup]({{< relref "install.md#configuring-external-elasticsearch" >}}) settings separately from Chef Automate's primary backup settings.
+To provide externally-deployed OpenSearch nodes access to Chef Automate's built-in backup storage services, you must [configure OpenSearch backup]({{< relref "install.md#configuring-external-opensearch" >}}) settings separately from Chef Automate's primary backup settings.
 
 ## Backup to AWS S3
 
@@ -75,9 +77,9 @@ To store backups in an existing AWS S3 bucket, use the supported S3-related sett
   # name (required): The name of the bucket
   name = "<bucket name>"
 
-  # endpoint (required): The endpoint for the region the bucket lives in.
-  # See https://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region
-  endpoint = "https://<region endpoint>"
+  # endpoint (required): The endpoint for the region the bucket lives in for Automate Version 3.x.y
+  # endpoint (required): For Automate Version 4.x.y, use this https://s3.amazonaws.com
+  endpoint = "https://s3.amazonaws.com"
 
   # base_path (optional):  The path within the bucket where backups should be stored
   # If base_path is not set, backups will be stored at the root of the bucket.
@@ -89,7 +91,7 @@ To store backups in an existing AWS S3 bucket, use the supported S3-related sett
   # AWS environment variables or through the shared AWS config files.
   access_key = "<access_key>"
   secret_key = "<secret_key>"
-  session_key = "<session_key>"
+  session_token = "<session_token>"
 
 [global.v1.backups.s3.ssl]
   # root_cert (optional): The root certificate used for SSL validation.
@@ -118,7 +120,7 @@ The following IAM policy describes the basic permissions Chef Automate requires 
       ],
       "Effect": "Allow",
       "Resource": [
-        "arn:aws:s3:::automate-backups.example.com"
+        "arn:aws:s3:::<YOUR BUCKET NAME>"
       ]
     },
     {
@@ -131,7 +133,7 @@ The following IAM policy describes the basic permissions Chef Automate requires 
       ],
       "Effect": "Allow",
       "Resource": [
-        "arn:aws:s3:::automate-examples.example.com/*"
+        "arn:aws:s3:::<YOUR BUCKET NAME>/*"
       ]
     }
   ],
@@ -179,7 +181,7 @@ See how to [restore from GCS]({{< ref "restore/#restore-from-a-google-cloud-stor
 
 ### Create a Backup
 
-Make a backup with the [`backup create`]({{< ref "cli_chef_automate/#chef-automate-backup-create" >}}) command:
+Make a backup with the [`backup create`]({{< relref "cli/#chef-automate-backup-create" >}}) command:
 
 ```shell
 chef-automate backup create
@@ -193,7 +195,7 @@ Success: Created backup 20180518010336
 ```
 
 Restores from a filesystem backup may fail with incorrect directory permissions.
-Run the [`fix-repo-permissions` command]({{< ref "cli_chef_automate/#chef-automate-backup-fix-repo-permissions" >}}) to address such issues:
+Run the [`fix-repo-permissions` command]({{< relref "cli/#chef-automate-backup-fix-repo-permissions" >}}) to address such issues:
 
 ```shell
 sudo chef-automate backup fix-repo-permissions <path>
@@ -201,7 +203,7 @@ sudo chef-automate backup fix-repo-permissions <path>
 
 ### List Backups
 
-You can list existing backups with the [`backup list`]({{< ref "cli_chef_automate/#chef-automate-backup-list" >}}) command:
+You can list existing backups with the [`backup list`]({{< relref "cli/#chef-automate-backup-list" >}}) command:
 
 ```shell
 chef-automate backup list
@@ -248,7 +250,7 @@ where `bucket_name` is the name of the GCS bucket and `base_path` is an optional
 
 ## Delete Backups
 
-To delete backups from a running instance of Chef Automate, first find the relevant backup ID with `chef-automate backup list` and then delete the backup using [`chef automate backup delete ID`]({{< ref "cli_chef_automate/#chef-automate-backup-delete" >}}).
+To delete backups from a running instance of Chef Automate, first find the relevant backup ID with `chef-automate backup list` and then delete the backup using [`chef-automate backup delete ID`]({{< relref "cli/#chef-automate-backup-delete" >}}).
 
 ```shell
 chef-automate backup list
@@ -298,4 +300,4 @@ chef-automate debug set-log-level deployment-service debug
 
 ## References
 
-See the [`chef-automate backup` command reference]({{< ref "cli_chef_automate/#chef-automate-backup" >}}).
+See the [`chef-automate backup` command reference]({{< relref "cli/#chef-automate-backup" >}}).

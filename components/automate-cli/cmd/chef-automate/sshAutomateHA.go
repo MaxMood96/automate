@@ -1,24 +1,30 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	dc "github.com/chef/automate/api/config/deployment"
+
+	"github.com/chef/automate/components/automate-cli/pkg/docs"
+	"github.com/chef/automate/components/automate-cli/pkg/status"
 	"github.com/spf13/cobra"
 )
 
-const automateHATerraformOutputFile = "/hab/a2_deploy_workspace/terraform/terraform.tfstate"
-const automateHATerraformDestroyOutputFile = "/hab/a2_deploy_workspace/terraform/destroy/aws/terraform.tfstate"
+var automateHATerraformOutputFile = "/hab/a2_deploy_workspace/terraform/terraform.tfstate"
+var automateHATerraformDestroyOutputFile = "/hab/a2_deploy_workspace/terraform/destroy/aws/terraform.tfstate"
 
 var sshFlags = struct {
 	hostname string
 }{}
 
-type AutomteHAInfraDetails struct {
+type AutomateHAInfraDetails struct {
 	Version          int    `json:"version"`
 	TerraformVersion string `json:"terraform_version"`
 	Serial           int    `json:"serial"`
@@ -39,7 +45,7 @@ type AutomteHAInfraDetails struct {
 		AutomateFrontendUrls struct {
 			Value string `json:"value"`
 			Type  string `json:"type"`
-		} `json:"automate_frontend_urls"`
+		} `json:"automate_frontend_url"`
 		AutomatePrivateIps struct {
 			Value []string `json:"value"`
 			Type  []string `json:"type"`
@@ -68,18 +74,14 @@ type AutomteHAInfraDetails struct {
 			Value []string `json:"value"`
 			Type  []string `json:"type"`
 		} `json:"chef_server_ssh"`
-		ElasticsearchPrivateIps struct {
+		OpensearchPrivateIps struct {
 			Value []string `json:"value"`
 			Type  []string `json:"type"`
-		} `json:"elasticsearch_private_ips"`
-		ElasticsearchPublicIps struct {
+		} `json:"opensearch_private_ips"`
+		OpensearchSSH struct {
 			Value []string `json:"value"`
 			Type  []string `json:"type"`
-		} `json:"elasticsearch_public_ips"`
-		ElasticsearchSSH struct {
-			Value []string `json:"value"`
-			Type  []string `json:"type"`
-		} `json:"elasticsearch_ssh"`
+		} `json:"opensearch_ssh"`
 		OpsDashboardAddresses struct {
 			Value []string `json:"value"`
 			Type  []string `json:"type"`
@@ -100,6 +102,22 @@ type AutomteHAInfraDetails struct {
 			Value string `json:"value"`
 			Type  string `json:"type"`
 		} `json:"ssh_key_file"`
+		SSHUser struct {
+			Value string `json:"value"`
+			Type  string `json:"type"`
+		} `json:"ssh_user"`
+		SSHPort struct {
+			Value string `json:"value"`
+			Type  string `json:"type"`
+		} `json:"ssh_port"`
+		BackupConfigEFS struct {
+			Value string `json:"value"`
+			Type  string `json:"type"`
+		} `json:"backup_config_efs"`
+		BackupConfigS3 struct {
+			Value string `json:"value"`
+			Type  string `json:"type"`
+		} `json:"backup_config_s3"`
 	} `json:"outputs"`
 	Resources []struct {
 		Module    string `json:"module,omitempty"`
@@ -171,9 +189,10 @@ type AutomteHAInfraDetails struct {
 }
 
 func init() {
-	sshCommand.PersistentFlags().StringVar(
+	sshCommand.PersistentFlags().StringVarP(
 		&sshFlags.hostname,
 		"hostname",
+		"H",
 		"",
 		"Automate ha server name to ssh")
 	RootCmd.AddCommand(sshCommand)
@@ -185,21 +204,24 @@ var sshCommand = &cobra.Command{
 	Long:  "SSH into Automate HA servers",
 	Annotations: map[string]string{
 		NoCheckVersionAnnotation: NoCheckVersionAnnotation,
+		docs.Compatibility:       docs.CompatiblewithHA,
 	},
+	//PersistentPreRunE: checkLicenseStatusForExpiry,
 	RunE: runSshCommand,
 }
 
-func runSshCommand(cmd *cobra.Command, args []string) error {
+func runSshCommand(_ *cobra.Command, _ []string) error {
 	if !isA2HARBFileExist() {
 		return errors.New(AUTOMATE_HA_INVALID_BASTION)
 	}
+
 	infra, err := getAutomateHAInfraDetails()
 	if err != nil {
 		return err
 	}
 	sshStrings, err := getIPOfRequestedServers(sshFlags.hostname, infra)
 	if err != nil {
-		return nil
+		return err
 	}
 	idx, err := writer.Prompt(strings.Join(sshStrings, "\n") + "\n press  1  to " + strconv.Itoa(len(sshStrings)))
 	if err != nil {
@@ -217,46 +239,129 @@ func runSshCommand(cmd *cobra.Command, args []string) error {
 	return executeShellCommand(sshTokens[0], sshTokens[1:], "")
 }
 
-func getAutomateHAInfraDetails() (*AutomteHAInfraDetails, error) {
-	if checkIfFileExist(automateHATerraformOutputFile) {
-		automateHAInfraDetails := &AutomteHAInfraDetails{}
-		contents, err := ioutil.ReadFile(automateHATerraformOutputFile)
-		if err != nil {
-			return nil, err
+var getAutomateHAInfraDetailsFunc func() (*AutomateHAInfraDetails, error) = getAutomateHAInfraDetails
+
+func getAutomateHAInfraDetails() (*AutomateHAInfraDetails, error) {
+
+	infraConfigFile, err := FileContainingAutomateHAInfraDetails()
+	if err != nil {
+		return nil, err
+	}
+
+	return getAutomateHAInfraDetailHelper(infraConfigFile)
+}
+
+func getAutomateHAInfraDetailHelper(infraConfigFilePath string) (*AutomateHAInfraDetails, error) {
+	automateHAInfraDetails := &AutomateHAInfraDetails{}
+
+	file, err := os.Open(infraConfigFilePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	buf := new(bytes.Buffer)
+	_, err = buf.ReadFrom(file)
+	if err != nil {
+		return nil, err
+	}
+
+	content := buf.String()
+	if content == "" {
+		return nil, errors.New("the file is empty")
+	}
+
+	err = json.Unmarshal([]byte(content), automateHAInfraDetails)
+	if err != nil {
+		return nil, err
+	}
+
+	extractPortAndSshUserFromAutomateSSHCommand(automateHAInfraDetails)
+	return automateHAInfraDetails, nil
+}
+
+func FileContainingAutomateHAInfraDetails() (string, error) {
+	if _, err := os.Stat(automateHATerraformOutputFile); errors.Is(err, nil) {
+		return automateHATerraformOutputFile, nil
+	}
+
+	if _, err := os.Stat(automateHATerraformDestroyOutputFile); errors.Is(err, nil) {
+		return automateHATerraformDestroyOutputFile, nil
+	}
+
+	return "", errors.New("Automate Ha infra confile file not exist")
+}
+
+func extractPortAndSshUserFromAutomateSSHCommand(automateHAInfraDetails *AutomateHAInfraDetails) {
+	if automateHAInfraDetails == nil || len(automateHAInfraDetails.Outputs.AutomateSSH.Value) == 0 {
+		return
+	}
+
+	automateSSH := automateHAInfraDetails.Outputs.AutomateSSH.Value[0]
+	lastSpaceIndex := strings.LastIndex(automateSSH, " ")
+
+	if len(strings.TrimSpace(automateHAInfraDetails.Outputs.SSHPort.Value)) == 0 {
+		port := getSSHPortFromAutomateSSH(automateSSH, lastSpaceIndex)
+		automateHAInfraDetails.Outputs.SSHPort.Value = port
+	}
+
+	if len(strings.TrimSpace(automateHAInfraDetails.Outputs.SSHUser.Value)) == 0 {
+		sshUser := strings.TrimSpace(automateSSH[lastSpaceIndex:strings.LastIndex(automateSSH, "@")])
+		automateHAInfraDetails.Outputs.SSHUser.Value = sshUser
+	}
+
+}
+
+func getSSHPortFromAutomateSSH(automateSSH string, lastSpaceIndex int) string {
+	port := "22"
+	if strings.Contains(automateSSH, "-p") {
+		port = strings.TrimSpace(automateSSH[strings.LastIndex(automateSSH, "-p")+2 : lastSpaceIndex])
+	}
+	return port
+}
+
+func getIPOfRequestedServers(servername string, d *AutomateHAInfraDetails) ([]string, error) {
+	isManagedServices := isManagedServicesOn()
+	switch strings.ToLower(servername) {
+	case "automate", "a2":
+		return d.Outputs.AutomateSSH.Value, nil
+	case "chef_server", "cs":
+		return d.Outputs.ChefServerSSH.Value, nil
+	case "postgresql", "pg":
+		if isManagedServices {
+			return d.Outputs.PostgresqlSSH.Value, status.Annotate(errors.New("can not ssh managed service"), status.InvalidCommandArgsError)
 		}
-		err = json.Unmarshal(contents, automateHAInfraDetails)
-		if err != nil {
-			return nil, err
+		return d.Outputs.PostgresqlSSH.Value, nil
+	case "opensearch", "os":
+		if isManagedServices {
+			return d.Outputs.OpensearchSSH.Value, errors.New("can not ssh managed service")
 		}
-		return automateHAInfraDetails, nil
-	} else if checkIfFileExist(automateHATerraformDestroyOutputFile) {
-		automateHAInfraDetails := &AutomteHAInfraDetails{}
-		contents, err := ioutil.ReadFile(automateHATerraformDestroyOutputFile)
-		if err != nil {
-			return nil, err
-		}
-		err = json.Unmarshal(contents, automateHAInfraDetails)
-		if err != nil {
-			return nil, err
-		}
-		return automateHAInfraDetails, nil
-	} else {
-		writer.Error("Automate Ha infra confile file not exits.")
-		return nil, nil
+		return d.Outputs.OpensearchSSH.Value, nil
+	default:
+		return nil, errors.New("invalid hostname possible values should be any one of automate/a2, chef_server/cs, postgresql/pg or opensearch/os")
 	}
 }
 
-func getIPOfRequestedServers(servername string, d *AutomteHAInfraDetails) ([]string, error) {
-	switch servername {
-	case "automate":
-		return d.Outputs.AutomateSSH.Value, nil
-	case "chef_server":
-		return d.Outputs.ChefServerSSH.Value, nil
-	case "postgresql":
-		return d.Outputs.PostgresqlSSH.Value, nil
-	case "elasticsearch":
-		return d.Outputs.ElasticsearchSSH.Value, nil
-	default:
-		return nil, errors.New("invalid hostname possible values should be any one of automate, chef_server, postgresql or elasticsearch")
+func getPostgresOrOpenSearchExistingLogConfig(remoteType string) (*dc.AutomateConfig, error) {
+	var log dc.AutomateConfig
+	var fileName string
+	if remoteType == "postgresql" {
+		fileName = postgresLogConfig
+	} else {
+		fileName = opensearchConfig
 	}
+	if checkIfFileExist(fileName) {
+		contents, err := ioutil.ReadFile(fileName) // nosemgrep
+		if err != nil {
+			return nil, err
+		}
+		destString := string(contents)
+		log1, err := decodeLogConfig(destString)
+		log = *log1
+		if err != nil {
+			return &log, err
+		}
+	}
+	return &log, nil
+
 }

@@ -7,23 +7,25 @@ pkg_origin=chef
 vendor_origin="chef"
 pkg_maintainer="Chef Software Inc. <support@chef.io>"
 pkg_license=('Chef-MLSA')
+
 # WARNING: Version managed by .expeditor/update_chef_server.sh
-pkg_version="14.11.36"
+pkg_version="15.10.27"
 pkg_deps=(
-  core/coreutils/8.30/20200305231640
-  chef/mlsa/1.0.1/20200421170200
+  core/coreutils/8.32/20240105213308
+  chef/mlsa/1.0.1/20240125084021
   # TODO 2020-05-12: PIN PIN PIN
   #
   # All dependencies that are shared between this package and the
   # chef-server-* packages are pinned to the versions required by the
   # chef-server-* packages.
   #
-  core/curl/7.68.0/20200601114640
-  core/ruby27/2.7.0/20200404045319
+  core/curl/8.7.1/20240614090648
+  core/ruby31/3.1.6/20240912144513
   # WARNING: Version pin managed by .expeditor/update_chef_server.sh
-  "${vendor_origin}/chef-server-nginx/14.11.36/20211227114734"
-  "${vendor_origin}/chef-server-ctl/14.11.36/20211227114241"
+  "${vendor_origin}/chef-server-nginx/15.10.27/20250102025712"
+  "${vendor_origin}/chef-server-ctl/15.10.27/20250102025130"
 )
+
 
 pkg_bin_dirs=(bin)
 pkg_exposes=(port)
@@ -34,6 +36,7 @@ pkg_binds=(
   [automate-cs-bookshelf]="http-port"
   [automate-cs-oc-erchef]="http-port"
   [automate-es-gateway]="http-port"
+  [automate-cs-ocid]="http-port"
 )
 pkg_binds_optional=(
   [automate-gateway]="port"
@@ -64,7 +67,7 @@ scaffolding_go_binary_list=(
 chef_automate_hab_binding_mode="relaxed"
 
 do_prepare() {
-  GO_LDFLAGS="-X main.RubyPath=$(pkg_path_for core/ruby27)"
+  GO_LDFLAGS="-X main.RubyPath=$(pkg_path_for core/ruby31)"
   GO_LDFLAGS="$GO_LDFLAGS -X main.ChefServerCtlPath=$(pkg_path_for chef/chef-server-ctl)"
   GO_LDFLAGS="$GO_LDFLAGS -X main.KnifePath=${pkg_prefix}/bin/knife"
   GO_LDFLAGS="$GO_LDFLAGS -X main.Version=${pkg_version}/${pkg_release}"
@@ -80,5 +83,12 @@ do_install() {
   install "$PLAN_CONTEXT/bin/knife" "$wrapper_bin_path/knife"
 
   sed -i "s!__BUILDTIME_HAB_PKG_PATH_CHEF_SERVER_CTL__!$(pkg_path_for chef/chef-server-ctl)!g" "$wrapper_bin_path/knife"
-  sed -i "s!__BUILDTIME_HAB_PKG_PATH_RUBY__!$(pkg_path_for core/ruby27)!g" "$wrapper_bin_path/knife"
+  sed -i "s!__BUILDTIME_HAB_PKG_PATH_RUBY__!$(pkg_path_for core/ruby31)!g" "$wrapper_bin_path/knife"
+}
+
+
+
+do_before() {
+  do_default_before
+  git config --global --add safe.directory /src
 }

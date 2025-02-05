@@ -5,9 +5,8 @@ import (
 	"bytes"
 	"crypto/md5"
 	"encoding/hex"
-	"errors"
+
 	"fmt"
-	"html/template"
 	"io"
 	"io/ioutil"
 	"os"
@@ -16,6 +15,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"text/template"
 	"time"
 
 	dc "github.com/chef/automate/api/config/deployment"
@@ -25,8 +25,13 @@ import (
 	"github.com/chef/automate/components/automate-deployment/pkg/client"
 	"github.com/chef/automate/components/automate-deployment/pkg/manifest"
 	mc "github.com/chef/automate/components/automate-deployment/pkg/manifest/client"
+	"github.com/chef/automate/components/automate-deployment/pkg/manifest/parser"
+	"github.com/chef/automate/components/automate-deployment/pkg/toml"
+	"github.com/chef/automate/lib/io/fileutils"
 	"github.com/chef/automate/lib/version"
 	"github.com/hpcloud/tail"
+	"github.com/mitchellh/mapstructure"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -40,6 +45,7 @@ func executeAutomateClusterCtlCommand(command string, args []string, helpDocs st
 	c := exec.Command("automate-cluster-ctl", args...)
 	c.Dir = "/hab/a2_deploy_workspace"
 	c.Stdin = os.Stdin
+	c.Env = os.Environ()
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 	c.Stdout = io.MultiWriter(&out)
@@ -61,7 +67,7 @@ func executeAutomateClusterCtlCommand(command string, args []string, helpDocs st
 	return err
 }
 
-func executeAutomateClusterCtlCommandAsync(command string, args []string, helpDocs string) error {
+func executeAutomateClusterCtlCommandAsync(command string, args []string, helpDocs string, checkTerraformApply bool) error {
 	var logFilePath = filepath.Join(AUTOMATE_HA_RUN_LOG_DIR, "/a2ha-run.log")
 	if len(command) < 1 {
 		return errors.New("Invalid or empty command")
@@ -77,6 +83,7 @@ func executeAutomateClusterCtlCommandAsync(command string, args []string, helpDo
 	c := exec.Command("automate-cluster-ctl", args...)
 	c.Dir = AUTOMATE_HA_WORKSPACE_DIR
 	c.Stdin = os.Stdin
+	c.Env = os.Environ()
 	outfile, err := os.Create(logFilePath)
 	if err != nil {
 		panic(err)
@@ -90,10 +97,15 @@ func executeAutomateClusterCtlCommandAsync(command string, args []string, helpDo
 	}
 	writer.Printf("%s command execution inprogress with process id : %d, + \n storing log in %s \n", command, c.Process.Pid, logFilePath)
 	executed := make(chan struct{})
+	isSuccess := false
 	go tailFile(logFilePath, executed)
-	_, err = c.Process.Wait()
-	if err != nil {
-		return err
+	x, err := c.Process.Wait()
+	logString, err := fileutils.ReadFile(logFilePath)
+	if strings.Contains(string(logString), "Apply complete!") || !checkTerraformApply {
+		isSuccess = true
+	}
+	if x.ExitCode() != 0 || !isSuccess || err != nil {
+		err = status.Wrap(err, x.ExitCode(), "Command did not exit gracefully")
 	}
 	time.Sleep(5 * time.Second)
 	close(executed)
@@ -129,18 +141,7 @@ func tailFile(logFilePath string, executed chan struct{}) {
 
 	}
 }
-
-func bootstrapEnv(dm deployManager) error {
-	if !deployCmdFlags.acceptMLSA {
-		agree, err := writer.Confirm(promptMLSA)
-		if err != nil {
-			return status.Wrap(err, status.InvalidCommandArgsError, errMLSA)
-		}
-
-		if !agree {
-			return status.New(status.InvalidCommandArgsError, errMLSA)
-		}
-	}
+func doBootstrapEnv(airgapBundlePath string, saas bool, frontend bool, backend bool) error {
 	conf := new(dc.AutomateConfig)
 	if err := mergeFlagOverrides(conf); err != nil {
 		return status.Wrap(
@@ -150,12 +151,12 @@ func bootstrapEnv(dm deployManager) error {
 		)
 	}
 
-	offlineMode := deployCmdFlags.airgap != ""
+	offlineMode := airgapBundlePath != ""
 	manifestPath := ""
 	var airgapMetadata airgap.UnpackMetadata
 	if offlineMode {
 		writer.Title("Installing artifact")
-		metadata, err := airgap.Unpack(deployCmdFlags.airgap)
+		metadata, err := airgap.Unpack(airgapBundlePath)
 		if err != nil {
 			return status.Annotate(err, status.AirgapUnpackInstallBundleError)
 		}
@@ -179,17 +180,47 @@ func bootstrapEnv(dm deployManager) error {
 		conf.Deployment.GetV1().GetSvc().GetHartifactsPath().GetValue(),
 		conf.Deployment.GetV1().GetSvc().GetOverrideOrigin().GetValue())
 
-	err := client.DeployHA(writer, conf, manifestProvider, version.BuildTime, offlineMode)
+	err := client.DeployHA(writer, conf, manifestProvider, version.BuildTime, offlineMode, saas)
 	if err != nil && !status.IsStatusError(err) {
 		return status.Annotate(err, status.DeployError)
 	}
 	if offlineMode {
-		err := moveFrontendBackendAirgapToTransferDir(airgapMetadata, deployCmdFlags.airgap)
-		if err != nil {
-			return status.Annotate(err, status.DeployError)
+		if frontend {
+			err := moveAirgapFrontendBundlesOnlyToTransferDir(airgapMetadata, airgapBundlePath)
+			if err != nil {
+				return status.Annotate(err, status.DeployError)
+			}
+		} else if backend {
+			err := moveAirgapBackendBundlesOnlyToTransferDir(airgapMetadata, airgapBundlePath)
+			if err != nil {
+				return status.Annotate(err, status.DeployError)
+			}
+		} else {
+			err := moveFrontendBackendAirgapToTransferDir(airgapMetadata, airgapBundlePath)
+			if err != nil {
+				return status.Annotate(err, status.DeployError)
+			}
 		}
 	}
-	err = dm.generateConfig()
+	return nil
+}
+
+func bootstrapEnv(dm deployManager, airgapBundlePath string, saas bool, state string) error {
+	if !deployCmdFlags.acceptMLSA {
+		agree, err := writer.Confirm(promptMLSA)
+		if err != nil {
+			return status.Wrap(err, status.InvalidCommandArgsError, errMLSA)
+		}
+
+		if !agree {
+			return status.New(status.InvalidCommandArgsError, errMLSA)
+		}
+	}
+	err := doBootstrapEnv(airgapBundlePath, saas, upgradeRunCmdFlags.upgradefrontends, upgradeRunCmdFlags.upgradebackends)
+	if err != nil {
+		return err
+	}
+	err = dm.generateConfig(state)
 	if err != nil {
 		return status.Annotate(err, status.DeployError)
 	}
@@ -208,8 +239,11 @@ we also need to have following files in /hab/a2_deploy_workspace/terraform dir
 */
 func moveFrontendBackendAirgapToTransferDir(airgapMetadata airgap.UnpackMetadata, airgapBundle string) error {
 	if len(airgapBundle) > 0 {
-		bundleName := getFrontendBundleName(airgapBundle)
-		err := generateFrontendBundles(bundleName, airgapBundle)
+		bundleName, err := getFrontendBundleName(airgapBundle)
+		if err != nil {
+			return err
+		}
+		err = generateFrontendBundles(bundleName, airgapBundle)
 		if err != nil {
 			return err
 		}
@@ -227,18 +261,37 @@ func moveFrontendBackendAirgapToTransferDir(airgapMetadata airgap.UnpackMetadata
 }
 func moveAirgapFrontendBundlesOnlyToTransferDir(airgapMetadata airgap.UnpackMetadata, airgapBundle string) error {
 	if len(airgapBundle) > 0 {
-		bundleName := getFrontendBundleName(airgapBundle)
-		err := generateFrontendBundles(bundleName, airgapBundle)
+		bundleName, err := getFrontendBundleName(airgapBundle)
+		if err != nil {
+			return err
+		}
+		err = generateFrontendBundles(bundleName, airgapBundle)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
 }
+
+func GetVersion(airgapBundle string) (string, error) {
+	_, manifestBytes, err := airgap.GetMetadata(airgapBundle)
+	if err != nil {
+		return "", status.Annotate(err, status.AirgapUnpackInstallBundleError)
+	}
+	manifest, err := parser.ManifestFromBytes(manifestBytes)
+	if err != nil {
+		return "", status.Annotate(err, status.AirgapUnpackInstallBundleError)
+	}
+	return manifest.Build, nil
+}
+
 func moveAirgapBackendBundlesOnlyToTransferDir(airgapMetadata airgap.UnpackMetadata, airgapBundle string) error {
 	if len(airgapBundle) > 0 {
-		bundleName := getFrontendBundleName(airgapBundle)
-		err := generateBackendBundles(bundleName, airgapBundle)
+		bundleName, err := getFrontendBundleName(airgapBundle)
+		if err != nil {
+			return err
+		}
+		err = generateBackendBundles(bundleName, airgapBundle)
 		if err != nil {
 			return err
 		}
@@ -250,12 +303,12 @@ func moveAirgapBackendBundlesOnlyToTransferDir(airgapMetadata airgap.UnpackMetad
 	}
 	return nil
 }
-func getFrontendBundleName(airgapPath string) string {
-	var bundleName string = filepath.Base(airgapPath)
-	if strings.Contains(bundleName, "automate") {
-		bundleName = strings.ReplaceAll(bundleName, "automate", "frontend")
+func getFrontendBundleName(airgapPath string) (string, error) {
+	version, err := GetVersion(airgapPath)
+	if err != nil {
+		return "", err
 	}
-	return bundleName
+	return "frontend-" + version + ".aib", nil
 }
 func generateFrontendBundles(bundleName string, airgapPath string) error {
 	err := copyFileContents(airgapPath, (AIRGAP_HA_TRANS_DIR_PATH + bundleName))
@@ -327,23 +380,11 @@ func generateA2HAManifestTfvars(airgapMetadata airgap.UnpackMetadata) error {
 		if strings.Contains(h, AUTOMATE_HA_PKG_HA_PROXY) {
 			deployablePackages = append(deployablePackages, "proxy_pkg_ident = \""+getBldrSupportedPkgName(h)+"\"")
 		}
-		if strings.Contains(h, AUTOMATE_HA_PKG_JOURNALBEAT) {
-			deployablePackages = append(deployablePackages, "journalbeat_pkg_ident = \""+getBldrSupportedPkgName(h)+"\"")
-		}
-		if strings.Contains(h, AUTOMATE_HA_PKG_METRICBEAT) {
-			deployablePackages = append(deployablePackages, "metricbeat_pkg_ident = \""+getBldrSupportedPkgName(h)+"\"")
-		}
-		if strings.Contains(h, AUTOMATE_HA_PKG_KIBANA) {
-			deployablePackages = append(deployablePackages, "kibana_pkg_ident = \""+getBldrSupportedPkgName(h)+"\"")
-		}
-		if strings.Contains(h, AUTOMATE_HA_ES) {
-			deployablePackages = append(deployablePackages, "elasticsearch_pkg_ident = \""+getBldrSupportedPkgName(h)+"\"")
+		if strings.Contains(h, AUTOMATE_HA_OS) {
+			deployablePackages = append(deployablePackages, "opensearch_pkg_ident = \""+getBldrSupportedPkgName(h)+"\"")
 		}
 		if strings.Contains(h, AUTOMATE_HA_ES_CAR) {
 			deployablePackages = append(deployablePackages, "elasticsidecar_pkg_ident = \""+getBldrSupportedPkgName(h)+"\"")
-		}
-		if strings.Contains(h, AUTOMATE_HA_CURATOR) {
-			deployablePackages = append(deployablePackages, "curator_pkg_ident = \""+getBldrSupportedPkgName(h)+"\"")
 		}
 	}
 	return ioutil.WriteFile(AUTOMATE_HA_TERRAFORM_DIR+"a2ha_manifest.auto.tfvars", []byte(strings.Join(deployablePackages[:], "\n")), AUTOMATE_HA_FILE_PERMISSION_0755) // nosemgrep
@@ -455,10 +496,7 @@ func generateChecksumFile(sourceFileName string, checksumFileName string) error 
 }
 
 func isA2HARBFileExist() bool {
-	if checkIfFileExist(filepath.Join(initConfigHabA2HAPathFlag.a2haDirPath, "a2ha.rb")) {
-		return true
-	}
-	return false
+	return checkIfFileExist(filepath.Join(initConfigHabA2HAPathFlag.a2haDirPath, "a2ha.rb"))
 }
 
 func checkIfFileExist(path string) bool {
@@ -477,7 +515,7 @@ func executeSecretsInitCommand(secretsKeyFilePath string) error {
 }
 
 func executeShellCommand(command string, args []string, workingDir string) error {
-	writer.Printf("%s command execution started \n\n\n", command)
+	writer.Printf("\n%s command execution started \n\n\n", command)
 	c := exec.Command(command, args...)
 	c.Stdin = os.Stdin
 	if len(workingDir) > 0 {
@@ -515,4 +553,42 @@ func extractPackageName(filename string) string {
 		logrus.Debugf("failed to parse package name of hart %s", filename)
 	}
 	return match[0][1 : len(match[0])-(len(match[0])-(strings.LastIndexAny(match[0], "-")))]
+}
+
+func grepFromFile(searchEle string, filepath string) (string, error) {
+	command := "grep \"" + searchEle + "\" " + filepath + " | awk '{print $2}'"
+	out, err := exec.Command("/bin/sh", "-c", command).Output()
+	if err != nil {
+		writer.Fail(err.Error())
+		return "", nil
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func isManagedServicesOn() bool {
+	isManagedService, err := grepFromFile("setup_managed_services", "/hab/a2_deploy_workspace/a2ha.rb")
+	if err != nil {
+		return false
+	}
+	if isManagedService != "" && isManagedService == "true" {
+		return true
+	}
+	return false
+}
+
+func writeHAConfigFiles(templateName string, data interface{}, state string) error {
+	result := map[string]interface{}{}
+	err := mapstructure.Decode(data, &result)
+	if err != nil {
+		return err
+	}
+
+	finalTemplate := renderSettingsToA2HARBFile(templateName, result, state)
+	writeToA2HARBFile(finalTemplate, filepath.Join(initConfigHabA2HAPathFlag.a2haDirPath, "a2ha.rb"))
+	config, err := toml.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	return fileutils.WriteFile(AUTOMATE_HA_WORKSPACE_CONFIG_FILE, config, 0600)
 }

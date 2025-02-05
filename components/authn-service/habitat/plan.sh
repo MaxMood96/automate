@@ -2,6 +2,7 @@
 #shellcheck disable=SC2154
 #stable channel
 
+
 pkg_name=authn-service
 pkg_description="Authn API service"
 pkg_origin=chef
@@ -49,4 +50,9 @@ do_install() {
 
   build_line "Copying migration files"
   cp -r tokens/pg/sql "${pkg_prefix}/migrations"
+}
+
+do_before() {
+  do_default_before
+  git config --global --add safe.directory /src
 }

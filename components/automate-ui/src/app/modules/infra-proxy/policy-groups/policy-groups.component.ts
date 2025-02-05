@@ -9,15 +9,16 @@ import { Store } from '@ngrx/store';
 import { combineLatest, Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { isNil } from 'lodash/fp';
-import { LayoutFacadeService, Sidebar } from 'app/entities/layout/layout.facade';
-import { NgrxStateAtom } from 'app/ngrx.reducers';
-import { EntityStatus } from 'app/entities/entities';
-import { GetPolicyGroups } from 'app/entities/policy-files/policy-file.action';
-import { PolicyFile } from 'app/entities/policy-files/policy-file.model';
+import { LayoutFacadeService, Sidebar } from '../../../entities/layout/layout.facade';
+import { NgrxStateAtom } from '../../../ngrx.reducers';
+import { EntityStatus } from '../../../entities/entities';
+import { GetPolicyGroups } from '../../../entities/policy-files/policy-file.action';
+import { PolicyFile } from '../../../entities/policy-files/policy-file.model';
 import {
   getGroupsStatus,
   policyFile
-} from 'app/entities/policy-files/policy-group.selectors';
+} from '../../../entities/policy-files/policy-group.selectors';
+import { TelemetryService } from '../../../services/telemetry/telemetry.service';
 
 @Component({
   selector: 'app-policy-groups',
@@ -35,10 +36,10 @@ export class PolicyGroupsComponent implements OnInit, OnDestroy {
   public authFailure = false;
   public searching = false;
   public searchValue = '';
-  public groupList = [];
-  public pageOfItems: Array<any>;
+  public groupList: any = [];
+  public pageOfItems: [];
   public searchFlag: boolean;
-  public policyGroups: Array<any>;
+  public policyGroups: [];
   public currentPage = 1;
   public per_page = 100;
   public total: number;
@@ -46,7 +47,8 @@ export class PolicyGroupsComponent implements OnInit, OnDestroy {
 
   constructor(
     private store: Store<NgrxStateAtom>,
-    private layoutFacade: LayoutFacadeService
+    private layoutFacade: LayoutFacadeService,
+    private telemetryService: TelemetryService
   ) { }
 
   ngOnInit(): void {
@@ -109,7 +111,7 @@ export class PolicyGroupsComponent implements OnInit, OnDestroy {
           const listArr = {};
           listArr[key] = x[key];
           listArr['occurrence'] = 1;
-          this.policyGroups.push(listArr);
+          this.policyGroups.push(listArr as never);
         }
       });
     } else {
@@ -124,7 +126,7 @@ export class PolicyGroupsComponent implements OnInit, OnDestroy {
       this.groupList = this.policyGroups;
       this.searchFlag = false;
     } else {
-      const list = this.policyGroups.filter((key) => {
+      const list = this.policyGroups.filter((key: any) => {
         this.searchFlag = true;
         if (key) {
           return key.policy_group.includes(this.searchValue);
@@ -136,9 +138,10 @@ export class PolicyGroupsComponent implements OnInit, OnDestroy {
     if (this.groupList !== undefined) {
       this.searchArrayLength = this.groupList.length;
     }
+    this.telemetryService.track('InfraServer_PolicyGroups_Search');
   }
 
-  onChangePage($event: { page: number; pageOfItems: Array<any> }) {
+  onChangePage($event: { page: number; pageOfItems: []}) {
     this.pageOfItems = $event.pageOfItems;
     this.currentPage = $event.page;
   }

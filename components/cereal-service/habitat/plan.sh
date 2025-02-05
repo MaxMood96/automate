@@ -2,6 +2,7 @@
 #shellcheck disable=SC2154
 #stable channel
 
+
 pkg_name=cereal-service
 pkg_description="Automate Cereal Service"
 pkg_origin=chef
@@ -35,4 +36,10 @@ scaffolding_go_binary_list=(
 
 do_strip() {
   return 0
+}
+
+
+do_before() {
+  do_default_before
+  git config --global --add safe.directory /src
 }

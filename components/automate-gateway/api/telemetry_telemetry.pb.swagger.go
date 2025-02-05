@@ -25,7 +25,7 @@ func init() {
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
               "$ref": "#/definitions/grpc.gateway.runtime.Error"
             }
@@ -54,8 +54,7 @@ func init() {
           "type": "string"
         },
         "telemetry_enabled": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "telemetry_url": {
           "type": "string"
@@ -65,6 +64,9 @@ func init() {
           "format": "int64"
         },
         "deployment_id": {
+          "type": "string"
+        },
+        "deployment_type": {
           "type": "string"
         }
       }

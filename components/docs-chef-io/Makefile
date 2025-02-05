@@ -7,16 +7,17 @@ SWAGGER_FILES=$(shell find $(SWAGGER_DIR) -name '*.swagger.json')
 STATIC_SWAGGER_FILES=$(shell find data/automate/api-static/ -type f | sort -n)
 
 preview_netlify: chef_web_docs
+	rm -rf chef-web-docs/_vendor/github.com/chef/automate/docs-chef-io/*
 	cp -R content/* chef-web-docs/_vendor/github.com/chef/automate/components/docs-chef-io/content
 	cp -R data/* chef-web-docs/_vendor/github.com/chef/automate/components/docs-chef-io/data
 	cp -R layouts/* chef-web-docs/_vendor/github.com/chef/automate/components/docs-chef-io/layouts
 	cp -R static/* chef-web-docs/_vendor/github.com/chef/automate/components/docs-chef-io/static
 	cp -R config.toml chef-web-docs/_vendor/github.com/chef/automate/components/docs-chef-io/
-	pushd chef-web-docs && make assets; hugo --buildFuture --gc --minify && popd
+	pushd chef-web-docs && bash ./scripts/netlify-deploy-preview.sh && popd
 
 serve: generate_swagger chef_web_docs
-	echo "replace github.com/chef/automate/components/docs-chef-io => ../" >> chef-web-docs/go.mod
-	pushd chef-web-docs && make assets; hugo server --buildDrafts --buildFuture --noHTTPCache --ignoreVendorPaths "github.com/chef/automate/**" && popd
+	printf "go 1.22\n\nuse .\nuse ../" > chef-web-docs/hugo.work
+	pushd chef-web-docs && make bundle && HUGO_MODULE_WORKSPACE=hugo.work hugo server --buildDrafts --buildFuture --noHTTPCache --ignoreVendorPaths "github.com/chef/automate/components/docs-chef-io" && popd
 
 chef_web_docs:
 	if [ -d "chef-web-docs/" ]; then \
@@ -25,8 +26,10 @@ chef_web_docs:
 		git clone https://github.com/chef/chef-web-docs.git; \
 	fi
 
-clean_all: clean_swagger_files
-	pushd chef-web-docs && make clean_all && popd
+clean:
+	rm -rf chef-web-docs
+
+clean_all: clean_swagger_files clean
 
 clean_swagger_files:
 	rm -rf ./$(SWAGGER_DIR)/*
@@ -61,9 +64,9 @@ spellcheck:
 	@pushd ../.. > /dev/null; \
 		cspell \
 			"api/external/**/*.proto" \
-			"components/docs-chef-io/**/*.md" \
+			--exclude "components/docs-chef-io/chef-web-docs/**/*" "components/docs-chef-io/**/*.md" \
 			"components/docs-chef-io/data/automate/api-static/**/*" \
-			"components/docs-chef-io/layouts/**/*.html" \
+			"components/docs-chef-io/layouts/**/*.{html,md}" \
 			"components/automate-gateway/**/*.proto" \
 		; EXIT_CODE=$$?; \
 		popd > /dev/null; \

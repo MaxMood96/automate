@@ -33,7 +33,6 @@ const (
 // shutdown. For instance, perhaps there are clients (such as
 // monitoring tools) outside of Habitat or perhaps the service has a
 // lot of internal cleanup to do before shutdown.
-//
 type safeServiceShutdownRunner struct {
 	stopServiceFunc func(target.Target, habpkg.Installable) error
 	stopAllowed     func(target.Target, habpkg.VersionedPackage) bool
@@ -173,7 +172,7 @@ func mitigationRequiredForPkg(t target.Target, pkg habpkg.VersionedPackage) (boo
 	// comes up. By having it in this list, we can rebuild pg gateway when we update postgres and things
 	// will happen in a sane order.
 	pkgIsImportant := pkg.Name() == postgresqlServiceName ||
-		pkg.Name() == elasticsearchServiceName ||
+		pkg.Name() == opensearchServiceName ||
 		pkg.Name() == pgGatewayServiceName ||
 		pkg.Name() == esGatewayServiceName
 	if !pkgIsImportant {

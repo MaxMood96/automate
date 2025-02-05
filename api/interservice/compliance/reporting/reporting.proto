@@ -14,10 +14,30 @@ service ReportingService {
 	rpc ListProfiles(Query) returns (ProfileMins) {};
 	rpc Export(Query) returns (stream ExportData) {};
 	rpc ExportNode(Query) returns (stream ExportData) {};
+	rpc ExportReportManager(Query) returns (CustomReportResponse) {};
 	rpc ReadNode(Id) returns (Node) {};
 	rpc ListNodes(Query) returns (Nodes) {};
 	rpc ListControlItems(ControlItemRequest) returns (ControlItems) {};
+	rpc ReadNodeHeader(Query) returns (NodeHeaderInfo) {};
+	rpc ListControlInfo(Query) returns (ControlElements) {};
+	rpc GetReportContent(ReportContentRequest) returns (ReportContentResponse) {};
+	rpc GetReportListForReportManager(ListFilters) returns (stream ReportContentResponse) {};
+	rpc AssetCount(ListFilters) returns (AssetSummary) {};
+	rpc ListAsset(AssetListRequest) returns (AssetListResponse) {};
+	rpc SetAssetConfig(ComplianceConfigRequest) returns (ComplianceConfigResponse) {};
+ 	rpc GetAssetConfig(GetAssetConfigRequest) returns (ComplianceConfigResponse) {};
+	rpc ListControlItemsRange(ControlItemRequest) returns (ControlItems) {};
 }
+
+message ReportContentRequest {
+	string id =1;
+	repeated ListFilter filters = 2;
+}
+
+message ReportContentResponse {
+	bytes content = 1;
+}
+
 message ExportData {
 	bytes content = 1;
 }
@@ -41,6 +61,11 @@ message ListFilter {
 	repeated string values = 20;
 	string type = 21;
 }
+
+message ListFilters {
+	repeated ListFilter filters = 1;
+}
+
 message Total {
 	int32 total = 1;
 }
@@ -61,7 +86,8 @@ message ControlSummary {
 message ControlItemRequest {
 	string text = 1;
 	int32 size = 2;
-	repeated ListFilter filters = 3;
+	int32 page_number = 3;
+	repeated ListFilter filters = 4;
 }
 
 message WaiverData {
@@ -129,6 +155,19 @@ message Report {
 	string status_message = 21;
 }
 
+message NodeHeaderInfo {
+	string node_id = 1;
+	string node_name = 2;
+	google.protobuf.Timestamp end_time = 3;
+	string status = 4;
+	string environment = 5;
+	string version = 6;
+	Platform platform = 7;
+	repeated NodeHeaderProfileInfo profiles= 8;
+	repeated string roles = 9;
+	string status_message = 10;
+}
+
 message ReportIds {
 	repeated string ids = 1;
 	repeated ReportData report_data = 2;
@@ -161,6 +200,13 @@ message Profile {
 	string skip_message = 24;
 	string status_message = 25;
 }
+
+message NodeHeaderProfileInfo {
+	string name = 1;
+	string status = 2;
+	string status_message = 3;
+}
+
 message Ref {
 	string url = 1;
 	string ref = 2;
@@ -322,4 +368,87 @@ message ProfileMeta {
 	string id = 3;
 	string status = 4;
 	string full = 5;
+}
+message ControlElement {
+	string id = 1;
+	string title= 2;
+	string profile = 3;
+	float impact = 4;
+	int32 results = 5;
+	string status = 6;
+	string profile_id = 7;
+}
+message ControlElements {
+	repeated ControlElement control_elements = 1;
+}
+
+message CustomReportResponse {
+	string acknowledgement_id = 1;
+}
+
+message ReportListForReportManagerResponse {
+	repeated ReportResponse reports = 1;
+}
+
+message ReportResponse {
+	string report_id = 1;
+	repeated ProfileResponse profiles = 2;
+}
+
+message ProfileResponse {
+	string profile_id = 1;
+	repeated string controls = 2;
+}
+message AssetSummary {
+	int32 total_assets = 1;
+	Collected collected = 2;
+	Uncollected uncollected = 3;
+}
+message Collected {
+	int32 passed = 1;
+	int32 failed = 2;
+	int32 skipped = 3;
+	int32 waived = 4;
+}
+
+message Uncollected {
+	int32 unreachable = 1;
+	int32 unreported = 2;
+}
+
+message Assets {
+	string node_uuid =1;
+	string status = 2;
+	string first_run = 3;
+	string last_run =4;
+}
+
+message AssetListRequest {
+	repeated ListFilter filters = 1;
+	int32 size = 2;
+	int32 from = 3;
+	string sort = 4;
+	string assets_type = 5;
+}
+
+message AssetListResponse {
+	repeated Assets assets = 1;
+}
+
+// ComplianceConfigRequest to update no of days in the config
+message ComplianceConfigRequest{
+	//No of days for the config
+    int32 value = 1;
+}
+
+// ComplianceConfigResponse to get the policy name and no of days
+message ComplianceConfigResponse {
+	//Policy name to get from config
+    string policy_name = 1;
+	//No of days to get for config
+    int32 value = 2;
+}
+
+// GetAssetConfigRequest to perform GET request
+message GetAssetConfigRequest {
 }

@@ -433,6 +433,7 @@ describe('ReportingOverviewComponent', () => {
       }
     ];
 
+
     beforeEach(() => {
       spyOn(statsService, 'getNodeTrend').and.returnValue(observableOf(data));
     });

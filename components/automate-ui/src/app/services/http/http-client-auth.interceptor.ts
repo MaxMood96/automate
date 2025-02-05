@@ -10,9 +10,9 @@ import { Store } from '@ngrx/store';
 import { throwError as observableThrowError, Observable } from 'rxjs';
 import { catchError, mergeMap, take } from 'rxjs/operators';
 
-import { NgrxStateAtom } from 'app/ngrx.reducers';
-import { ChefSessionService } from 'app/services/chef-session/chef-session.service';
-import * as selectors from 'app/services/projects-filter/projects-filter.selectors';
+import { NgrxStateAtom } from '../../ngrx.reducers';
+import { ChefSessionService } from '../chef-session/chef-session.service';
+import * as selectors from '../projects-filter/projects-filter.selectors';
 import { ProjectsFilterOption } from '../projects-filter/projects-filter.reducer';
 
 export const InterceptorSkipHeader = 'Skip-Interceptor';
@@ -33,6 +33,9 @@ export class HttpClientAuthInterceptor implements HttpInterceptor {
   }
 
   intercept(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
+    if (request.headers.get('skip')) {
+      return next.handle(request);
+    }
     let headers = request.headers;
 
     // TODO(sr): Sadly, our UI code depends on the API ignoring unknown fields in the

@@ -1,6 +1,7 @@
 # shellcheck disable=SC2148
 # stable channel
 
+
 UPSTREAM_PKG_IDENT="core/haproxy"
 pkg_name="automate-ha-haproxy"
 pkg_description="Wrapper package for core/haproxy"
@@ -45,3 +46,5 @@ do_build() {
 do_install() {
   return 0
 }
+
+
